@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# Virtual environment
+.venv/
+venv/
+
+# Data, caches, experiment outputs (never commit)
+data/
+cache/
+outputs/
+runs/
+results/
+*.parquet
+*.edf
+*.fif
+*.npy
+*.npz
+
+# Model weights / checkpoints
+*.pt
+*.pth
+*.ckpt
+*.joblib
+*.safetensors
+
+# Submission archives
+*.zip
+
+# Experiment trackers
+wandb/
+lightning_logs/
+mlruns/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*:Zone.Identifier
