@@ -58,8 +58,14 @@ Track 03 (Sleep Onset) yarışması için model geliştirme deposudur.
   NeuralBench dokümanı onunla çelişirse Codabench geçerlidir.
 
 ## Takvim
-- Sealed final: 5 Kasım 00:01 – 21 Kasım 23:59 CET (Türkiye saatiyle 22 Kasım 01:59).
-- Gönderim limitleri ve skor seçimi: Codabench Terms / Phases sekmesi.
+- Track 03 sealed final: 7 Kasım 2026 02:01 – 22 Kasım 2026 01:59 Türkiye saati (GMT+3)
+  = 7 Kasım 00:01 – 21 Kasım 23:59 CET (Codabench Phases sekmesi). Diğer track'ler 5–21 Kasım.
+- Final sıralama bu aşamadan alınır (en iyi sealed skor); ilk 3 takım tekrarlanabilirlik
+  denetiminden geçer (eğitim yeniden çalıştırılır, skor ±2σ içinde kalmalı).
+- Gönderim limiti: günde 1 (Terms'e göre toplam en fazla 5). Failed gönderim hakkı yemez.
+- KURAL: Günde 1 gönderim olduğu için her gönderimden önce ZIP yerelde Docker image
+  (lionelyneuro/neural-compet:v3) ile test edilmeli.
+- Değişiklikler Codabench Phases sekmesinden ve Discord'dan takip edilecek.
 
 ## Kaynaklar
 - Track 3 rehberi: https://facebookresearch.github.io/neuroai/neuralbench/auto_examples/biosignal_challenge_2026/plot_track3_sleep_onset.html
