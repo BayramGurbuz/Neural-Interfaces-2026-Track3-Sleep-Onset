@@ -98,3 +98,15 @@ def weighted_median(values: np.ndarray, weights: np.ndarray) -> float:
     v, w = np.asarray(values)[order], np.asarray(weights)[order]
     cum = np.cumsum(w)
     return float(v[np.searchsorted(cum, 0.5 * cum[-1])])
+
+
+def fit_elapsed_table(train: pd.DataFrame, bin_s: float = 30.0) -> np.ndarray:
+    """Elapsed-time rule: per elapsed-time bin, the W-bMAE-optimal (weighted median) target.
+
+    Bin b covers elapsed time (b*bin_s, (b+1)*bin_s]; elapsed = time since the recording
+    started at the end of the current window. Later bins than seen in train reuse the last.
+    """
+    w = window_weights(train)
+    bins = np.floor((train.elapsed_s.to_numpy() - 1e-9) / bin_s).astype(int)
+    tgt = train.target.to_numpy()
+    return np.array([weighted_median(tgt[bins == b], w[bins == b]) for b in range(bins.max() + 1)])
