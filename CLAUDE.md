@@ -58,8 +58,9 @@ Track 03 (Sleep Onset) yarışması için model geliştirme deposudur.
   NeuralBench dokümanı onunla çelişirse Codabench geçerlidir.
 
 ## Takvim
-- Track 03 sealed final: 7 Kasım 2026 02:01 – 22 Kasım 2026 01:59 Türkiye saati (GMT+3)
-  = 7 Kasım 00:01 – 21 Kasım 23:59 CET (Codabench Phases sekmesi). Diğer track'ler 5–21 Kasım.
+- Track 03 sealed final: 10 Kasım 2026 02:01 – 22 Kasım 2026 01:59 Türkiye saati (GMT+3)
+  = 10 Kasım 00:01 – 21 Kasım 23:59 CET (Codabench Phases sekmesi; başlangıç 7 Kasım'dan
+  10 Kasım'a ertelendi). Diğer track'ler 5–21 Kasım.
 - Final sıralama bu aşamadan alınır (en iyi sealed skor); ilk 3 takım tekrarlanabilirlik
   denetiminden geçer (eğitim yeniden çalıştırılır, skor ±2σ içinde kalmalı).
 - Gönderim limiti: günde 1 (Terms'e göre toplam en fazla 5). Failed gönderim hakkı yemez.
