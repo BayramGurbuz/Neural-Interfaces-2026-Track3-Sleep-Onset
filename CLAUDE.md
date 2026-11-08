@@ -68,6 +68,26 @@ Track 03 (Sleep Onset) yarışması için model geliştirme deposudur.
   (lionelyneuro/neural-compet:v3) ile test edilmeli.
 - Değişiklikler Codabench Phases sekmesinden ve Discord'dan takip edilecek.
 
+## Değerlendirme kuralı ve strateji
+- KURAL: Model kararları ÇİFT CV ortalamasıyla verilir: (görülmemiş kişi CV + görülmüş kişi CV) / 2.
+  Görülmemiş kişi CV = train+val üzerinde kişi bazlı 5 katlı GroupKFold. Görülmüş kişi CV = birden
+  fazla gecesi olan kişilerin birer gecesi dışarıda, kalan geceleri eğitimde. Açık test setine
+  (40 kayıt) sadece son kontrol için bakılır; test'e bakarak seçim/ayar yapılmaz.
+- İlk sealed gönderim (10 Kasım): submissions/hgb_v2_s0.zip (c5 HGB + gömülü kalibrasyon, a=0).
+- Plan (sırayla, her adım çift CV ile raporlanır):
+  A. Çift CV protokolü; v1 ve c5 yeniden ölçülür.
+  B. Dağılım tahmini: kalan süre 10–14 aralığa bölünür, HistGradientBoostingClassifier; tahmin =
+     aralık olasılıkları × metriğin etkin pencere ağırlıklarıyla ağırlıklı medyan (aralık temsilcisi:
+     train'deki aralık içi medyan). c5 + kalibrasyon ile karşılaştırılır, bin bazında hatalar verilir.
+  C. Yeni öznitelik grupları, her biri ayrı ablasyonla: göz hareketi (AF7−AF8 0.2–0.6 Hz, kırpma
+     sayısı); bipolar derivasyonlar (AF8−TP10, AF7−TP9, TP9−TP10); uyku iğciği sayıları (TP9/TP10
+     12–15 Hz RMS patlamaları, son 30/60 s); K-kompleks adayları (0.5–2 Hz büyük tepe-tepe);
+     dinamikler (30 s/1/2/5 dk nedensel eğimler, 5 dk varyans ve lag-1 otokorelasyon, 10 dk EMA);
+     spektral şekil (beta/alfa tepe frekansı, kenar frekansı, aperiodik eğim, entropi); göreli
+     öznitelikler "şimdiye kadarki maksimum/minimuma göre".
+  D. Küçük nedensel GRU (öznitelik dizisi → aralık olasılıkları), HGB ile ensemble.
+  Final: seçilen model 540 kaydın tamamıyla (test dahil) yeniden eğitilir.
+
 ## Kaynaklar
 - Track 3 rehberi: https://facebookresearch.github.io/neuroai/neuralbench/auto_examples/biosignal_challenge_2026/plot_track3_sleep_onset.html
 - Gönderim rehberi: https://facebookresearch.github.io/neuroai/neuralbench/auto_examples/biosignal_challenge_2026/plot_submission_guide.html
