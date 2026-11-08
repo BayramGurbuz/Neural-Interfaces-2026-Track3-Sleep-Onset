@@ -35,3 +35,19 @@ def causal_smooth(d: pd.DataFrame, pred: np.ndarray, a: float, dt: float = 5.0) 
             s = a * max(s - dt, 0.0) + (1.0 - a) * pred[i]
         out[i] = s
     return out
+
+
+def fit_bin_edges(X: np.ndarray, n_bins: int = 255) -> list:
+    """Per-feature unweighted quantile edges (fit on training rows only).
+
+    HGB with sample_weight computes weighted bin thresholds, which costs ~3 min per fit on our
+    321 features; feeding integer bin codes (<= 255 distinct values) skips that and gives the
+    same scores (val 50.91 vs 50.89 for v1). The edges are constants, so inference stays causal.
+    """
+    qs = np.linspace(0, 1, n_bins + 1)[1:-1]
+    return [np.unique(np.quantile(X[:, j], qs)) for j in range(X.shape[1])]
+
+
+def apply_bin_edges(X: np.ndarray, edges: list) -> np.ndarray:
+    return np.stack([np.searchsorted(e, X[:, j], side="right") for j, e in enumerate(edges)],
+                    axis=1).astype(np.float32)

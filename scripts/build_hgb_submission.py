@@ -1,19 +1,24 @@
 """Assemble submissions/hgb_v1/: submission.py (with causal_features.py embedded verbatim) + model.
 
-Usage: python scripts/build_hgb_submission.py [model.joblib] [out_name]
-  default model: ~/neuralbench/save/hgb/hgb_all.joblib, out: submissions/hgb_v1 (+ .zip)
+Usage: python scripts/build_hgb_submission.py [--model M.joblib] [--name hgb_v1] [--smooth-a 0.3]
+  default model: ~/neuralbench/save/hgb/hgb_all.joblib, out: submissions/<name>/ (+ <name>.zip)
+  --smooth-a a: causal output smoothing s_t = a*max(s_{t-1}-dt,0) + (1-a)*p_t (0 = off)
 """
+import argparse
 import ast
 import shutil
-import sys
 import zipfile
 from pathlib import Path
 
 import joblib
 
 ROOT = Path(__file__).resolve().parents[1]
-src_model = Path(sys.argv[1]) if len(sys.argv) > 1 else Path.home() / "neuralbench/save/hgb/hgb_all.joblib"
-name = sys.argv[2] if len(sys.argv) > 2 else "hgb_v1"
+ap = argparse.ArgumentParser()
+ap.add_argument("--model", type=Path, default=Path.home() / "neuralbench/save/hgb/hgb_all.joblib")
+ap.add_argument("--name", default="hgb_v1")
+ap.add_argument("--smooth-a", type=float, default=0.0)
+args = ap.parse_args()
+src_model, name = args.model, args.name
 out = ROOT / "submissions" / name
 out.mkdir(parents=True, exist_ok=True)
 
@@ -44,6 +49,9 @@ WRAPPER = '''
 # ---- end of causal_features.py ----
 
 
+SMOOTH_A = {smooth_a!r}  # s_t = a*max(s_(t-1) - dt, 0) + (1-a)*p_t ; 0 = no smoothing
+
+
 class HGBStreamModel:
     def __init__(self, model, sfreq):
         self.model = model
@@ -55,6 +63,17 @@ class HGBStreamModel:
         """Called by the evaluator on a fresh copy at the start of every recording."""
         if self.stream is not None:
             self.stream.reset()
+        self.prev_out = None
+
+    def _smooth(self, pred, dt):
+        out = np.empty_like(pred)
+        for i, p in enumerate(pred):
+            if self.prev_out is None or SMOOTH_A == 0:
+                s = p
+            else:
+                s = SMOOTH_A * max(self.prev_out - dt, 0.0) + (1.0 - SMOOTH_A) * p
+            out[i] = self.prev_out = s
+        return out
 
     def predict(self, X):
         # X: (B, C, T) consecutive windows of the current recording, in time order.
@@ -65,6 +84,7 @@ class HGBStreamModel:
         f = window_features(x, self.sfreq).astype(np.float32).astype(np.float64)
         rows = np.stack([self.stream.update(fi) for fi in f]).astype(np.float32)
         pred = self.model.predict(rows)
+        pred = self._smooth(np.asarray(pred, dtype=np.float64), self.stream.step_s)
         pred = np.clip(np.nan_to_num(pred, nan=0.0), 0.0, 600.0)
         return torch.as_tensor(pred, dtype=torch.float32, device=X.device)
 
@@ -77,7 +97,7 @@ class Solver(CompetSolver):
         return HGBStreamModel(bundle["model"], meta["sfreq"])
 '''
 
-(out / "submission.py").write_text(HEADER + feat_body + "\n" + WRAPPER)
+(out / "submission.py").write_text(HEADER + feat_body + "\n" + WRAPPER.replace("{smooth_a!r}", repr(args.smooth_a)))
 bundle = joblib.load(src_model)
 joblib.dump({"model": bundle["model"], "feature_names": bundle["feature_names"]}, out / "model.joblib")
 zpath = ROOT / "submissions" / f"{name}.zip"

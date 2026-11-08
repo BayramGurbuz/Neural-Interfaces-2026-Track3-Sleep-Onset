@@ -78,6 +78,9 @@ class CausalFeatureStream:
 # ---- end of causal_features.py ----
 
 
+SMOOTH_A = 0.0  # s_t = a*max(s_(t-1) - dt, 0) + (1-a)*p_t ; 0 = no smoothing
+
+
 class HGBStreamModel:
     def __init__(self, model, sfreq):
         self.model = model
@@ -89,6 +92,17 @@ class HGBStreamModel:
         """Called by the evaluator on a fresh copy at the start of every recording."""
         if self.stream is not None:
             self.stream.reset()
+        self.prev_out = None
+
+    def _smooth(self, pred, dt):
+        out = np.empty_like(pred)
+        for i, p in enumerate(pred):
+            if self.prev_out is None or SMOOTH_A == 0:
+                s = p
+            else:
+                s = SMOOTH_A * max(self.prev_out - dt, 0.0) + (1.0 - SMOOTH_A) * p
+            out[i] = self.prev_out = s
+        return out
 
     def predict(self, X):
         # X: (B, C, T) consecutive windows of the current recording, in time order.
@@ -99,6 +113,7 @@ class HGBStreamModel:
         f = window_features(x, self.sfreq).astype(np.float32).astype(np.float64)
         rows = np.stack([self.stream.update(fi) for fi in f]).astype(np.float32)
         pred = self.model.predict(rows)
+        pred = self._smooth(np.asarray(pred, dtype=np.float64), self.stream.step_s)
         pred = np.clip(np.nan_to_num(pred, nan=0.0), 0.0, 600.0)
         return torch.as_tensor(pred, dtype=torch.float32, device=X.device)
 
