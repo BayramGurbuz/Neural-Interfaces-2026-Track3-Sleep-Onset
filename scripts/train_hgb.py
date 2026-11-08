@@ -59,12 +59,12 @@ def norm_weights(d):
     return w / w.mean()
 
 
-def fit_select(Xtr, dtr, cols, rng):
+def fit_select(Xtr, dtr, cols, rng, max_iter=MAX_ITER):
     """Choose n_iter on a subject-grouped inner hold-out of train, then refit on all train."""
     subjects = dtr.subject.unique()
     hold = set(rng.choice(subjects, size=int(0.15 * len(subjects)), replace=False))
     m_in = ~dtr.subject.isin(hold).to_numpy()
-    model = HistGradientBoostingRegressor(max_iter=MAX_ITER, **PARAMS)
+    model = HistGradientBoostingRegressor(max_iter=max_iter, **PARAMS)
     model.fit(Xtr[m_in][:, cols], dtr.target[m_in], sample_weight=norm_weights(dtr[m_in]))
     d_ho = dtr[~m_in]
     curve = []
