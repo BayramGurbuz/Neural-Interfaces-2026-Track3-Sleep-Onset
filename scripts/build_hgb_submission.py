@@ -50,11 +50,22 @@ WRAPPER = '''
 
 
 SMOOTH_A = {smooth_a!r}  # s_t = a*max(s_(t-1) - dt, 0) + (1-a)*p_t ; 0 = no smoothing
+# Monotone calibration raw pred -> corrected pred (np.interp, flat outside); None = off.
+# Learned on the out-of-fold CV predictions only (scripts/calibrate_oof.py).
+CALIB_X = {calib_x}
+CALIB_Y = {calib_y}
+
+
+def apply_bin_edges(X, edges):
+    """Integer bin codes per feature (the model was trained on these); edges are constants."""
+    return np.stack([np.searchsorted(e, X[:, j], side="right") for j, e in enumerate(edges)],
+                    axis=1).astype(np.float32)
 
 
 class HGBStreamModel:
-    def __init__(self, model, sfreq):
+    def __init__(self, model, sfreq, bin_edges=None):
         self.model = model
+        self.bin_edges = bin_edges
         self.sfreq = float(sfreq)
         self.stream = None
         self.reset_state()
@@ -83,7 +94,11 @@ class HGBStreamModel:
         # float32 round trip = exactly the training-time path (features cached as float32).
         f = window_features(x, self.sfreq).astype(np.float32).astype(np.float64)
         rows = np.stack([self.stream.update(fi) for fi in f]).astype(np.float32)
-        pred = self.model.predict(rows)
+        if self.bin_edges is not None:
+            rows = apply_bin_edges(rows, self.bin_edges)
+        pred = np.asarray(self.model.predict(rows), dtype=np.float64)
+        if CALIB_X is not None:
+            pred = np.interp(pred, CALIB_X, CALIB_Y)
         pred = self._smooth(np.asarray(pred, dtype=np.float64), self.stream.step_s)
         pred = np.clip(np.nan_to_num(pred, nan=0.0), 0.0, 600.0)
         return torch.as_tensor(pred, dtype=torch.float32, device=X.device)
@@ -94,12 +109,22 @@ class Solver(CompetSolver):
 
     def load_model(self, meta):
         bundle = joblib.load(meta["submission_dir"] / "model.joblib")
-        return HGBStreamModel(bundle["model"], meta["sfreq"])
+        return HGBStreamModel(bundle["model"], meta["sfreq"], bundle.get("bin_edges"))
 '''
 
-(out / "submission.py").write_text(HEADER + feat_body + "\n" + WRAPPER.replace("{smooth_a!r}", repr(args.smooth_a)))
 bundle = joblib.load(src_model)
-joblib.dump({"model": bundle["model"], "feature_names": bundle["feature_names"]}, out / "model.joblib")
+
+
+def literal(a):
+    return "None" if a is None else "[" + ", ".join(repr(float(v)) for v in a) + "]"
+
+
+wrapper = (WRAPPER.replace("{smooth_a!r}", repr(args.smooth_a))
+           .replace("{calib_x}", literal(bundle.get("calib_x")))
+           .replace("{calib_y}", literal(bundle.get("calib_y"))))
+(out / "submission.py").write_text(HEADER + feat_body + "\n" + wrapper)
+keep = {k: bundle[k] for k in ("model", "feature_names", "bin_edges") if k in bundle}
+joblib.dump(keep, out / "model.joblib")
 zpath = ROOT / "submissions" / f"{name}.zip"
 with zipfile.ZipFile(zpath, "w", zipfile.ZIP_DEFLATED) as z:
     for f in ("submission.py", "model.joblib"):
