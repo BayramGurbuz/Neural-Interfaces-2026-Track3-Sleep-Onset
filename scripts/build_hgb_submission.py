@@ -92,8 +92,23 @@ def decide(P, reps, omega, edges):
     return edges[k] + frac * (edges[k + 1] - edges[k])
 
 
+def to_grid(P, edges, grid):
+    """(n, C) class probabilities -> (n, J) grid-cell probabilities, uniform inside each class."""
+    A = np.zeros((len(edges) - 1, len(grid) - 1))
+    for c in range(len(edges) - 1):
+        lo, hi = edges[c], edges[c + 1]
+        if hi == lo:  # point class
+            A[c, len(grid) - 2] = 1.0
+            continue
+        for j in range(len(grid) - 1):
+            g0, g1 = grid[j], grid[j + 1]
+            if g1 > g0:
+                A[c, j] = max(0.0, min(hi, g1) - max(lo, g0)) / (hi - lo)
+    return P @ A
+
+
 class HGBStreamModel:
-    def __init__(self, model, sfreq, bin_edges=None, bundle=None):
+    def __init__(self, model, sfreq, bin_edges=None, bundle=None, ch_names=None):
         self.model = model  # sklearn object, or None when numpy tree arrays are shipped
         self.bin_edges = bin_edges
         bundle = bundle or {}
@@ -101,6 +116,13 @@ class HGBStreamModel:
         self.padded = bundle.get("padded_edges")
         self.kind = bundle.get("kind", "reg")
         self.groups = tuple(bundle.get("groups", ()))
+        self.window_groups = tuple(bundle.get("window_groups", ()))
+        self.ch_names = list(ch_names) if ch_names is not None else None
+        if self.kind == "ens_grid":  # several distribution members averaged on a common grid
+            self.member_trees = bundle["member_trees"]
+            self.member_edges = [np.asarray(e, dtype=np.float64) for e in bundle["member_edges"]]
+            self.grid = np.asarray(bundle["grid"], dtype=np.float64)
+            self.grid_omega = np.asarray(bundle["grid_omega"], dtype=np.float64)
         if self.kind == "dist":
             self.reps = np.asarray(bundle["reps"], dtype=np.float64)
             self.omega = np.asarray(bundle["omega"], dtype=np.float64)
@@ -132,13 +154,21 @@ class HGBStreamModel:
             self.stream = CausalFeatureStream(x.shape[-1] / self.sfreq, self.groups,
                                               core_index(range(x.shape[1])))
         # float32 round trip = exactly the training-time path (features cached as float32).
-        f = window_features(x, self.sfreq).astype(np.float32).astype(np.float64)
+        f = window_features(x, self.sfreq).astype(np.float32)
+        if self.window_groups:
+            ext = window_features_ext(x, self.sfreq, self.ch_names, self.window_groups).astype(np.float32)
+            f = np.concatenate([f, ext], axis=1)
+        f = f.astype(np.float64)
         rows = np.stack([self.stream.update(fi) for fi in f]).astype(np.float32)
         if self.padded is not None:
             rows = apply_padded_edges(rows, *self.padded)
         elif self.bin_edges is not None:
             rows = apply_bin_edges(rows, self.bin_edges)
-        if self.trees is not None:
+        if self.kind == "ens_grid":
+            P = np.mean([to_grid(hgb_predict_proba(t, rows), e, self.grid)
+                         for t, e in zip(self.member_trees, self.member_edges)], axis=0)
+            pred = decide(P, None, self.grid_omega, self.grid)
+        elif self.trees is not None:
             if self.kind == "dist":
                 pred = decide(hgb_predict_proba(self.trees, rows), self.reps, self.omega, self.class_edges)
             else:
@@ -159,7 +189,9 @@ class Solver(CompetSolver):
 
     def load_model(self, meta):
         bundle = joblib.load(meta["submission_dir"] / "model.joblib")
-        return HGBStreamModel(bundle.get("model"), meta["sfreq"], bundle.get("bin_edges"), bundle)
+        print("meta ch_names:", meta.get("ch_names"), "sfreq:", meta.get("sfreq"), flush=True)
+        return HGBStreamModel(bundle.get("model"), meta["sfreq"], bundle.get("bin_edges"), bundle,
+                              meta.get("ch_names"))
 '''
 
 bundle = joblib.load(src_model)
@@ -174,11 +206,15 @@ wrapper = (WRAPPER.replace("{tree_body}", tree_body).replace("{smooth_a!r}", rep
            .replace("{calib_y}", literal(bundle.get("calib_y"))))
 (out / "submission.py").write_text(HEADER + feat_body + "\n" + wrapper)
 keep = {k: bundle[k] for k in ("model", "feature_names", "bin_edges", "kind", "groups", "reps", "omega",
-                               "class_edges") if k in bundle}
+                               "class_edges", "window_groups", "member_edges", "grid", "grid_omega")
+        if k in bundle}
 if not args.sklearn_trees:
     sys.path.insert(0, str(ROOT / "scripts"))
     from tree_numpy import export_hgb, pad_bin_edges
-    keep["trees"] = export_hgb(keep.pop("model"))
+    if "model" in keep:
+        keep["trees"] = export_hgb(keep.pop("model"))
+    if "models" in bundle:
+        keep["member_trees"] = [export_hgb(m) for m in bundle["models"]]
     if keep.get("bin_edges") is not None:
         keep["padded_edges"] = pad_bin_edges(keep["bin_edges"])
 joblib.dump(keep, out / "model.joblib")

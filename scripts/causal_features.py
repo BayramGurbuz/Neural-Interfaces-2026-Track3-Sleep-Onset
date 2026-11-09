@@ -77,7 +77,7 @@ def window_features_ext(X, sfreq, ch_names, groups):
         spec = np.stack([peak(7, 13), peak(15, 30), sef, slope, ent], axis=-1)  # (B, C, 5)
         out.append(spec.reshape(spec.shape[0], -1))
     if "eye" in groups:
-        i7, i8 = ch_names.index("AF7"), ch_names.index("AF8")
+        i7, i8 = find_channel(ch_names, "AF7"), find_channel(ch_names, "AF8")
         bip = X[:, i7] - X[:, i8]
         bip = bip - bip.mean(axis=-1, keepdims=True)
         spec = np.abs(np.fft.rfft(bip * np.hanning(bip.shape[-1]), axis=-1)) ** 2
@@ -93,6 +93,15 @@ def window_features_ext(X, sfreq, ch_names, groups):
     if not out:
         return np.zeros((X.shape[0], 0))
     return np.concatenate(out, axis=-1)
+
+
+def find_channel(ch_names, name):
+    """Index of channel ``name``: exact match, else case-insensitive match ignoring prefixes like "EEG "."""
+    names = list(ch_names)
+    if name in names:
+        return names.index(name)
+    norm = [str(n).upper().replace("EEG", "").strip(" -_") for n in names]
+    return norm.index(name.upper())
 
 
 def ext_names(ch_names, groups):
