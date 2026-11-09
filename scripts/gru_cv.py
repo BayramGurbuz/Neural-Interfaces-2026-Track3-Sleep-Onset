@@ -13,7 +13,11 @@ Right padding + causal GRU: outputs never see later windows, the recording lengt
 Per fold: SEEDS models; probabilities averaged over seeds at every checkpoint (every EVAL_EVERY
 epochs); checkpoint of fold k = argmin of the mean curve of the other folds (LOFO).
 
-Usage: python scripts/gru_cv.py [w|uw ...]   (default: w uw)
+Configs (CONFIGS): "w" / "uw" = first runs (150 epochs, lr 2e-3, eval every 5); "u64_d2" ... =
+second round (30 epochs, lr 1e-3, eval every epoch, dropout / weight decay / hidden size varied).
+Dropout is applied after the input projection and between the GRU layers.
+
+Usage: python scripts/gru_cv.py [config ...]   (default: w uw)
 """
 import json
 import sys
@@ -41,6 +45,18 @@ BASELINE_N = 24  # windows within the first 120 s (elapsed = n * 5 s <= 120 s)
 ELAPSED_CLIP = 1500.0
 GAIN_SD = 0.1  # log10 amplitude gain per recording and channel (augmentation)
 NOISE_SD = 0.05
+BASE_CFG = dict(weighted=True, epochs=EPOCHS, eval_every=EVAL_EVERY, lr=LR, wd=WD, hidden=HIDDEN,
+                dropout=0.2, in_dropout=0.0)
+CONFIGS = {
+    "w": dict(BASE_CFG),
+    "uw": dict(BASE_CFG, weighted=False),
+    "u64_d2": dict(BASE_CFG, weighted=False, epochs=30, eval_every=1, lr=1e-3, in_dropout=0.2),
+    "u64_d4": dict(BASE_CFG, weighted=False, epochs=30, eval_every=1, lr=1e-3, dropout=0.4, in_dropout=0.4, wd=5e-2),
+    "u32_d2": dict(BASE_CFG, weighted=False, epochs=30, eval_every=1, lr=1e-3, hidden=32, in_dropout=0.2),
+    "u32_d4": dict(BASE_CFG, weighted=False, epochs=30, eval_every=1, lr=1e-3, hidden=32, dropout=0.4,
+                   in_dropout=0.4, wd=5e-2),
+    "w64_d4": dict(BASE_CFG, epochs=30, eval_every=1, lr=1e-3, dropout=0.4, in_dropout=0.4, wd=5e-2),
+}
 DEV = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
@@ -72,10 +88,10 @@ def seq_inputs(Fw):
 
 
 class GRUNet(nn.Module):
-    def __init__(self, n_in, n_out, hidden=HIDDEN):
+    def __init__(self, n_in, n_out, hidden=HIDDEN, dropout=0.2, in_dropout=0.0):
         super().__init__()
-        self.inp = nn.Sequential(nn.Linear(n_in, hidden), nn.GELU(), nn.LayerNorm(hidden))
-        self.gru = nn.GRU(hidden, hidden, num_layers=2, batch_first=True, dropout=0.2)
+        self.inp = nn.Sequential(nn.Linear(n_in, hidden), nn.GELU(), nn.LayerNorm(hidden), nn.Dropout(in_dropout))
+        self.gru = nn.GRU(hidden, hidden, num_layers=2, batch_first=True, dropout=dropout)
         self.out = nn.Linear(hidden, n_out)
 
     def forward(self, x, h=None):
@@ -91,31 +107,33 @@ def pad(seqs, fill=0.0):
     return out
 
 
-def run_fold(d, recs, F, gain, tr, te, variant, seed):
-    """Train one model; return list over checkpoints of (n_te_windows, 11) probs (rows in d[te] order)."""
+def run_fold(d, recs, F, gain, tr, te, cfg, seed, stop_epoch=None):
+    """Train one model; return list over checkpoints of (n_te_windows, 11) probs (rows in d[te] order).
+    te=None (final training): same schedule (cosine over cfg["epochs"]), stop after ``stop_epoch``
+    epochs, no evaluation; returns (model, mu, sd)."""
     torch.manual_seed(seed)
     rng = np.random.default_rng(seed)
     tr_recs = [r for r in recs if tr[r[0]]]
-    te_recs = [r for r in recs if te[r[0]]]
+    te_recs = [r for r in recs if te[r[0]]] if te is not None else []
     dtr = d[tr]
     w_all = np.zeros(len(d), np.float32)
-    w_all[np.flatnonzero(tr)] = window_weights(dtr.reset_index(drop=True)) if variant == "w" else 1.0
+    w_all[np.flatnonzero(tr)] = window_weights(dtr.reset_index(drop=True)) if cfg["weighted"] else 1.0
     y_all = to_class(d.target.to_numpy(), EDGES)
     X_tr = [seq_inputs(F[r]) for r in tr_recs]
     allx = np.concatenate(X_tr)
     mu, sd = allx.mean(0), allx.std(0) + 1e-6
     gain_std = np.concatenate([gain, np.zeros((4, F.shape[1] + 1), np.float32)], axis=1) / sd  # rel/elapsed: 0
-    Xte = torch.tensor(pad([(seq_inputs(F[r]) - mu) / sd for r in te_recs]), device=DEV)
-    model = GRUNet(allx.shape[1], len(EDGES) - 1).to(DEV)
-    opt = torch.optim.AdamW(model.parameters(), lr=LR, weight_decay=WD)
-    sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, EPOCHS)
+    Xte = torch.tensor(pad([(seq_inputs(F[r]) - mu) / sd for r in te_recs]), device=DEV) if te_recs else None
+    model = GRUNet(allx.shape[1], len(EDGES) - 1, cfg["hidden"], cfg["dropout"], cfg["in_dropout"]).to(DEV)
+    opt = torch.optim.AdamW(model.parameters(), lr=cfg["lr"], weight_decay=cfg["wd"])
+    sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, cfg["epochs"])
     Xs = [(x - mu) / sd for x in X_tr]
     Y = [y_all[r] for r in tr_recs]
     W = [w_all[r] for r in tr_recs]
     ce = nn.CrossEntropyLoss(reduction="none")
-    te_pos = np.concatenate([np.searchsorted(np.flatnonzero(te), r) for r in te_recs])
+    te_pos = np.concatenate([np.searchsorted(np.flatnonzero(te), r) for r in te_recs]) if te_recs else None
     out = []
-    for ep in range(1, EPOCHS + 1):
+    for ep in range(1, cfg["epochs"] + 1):
         model.train()
         order = rng.permutation(len(Xs))
         for b in range(0, len(order), BATCH):
@@ -134,7 +152,11 @@ def run_fold(d, recs, F, gain, tr, te, variant, seed):
             nn.utils.clip_grad_norm_(model.parameters(), 1.0)
             opt.step()
         sched.step()
-        if ep % EVAL_EVERY == 0:
+        if te is None:
+            if ep == stop_epoch:
+                return model.eval(), mu, sd
+            continue
+        if ep % cfg["eval_every"] == 0:
             model.eval()
             with torch.no_grad():
                 P = torch.softmax(model(Xte)[0], -1).cpu().numpy()
@@ -145,25 +167,25 @@ def run_fold(d, recs, F, gain, tr, te, variant, seed):
     return out
 
 
-def run_protocol(d, recs, F, gain, splits, variant):
+def run_protocol(d, recs, F, gain, splits, cfg):
     curves, preds, probas = [], [], []
     for k, (tr, te) in enumerate(splits):
         t0 = time.perf_counter()
         dte = d[te].reset_index(drop=True)
-        runs = [run_fold(d, recs, F, gain, tr, te, variant, s) for s in SEEDS]
+        runs = [run_fold(d, recs, F, gain, tr, te, cfg, s) for s in SEEDS]
         _, omega = class_stats(d[tr].reset_index(drop=True), EDGES)
-        om = np.ones_like(omega) if variant == "w" else omega
+        om = np.ones_like(omega) if cfg["weighted"] else omega
         Pk = [np.mean([r[j] for r in runs], axis=0) for j in range(len(runs[0]))]
         q = [decide(P.astype(np.float64), None, om, True, EDGES).astype(np.float32) for P in Pk]
         curves.append(np.array([summarize(dte, x)["wbmae"] for x in q]))
         preds.append(q)
         probas.append(Pk)
-        print(f"    fold {k}: best epoch {EVAL_EVERY * (curves[-1].argmin() + 1)} "
+        print(f"    fold {k}: in-fold best epoch (diagnostic only) {cfg['eval_every'] * (curves[-1].argmin() + 1)} "
               f"{curves[-1].min():.2f} ({time.perf_counter() - t0:.0f} s)", flush=True)
     C = np.stack(curves)
     sel = [int(np.delete(C, k, axis=0).mean(0).argmin()) for k in range(len(splits))]
     return ([preds[k][j] for k, j in enumerate(sel)], [probas[k][j] for k, j in enumerate(sel)],
-            [EVAL_EVERY * (j + 1) for j in sel], C)
+            [cfg["eval_every"] * (j + 1) for j in sel], C)
 
 
 if __name__ == "__main__":
@@ -178,12 +200,12 @@ if __name__ == "__main__":
         preds, info = {}, {}
         for proto, splits in protocols.items():
             print(f"=== GRU-{v} {proto}", flush=True)
-            preds[proto], probas, ep, C = run_protocol(d, recs, F, gain, splits, v)
+            preds[proto], probas, ep, C = run_protocol(d, recs, F, gain, splits, CONFIGS[v])
             info[f"epochs_{proto}"] = ep
             info[f"curve_mean_{proto}"] = C.mean(0).round(3).tolist()
             np.savez(OUT / f"gru_{v}_{proto}_preds.npz", *preds[proto])
             np.savez(OUT / f"gru_{v}_{proto}_proba.npz", *probas)
-        res = dual_report(f"GRU-{v}", d, protocols, preds, dict(seeds=list(SEEDS), **info,
+        res = dual_report(f"GRU-{v}", d, protocols, preds, dict(seeds=list(SEEDS), cfg=CONFIGS[v], **info,
                                                                 time_s=time.perf_counter() - t0))
         res["contrib_plain"] = {p: dict(zip(RANGE_NAMES, contributions(d, protocols[p], preds[p])[0].tolist()))
                                 for p in protocols}

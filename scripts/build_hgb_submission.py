@@ -53,6 +53,7 @@ mean, elapsed time (= windows seen x window length). Never uses future windows o
 import joblib
 import numpy as np
 import torch
+from torch import nn
 from benchmark_utils.base_solver import CompetSolver
 from scipy.signal import find_peaks, welch
 
@@ -107,6 +108,20 @@ def to_grid(P, edges, grid):
     return P @ A
 
 
+class GRUNet(nn.Module):
+    """Same architecture as scripts/gru_cv.py (dropouts are inactive at inference)."""
+
+    def __init__(self, n_in, n_out, hidden, dropout=0.0, in_dropout=0.0):
+        super().__init__()
+        self.inp = nn.Sequential(nn.Linear(n_in, hidden), nn.GELU(), nn.LayerNorm(hidden), nn.Dropout(in_dropout))
+        self.gru = nn.GRU(hidden, hidden, num_layers=2, batch_first=True, dropout=dropout)
+        self.out = nn.Linear(hidden, n_out)
+
+    def forward(self, x, h=None):
+        y, h = self.gru(self.inp(x), h)
+        return self.out(y), h
+
+
 class HGBStreamModel:
     def __init__(self, model, sfreq, bin_edges=None, bundle=None, ch_names=None):
         self.model = model  # sklearn object, or None when numpy tree arrays are shipped
@@ -118,7 +133,7 @@ class HGBStreamModel:
         self.groups = tuple(bundle.get("groups", ()))
         self.window_groups = tuple(bundle.get("window_groups", ()))
         self.ch_names = list(ch_names) if ch_names is not None else None
-        if self.kind == "ens_grid":  # several distribution members averaged on a common grid
+        if self.kind in ("ens_grid", "mix"):  # several distribution members averaged on a common grid
             self.member_trees = bundle["member_trees"]
             self.member_edges = [np.asarray(e, dtype=np.float64) for e in bundle["member_edges"]]
             self.grid = np.asarray(bundle["grid"], dtype=np.float64)
@@ -127,6 +142,20 @@ class HGBStreamModel:
             self.reps = np.asarray(bundle["reps"], dtype=np.float64)
             self.omega = np.asarray(bundle["omega"], dtype=np.float64)
             self.class_edges = np.asarray(bundle["class_edges"], dtype=np.float64)
+        if self.kind == "mix":  # + causal GRU members (3 seeds), mixed on the grid with weight alpha
+            c = bundle["gru_cfg"]
+            self.gru_mu = np.asarray(bundle["gru_mu"], np.float32)
+            self.gru_sd = np.asarray(bundle["gru_sd"], np.float32)
+            self.grus = []
+            for sd_ in bundle["gru_states"]:
+                net = GRUNet(len(self.gru_mu), len(bundle["gru_edges"]) - 1, c["hidden"])
+                net.load_state_dict({k: torch.tensor(v) for k, v in sd_.items()})
+                self.grus.append(net.eval())
+            self.gru_edges = np.asarray(bundle["gru_edges"], np.float64)
+            self.gru_omega = None if bundle["gru_weighted"] else np.asarray(bundle["gru_omega_b"], np.float64)
+            self.alpha = float(bundle["mix_alpha"])
+            self.base_n = int(bundle["gru_baseline_n"])
+            self.el_clip = float(bundle["gru_elapsed_clip"])
         self.sfreq = float(sfreq)
         self.stream = None
         self.reset_state()
@@ -136,6 +165,31 @@ class HGBStreamModel:
         if self.stream is not None:
             self.stream.reset()
         self.prev_out = None
+        self.gru_h = None
+        self.gru_sum = None
+        self.gru_cnt = 0
+        self.gru_t = 0
+
+    def _gru_probs(self, f32):
+        """f32: (B, 62) window features (float32), time order -> (B, n_classes) mean GRU probabilities."""
+        rows = []
+        for fi in f32:
+            self.gru_t += 1
+            if self.gru_cnt < self.base_n:
+                self.gru_sum = fi.copy() if self.gru_sum is None else self.gru_sum + fi
+                self.gru_cnt += 1
+            base = self.gru_sum / np.float32(self.gru_cnt)
+            el = np.float32(np.log1p(min(self.gru_t * 5.0, self.el_clip)))
+            rows.append(np.concatenate([fi, fi - base, [el]]).astype(np.float32))
+        x = torch.tensor((np.stack(rows) - self.gru_mu) / self.gru_sd)[None]
+        if self.gru_h is None:
+            self.gru_h = [None] * len(self.grus)
+        ps = []
+        with torch.no_grad():
+            for i, net in enumerate(self.grus):
+                logits, self.gru_h[i] = net(x, self.gru_h[i])
+                ps.append(torch.softmax(logits[0], -1).numpy().astype(np.float64))
+        return np.mean(ps, axis=0)
 
     def _smooth(self, pred, dt):
         out = np.empty_like(pred)
@@ -158,6 +212,7 @@ class HGBStreamModel:
         if self.window_groups:
             ext = window_features_ext(x, self.sfreq, self.ch_names, self.window_groups).astype(np.float32)
             f = np.concatenate([f, ext], axis=1)
+        f32 = f
         f = f.astype(np.float64)
         rows = np.stack([self.stream.update(fi) for fi in f]).astype(np.float32)
         if self.padded is not None:
@@ -168,6 +223,16 @@ class HGBStreamModel:
             P = np.mean([to_grid(hgb_predict_proba(t, rows), e, self.grid)
                          for t, e in zip(self.member_trees, self.member_edges)], axis=0)
             pred = decide(P, None, self.grid_omega, self.grid)
+        elif self.kind == "mix":
+            Wh = np.mean([to_grid(hgb_predict_proba(t, rows), e, self.grid)
+                          for t, e in zip(self.member_trees, self.member_edges)], axis=0) * self.grid_omega
+            Wh /= Wh.sum(axis=1, keepdims=True)
+            q = self._gru_probs(f32)
+            if self.gru_omega is not None:
+                q = q * self.gru_omega
+            q = to_grid(q / q.sum(axis=1, keepdims=True), self.gru_edges, self.grid)
+            W = self.alpha * q + (1.0 - self.alpha) * Wh
+            pred = decide(W, None, np.ones(W.shape[1]), self.grid)
         elif self.trees is not None:
             if self.kind == "dist":
                 pred = decide(hgb_predict_proba(self.trees, rows), self.reps, self.omega, self.class_edges)
@@ -206,7 +271,9 @@ wrapper = (WRAPPER.replace("{tree_body}", tree_body).replace("{smooth_a!r}", rep
            .replace("{calib_y}", literal(bundle.get("calib_y"))))
 (out / "submission.py").write_text(HEADER + feat_body + "\n" + wrapper)
 keep = {k: bundle[k] for k in ("model", "feature_names", "bin_edges", "kind", "groups", "reps", "omega",
-                               "class_edges", "window_groups", "member_edges", "grid", "grid_omega")
+                               "class_edges", "window_groups", "member_edges", "grid", "grid_omega", "gru_states", "gru_mu",
+                               "gru_sd", "gru_cfg", "gru_weighted", "gru_omega_b", "gru_edges", "mix_alpha",
+                               "gru_baseline_n", "gru_elapsed_clip")
         if k in bundle}
 if not args.sklearn_trees:
     sys.path.insert(0, str(ROOT / "scripts"))
