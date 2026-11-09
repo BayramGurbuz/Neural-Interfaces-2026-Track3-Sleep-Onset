@@ -63,30 +63,41 @@ def decide(P, reps, omega, continuous=False, edges=CLASS_EDGES):
 DECISIONS = {"dist_discrete": False, "dist_continuous": True}
 
 
-def run_clf(X, d, splits, edges=CLASS_EDGES):
-    """One classifier per fold; both decision rules scored on the same staged probabilities."""
+def run_clf(X, d, splits, edges=CLASS_EDGES, params=None, max_iter=MAX_ITER, keep_proba=False):
+    """One classifier per fold; both decision rules scored on the same staged probabilities.
+    keep_proba: also return, per decision rule, the held-out probability matrices at the selected
+    number of trees (result[k] gets a 4th element: list of (n_te, n_classes) float32)."""
+    params = PARAMS if params is None else params
     curves = {k: [] for k in DECISIONS}
     preds = {k: [] for k in DECISIONS}
+    probas = []
     for tr, te in splits:
         dtr, dte = d[tr].reset_index(drop=True), d[te].reset_index(drop=True)
         reps, omega = class_stats(dtr, edges)
         bins = fit_bin_edges(X[tr])
-        clf = HistGradientBoostingClassifier(max_iter=MAX_ITER, max_features=0.5, early_stopping=False,
-                                             random_state=0, **PARAMS)
+        clf = HistGradientBoostingClassifier(max_iter=max_iter, max_features=0.5, early_stopping=False,
+                                             random_state=0, **params)
         clf.fit(apply_bin_edges(X[tr], bins), to_class(dtr.target.to_numpy(), edges))
         assert len(clf.classes_) == len(reps)
         c = {k: [] for k in DECISIONS}
         p = {k: [] for k in DECISIONS}
+        pr = []
         for n, P in enumerate(clf.staged_predict_proba(apply_bin_edges(X[te], bins)), start=1):
             if n % STEP == 0:
                 for k, cont in DECISIONS.items():
                     q = decide(P, reps, omega, cont, edges)
                     c[k].append(summarize(dte, q)["wbmae"])
                     p[k].append(q.astype(np.float32))
+                if keep_proba:
+                    pr.append(P.astype(np.float32))
         for k in DECISIONS:
             curves[k].append(np.array(c[k]))
             preds[k].append(p[k])
-    return {k: lofo_select(curves[k], preds[k]) for k in DECISIONS}
+        probas.append(pr)
+    out = {k: lofo_select(curves[k], preds[k]) for k in DECISIONS}
+    if keep_proba:  # same LOFO step choice as the decisions (identical curves)
+        out = {k: v + (lofo_select(curves[k], probas)[0],) for k, v in out.items()}
+    return out
 
 
 if __name__ == "__main__":
