@@ -3,7 +3,8 @@ epochs taken from the dual CV (same cosine schedule, stopped at that epoch), HGB
 trained ensemble (c) (~/neuralbench/save/ens_c/model.joblib). Mix weight alpha from the dual CV.
 No calibration (it hurt the mix in CV). Test is scored once, as a final check only.
 
-Usage: python scripts/train_mix_final.py CFG N_EPOCHS ALPHA   (writes ~/neuralbench/save/mix_<CFG>/)
+Usage: python scripts/train_mix_final.py CFG N_EPOCHS ALPHA [SEEDS] [TAG]
+  SEEDS: comma list (default gru_cv.SEEDS = 0,1,2); writes ~/neuralbench/save/mix_<CFG><TAG>/
 """
 import json
 import sys
@@ -22,8 +23,11 @@ from stream_utils import RANGE_NAMES, summarize
 from train_hgb import SAVE
 
 cfg_name, n_epochs, alpha = sys.argv[1], int(sys.argv[2]), float(sys.argv[3])
+if len(sys.argv) > 4:
+    SEEDS = tuple(int(x) for x in sys.argv[4].split(","))
+TAG = sys.argv[5] if len(sys.argv) > 5 else ""
 cfg = CONFIGS[cfg_name]
-OUT = SAVE / f"mix_{cfg_name}"
+OUT = SAVE / f"mix_{cfg_name}{TAG}"
 OUT.mkdir(parents=True, exist_ok=True)
 B = VARIANTS["B"]
 

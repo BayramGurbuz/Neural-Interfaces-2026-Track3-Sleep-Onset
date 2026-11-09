@@ -57,6 +57,9 @@ CONFIGS = {
                    in_dropout=0.4, wd=5e-2),
     "w64_d4": dict(BASE_CFG, epochs=30, eval_every=1, lr=1e-3, dropout=0.4, in_dropout=0.4, wd=5e-2),
 }
+# seed-count study (scripts/seeds_cv.py): uw, trained only to epoch 40 (selection was always 10-15)
+for _n in (3, 5, 10):
+    CONFIGS[f"uw_n{_n}"] = dict(CONFIGS["uw"], run_epochs=40, n_seeds=_n)
 DEV = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
@@ -133,7 +136,7 @@ def run_fold(d, recs, F, gain, tr, te, cfg, seed, stop_epoch=None):
     ce = nn.CrossEntropyLoss(reduction="none")
     te_pos = np.concatenate([np.searchsorted(np.flatnonzero(te), r) for r in te_recs]) if te_recs else None
     out = []
-    for ep in range(1, cfg["epochs"] + 1):
+    for ep in range(1, cfg.get("run_epochs", cfg["epochs"]) + 1):
         model.train()
         order = rng.permutation(len(Xs))
         for b in range(0, len(order), BATCH):

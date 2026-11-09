@@ -14,6 +14,7 @@ açık test = 40 kayıt (yalnız son kontrol). Docker = lionelyneuro/neural-comp
 | – | (gönderilmedi) | hgb_v3_np.zip | yedek | 43.30 | 52.4791 | 89 s ¹ | – | – |
 | – | – | hgb_ens_c.zip | hazır aday | 42.50 | 52.8573 | 115 s ¹ | – | – |
 | 1 | 2026-11-10 (planlanan) | mix_gru_hgb.zip | gönderilecek | 40.43 | 48.2226 | 123 s | _bekleniyor_ | _bekleniyor_ |
+| – | – | mix_gru10_hgb.zip | hazır aday | 40.28 | 46.9131 | 132 s | – | – |
 
 ¹ Arka planda CV koşusu çalışırken ölçüldü (yükte). sklearn yolu (hgb_v3.zip, aynı model/skor): 417 s.
 
@@ -81,3 +82,16 @@ açık test = 40 kayıt (yalnız son kontrol). Docker = lionelyneuro/neural-comp
 - Çift CV (kalibrasyonsuz): unseen 41.81 ± 1.54, seen 39.06 ± 1.13 → 40.43; HGB(c)'den 10/10,
   yalnız GRU'dan 9/10 katta iyi.
 - Açık test 48.2224 (yerel) / 48.2226 (Docker); Docker 123 s (yüksüz), pencere başına ~21 ms.
+
+### mix_gru10_hgb.zip (hazır aday)
+- mix_gru_hgb ile aynı, farklar: GRU **10 seed (0–9)**, **15 epoch** (10 LOFO seçiminin medyanı,
+  `scripts/seeds_cv.py`), **α = 0.6** (`mix_gru_hgb.py uw_n10`, LOFO medyanı).
+- Komut: `python scripts/train_mix_final.py uw 15 0.6 0,1,2,3,4,5,6,7,8,9 _n10` →
+  `python scripts/build_hgb_submission.py --model ~/neuralbench/save/mix_uw_n10/model.joblib --name mix_gru10_hgb --smooth-a 0`
+- Çift CV (kalibrasyonsuz): unseen 41.80 ± 1.91, seen 38.76 ± 1.41 → 40.28; 3 seed'li karışımdan 7/10 katta iyi.
+- Açık test 46.9128 (yerel) / 46.9131 (Docker); Docker 132 s.
+
+## Tekrarlanabilirlik ölçümü (2026-11-10, mix_gru_hgb ayarları, açık test)
+Aynı seed'lerle (0,1,2) yeniden eğitim: bit düzeyinde aynı (48.2224). Farklı seed üçlüleri:
+0,1,2 → 48.22; 3,4,5 → 48.70; 6,7,8 → 47.90; 9,10,11 → 47.58 ⇒ karışım 48.10 ± 0.48
+(yalnız GRU 48.54 ± 0.81).

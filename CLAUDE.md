@@ -1,3 +1,5 @@
+> Yeni oturumda önce docs/status.md ve docs/submissions_log.md dosyalarını oku.
+
 # Muse Sleep-Onset — EEG/EMG Foundation Challenge 2026, Track 03
 
 Bu proje, NeurIPS 2026 Brain & Body Workshop kapsamındaki EEG/EMG Foundation Challenge 2026'nın
