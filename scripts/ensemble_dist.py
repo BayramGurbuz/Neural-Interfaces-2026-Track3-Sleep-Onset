@@ -101,6 +101,7 @@ ENSEMBLES = {  # name: (members, mode)
     "B@grid": (["B"], "grid"), "B2@grid": (["B2"], "grid"),
     "(a) B+B2@grid": (["B", "B2"], "grid"),
     "(b) B+B_h1+B_h2": (["B", "B_h1", "B_h2"], "own"),
+    "(c) B+B_h1+B_h2+B2@grid": (["B", "B_h1", "B_h2", "B2"], "grid"),
 }
 
 if __name__ == "__main__":
