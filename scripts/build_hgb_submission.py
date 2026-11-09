@@ -40,7 +40,7 @@ import joblib
 import numpy as np
 import torch
 from benchmark_utils.base_solver import CompetSolver
-from scipy.signal import welch
+from scipy.signal import find_peaks, welch
 
 # ---- verbatim copy of scripts/causal_features.py ----
 '''
@@ -62,10 +62,29 @@ def apply_bin_edges(X, edges):
                     axis=1).astype(np.float32)
 
 
+def decide(P, reps, omega, edges):
+    """Continuous weighted median of the class distribution, class weights P_c * omega_c."""
+    W = P * omega
+    cum = np.cumsum(W, axis=1) / W.sum(axis=1, keepdims=True)
+    k = np.minimum((cum < 0.5).sum(axis=1), P.shape[1] - 1)
+    rows = np.arange(len(P))
+    before = np.where(k > 0, cum[rows, np.maximum(k - 1, 0)], 0.0)
+    mass = cum[rows, k] - before
+    frac = np.clip((0.5 - before) / np.maximum(mass, 1e-12), 0, 1)
+    return edges[k] + frac * (edges[k + 1] - edges[k])
+
+
 class HGBStreamModel:
-    def __init__(self, model, sfreq, bin_edges=None):
+    def __init__(self, model, sfreq, bin_edges=None, bundle=None):
         self.model = model
         self.bin_edges = bin_edges
+        bundle = bundle or {}
+        self.kind = bundle.get("kind", "reg")
+        self.groups = tuple(bundle.get("groups", ()))
+        if self.kind == "dist":
+            self.reps = np.asarray(bundle["reps"], dtype=np.float64)
+            self.omega = np.asarray(bundle["omega"], dtype=np.float64)
+            self.class_edges = np.asarray(bundle["class_edges"], dtype=np.float64)
         self.sfreq = float(sfreq)
         self.stream = None
         self.reset_state()
@@ -90,13 +109,17 @@ class HGBStreamModel:
         # X: (B, C, T) consecutive windows of the current recording, in time order.
         x = X.detach().float().cpu().numpy()
         if self.stream is None:
-            self.stream = CausalFeatureStream(step_s=x.shape[-1] / self.sfreq)
+            self.stream = CausalFeatureStream(x.shape[-1] / self.sfreq, self.groups,
+                                              core_index(range(x.shape[1])))
         # float32 round trip = exactly the training-time path (features cached as float32).
         f = window_features(x, self.sfreq).astype(np.float32).astype(np.float64)
         rows = np.stack([self.stream.update(fi) for fi in f]).astype(np.float32)
         if self.bin_edges is not None:
             rows = apply_bin_edges(rows, self.bin_edges)
-        pred = np.asarray(self.model.predict(rows), dtype=np.float64)
+        if self.kind == "dist":
+            pred = decide(self.model.predict_proba(rows), self.reps, self.omega, self.class_edges)
+        else:
+            pred = np.asarray(self.model.predict(rows), dtype=np.float64)
         if CALIB_X is not None:
             pred = np.interp(pred, CALIB_X, CALIB_Y)
         pred = self._smooth(np.asarray(pred, dtype=np.float64), self.stream.step_s)
@@ -109,7 +132,7 @@ class Solver(CompetSolver):
 
     def load_model(self, meta):
         bundle = joblib.load(meta["submission_dir"] / "model.joblib")
-        return HGBStreamModel(bundle["model"], meta["sfreq"], bundle.get("bin_edges"))
+        return HGBStreamModel(bundle["model"], meta["sfreq"], bundle.get("bin_edges"), bundle)
 '''
 
 bundle = joblib.load(src_model)
@@ -123,7 +146,8 @@ wrapper = (WRAPPER.replace("{smooth_a!r}", repr(args.smooth_a))
            .replace("{calib_x}", literal(bundle.get("calib_x")))
            .replace("{calib_y}", literal(bundle.get("calib_y"))))
 (out / "submission.py").write_text(HEADER + feat_body + "\n" + wrapper)
-keep = {k: bundle[k] for k in ("model", "feature_names", "bin_edges") if k in bundle}
+keep = {k: bundle[k] for k in ("model", "feature_names", "bin_edges", "kind", "groups", "reps", "omega",
+                               "class_edges") if k in bundle}
 joblib.dump(keep, out / "model.joblib")
 zpath = ROOT / "submissions" / f"{name}.zip"
 with zipfile.ZipFile(zpath, "w", zipfile.ZIP_DEFLATED) as z:

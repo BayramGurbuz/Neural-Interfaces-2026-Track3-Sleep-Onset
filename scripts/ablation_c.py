@@ -29,6 +29,7 @@ ABLATIONS = {  # name: (window groups, stream groups, drop first-2-min *_rel)
     "eye": (("eye",), (), False),
     "dyn_maxmin": ((), ("dyn", "maxmin"), False),
     "dyn_maxmin_spec": (("spec",), ("dyn", "maxmin"), False),
+    "dyn_maxmin_spec_eye": (("spec", "eye"), ("dyn", "maxmin"), False),
 }
 
 
