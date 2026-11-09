@@ -11,9 +11,9 @@ açık test = 40 kayıt (yalnız son kontrol). Docker = lionelyneuro/neural-comp
 | # | Gönderim tarihi | ZIP | Durum | Çift CV | Açık test | Docker süresi | Sealed skor | Sealed süre |
 |---|---|---|---|---|---|---|---|---|
 | – | (gönderilmedi) | hgb_v2_s0.zip | yedek | 46.42 | 54.9426 | 141 s | – | – |
-| 1 | 2026-11-10 (planlanan) | hgb_v3_np.zip | gönderilecek | 43.30 | 52.4791 | 89 s ¹ | _bekleniyor_ | _bekleniyor_ |
+| – | (gönderilmedi) | hgb_v3_np.zip | yedek | 43.30 | 52.4791 | 89 s ¹ | – | – |
 | – | – | hgb_ens_c.zip | hazır aday | 42.50 | 52.8573 | 115 s ¹ | – | – |
-| – | – | mix_gru_hgb.zip | hazır aday | 40.43 | 48.2226 | 123 s | – | – |
+| 1 | 2026-11-10 (planlanan) | mix_gru_hgb.zip | gönderilecek | 40.43 | 48.2226 | 123 s | _bekleniyor_ | _bekleniyor_ |
 
 ¹ Arka planda CV koşusu çalışırken ölçüldü (yükte). sklearn yolu (hgb_v3.zip, aynı model/skor): 417 s.
 
@@ -63,7 +63,7 @@ açık test = 40 kayıt (yalnız son kontrol). Docker = lionelyneuro/neural-comp
 - Açık test 52.8573 (kalibrasyonsuz 52.18); Docker 52.8573, 115 s (GRU eğitimi arka planda çalışırken).
   meta ch_names = ['TP9', 'AF7', 'AF8', 'TP10'].
 
-### mix_gru_hgb.zip (hazır aday)
+### mix_gru_hgb.zip (gönderim #1, 2026-11-10)
 - Model: nedensel GRU (config `uw`: Linear(125→64)+GELU+LayerNorm → GRU 64×2, dropout 0.2;
   ağırlıksız CE, AdamW lr 2e-3, wd 1e-2, cosine T_max 150, **10 epoch'ta durduruldu**; 3 seed 0/1/2
   ortalaması; karar tarafında q·ω_B) + HGB ensemble (c) (hgb_ens_c ile aynı 4 üye, kalibrasyonsuz),
@@ -73,7 +73,7 @@ açık test = 40 kayıt (yalnız son kontrol). Docker = lionelyneuro/neural-comp
   α = 10 LOFO seçiminin medyanı.
 - Eğitim verisi: train+val (500 kayıt). Seed'ler: GRU 0, 1, 2 (torch + numpy); HGB random_state 0.
   Not: GRU GPU'da (cuDNN) eğitildi; yeniden eğitimde ağırlıklar bit düzeyinde aynı olmayabilir.
-- Eğitim commit'i: _commit edilecek_ (`scripts/gru_cv.py`, `scripts/mix_gru_hgb.py`,
+- Eğitim commit'i: 034eb24 (`scripts/gru_cv.py`, `scripts/mix_gru_hgb.py`,
   `scripts/train_mix_final.py`, builder `mix` modu).
 - Komutlar: `python scripts/gru_cv.py w uw` → `python scripts/mix_gru_hgb.py uw` →
   `python scripts/train_ens_c.py` → `python scripts/train_mix_final.py uw 10 0.5` →
