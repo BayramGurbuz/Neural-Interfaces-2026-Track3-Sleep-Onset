@@ -60,9 +60,10 @@ Track 03 (Sleep Onset) yarışması için model geliştirme deposudur.
   NeuralBench dokümanı onunla çelişirse Codabench geçerlidir.
 
 ## Takvim
-- Track 03 sealed final: 10 Kasım 2026 02:01 – 22 Kasım 2026 01:59 Türkiye saati (GMT+3)
-  = 10 Kasım 00:01 – 21 Kasım 23:59 CET (Codabench Phases sekmesi; başlangıç 7 Kasım'dan
-  10 Kasım'a ertelendi). Diğer track'ler 5–21 Kasım.
+- Track 03 sealed final: 17 Kasım 2026 02:01 – 22 Kasım 2026 01:59 Türkiye saati (GMT+3)
+  = 17 Kasım 00:01 – 21 Kasım 23:59 CET (Codabench Phases sekmesi; başlangıç önce 7 → 10 Kasım,
+  sonra 10 → 17 Kasım ertelendi). Diğer track'ler 5–21 Kasım.
+- 5 gönderim hakkının tamamı duruyor (10 Kasım'da gönderim yapılmadı); pencere 5 gün = günde 1 ile 5 hak.
 - Final sıralama bu aşamadan alınır (en iyi sealed skor); ilk 3 takım tekrarlanabilirlik
   denetiminden geçer (eğitim yeniden çalıştırılır, skor ±2σ içinde kalmalı).
 - Gönderim limiti: günde 1 (Terms'e göre toplam en fazla 5). Failed gönderim hakkı yemez.
@@ -75,7 +76,8 @@ Track 03 (Sleep Onset) yarışması için model geliştirme deposudur.
   Görülmemiş kişi CV = train+val üzerinde kişi bazlı 5 katlı GroupKFold. Görülmüş kişi CV = birden
   fazla gecesi olan kişilerin birer gecesi dışarıda, kalan geceleri eğitimde. Açık test setine
   (40 kayıt) sadece son kontrol için bakılır; test'e bakarak seçim/ayar yapılmaz.
-- İlk sealed gönderim (10 Kasım): submissions/hgb_v2_s0.zip (c5 HGB + gömülü kalibrasyon, a=0).
+- Gönderim planı: 17 Kasım #1 submissions/mix_gru_hgb.zip → 18 Kasım #2 final540 (Docker testinden
+  geçerse) → 19–21 Kasım 3 yedek hak. Ayrıntı: docs/status.md, docs/submissions_log.md.
 - Plan (sırayla, her adım çift CV ile raporlanır):
   A. Çift CV protokolü; v1 ve c5 yeniden ölçülür.
   B. Dağılım tahmini: kalan süre 10–14 aralığa bölünür, HistGradientBoostingClassifier; tahmin =

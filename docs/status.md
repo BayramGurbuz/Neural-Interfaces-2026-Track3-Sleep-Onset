@@ -27,14 +27,15 @@ katta iyi. Kalibrasyon GRU/karışımda zarar veriyor → kullanılmıyor. Seed 
 ## Hazır ZIP'ler (submissions/, hepsi Docker'da test edildi)
 | ZIP | Durum | Docker süresi (açık test) |
 |---|---|---|
-| mix_gru_hgb.zip | **10 Kasım gecesi gönderilecek (gönderim #1)** | 123 s |
+| mix_gru_hgb.zip | **17 Kasım gönderilecek (gönderim #1)** | 123 s |
 | mix_gru10_hgb.zip | hazır aday (10 seed) | 132 s |
 | hgb_ens_c.zip | hazır aday | 115 s |
 | hgb_v3_np.zip / hgb_v3.zip | yedek | 89 s / 417 s |
 | hgb_v2_s0.zip | yedek | 141 s |
 
-Gönderim planı: 10 Kasım mix_gru_hgb → 11 Kasım final540 (540 kayıtla yeniden eğitilmiş 10 seed'li
-model, testten geçerse) → kalan 3 hak yedek. Final sıralama = en iyi sealed skor (otomatik, işaretleme
+Sealed pencere (2. erteleme): 17 Kasım 02:01 – 22 Kasım 01:59 TR. 5 hakkın tamamı duruyor.
+Gönderim planı: 17 Kasım mix_gru_hgb → 18 Kasım final540 (540 kayıtla yeniden eğitilmiş 10 seed'li
+model, testten geçerse) → 19–21 Kasım kalan 3 hak yedek. Final sıralama = en iyi sealed skor (otomatik, işaretleme
 yok). Günde 1, toplam 5 gönderim. Göndermeden önce ZIP Docker'da test edilmeli. Claude gönderim yapmaz.
 
 ## Sıradaki adım

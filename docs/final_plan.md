@@ -37,9 +37,10 @@ Veri %8 artıyor; CV eğrileri seçilen noktada düz (GRU 10 ≈ 15 epoch; HGB e
 Ölçekleme doğrulanamayan bir tahmin olur; sabit tutmak denetimde savunulabilir ve tekrarlanabilir.
 
 ## Gönderim sırası (günde 1, toplam 5; sayılan = en iyi sealed skor)
-- 10 Kasım: mix_gru_hgb.zip (3 seed, 500 kayıt).
-- 11 Kasım: final540 (10 seed, 540 kayıt) — Docker testinden geçerse.
-- Kalan 3 hak: sealed süre/hata sorunları ve olası son iyileştirmeler için yedek.
+Sealed pencere: 17 Kasım 02:01 – 22 Kasım 01:59 TR (5 gün → 5 hak).
+- 17 Kasım: mix_gru_hgb.zip (3 seed, 500 kayıt).
+- 18 Kasım: final540 (10 seed, 540 kayıt) — Docker testinden geçerse.
+- 19–21 Kasım, kalan 3 hak: sealed süre/hata sorunları ve olası son iyileştirmeler için yedek.
 Kötü bir gönderim en iyi skoru silmediği için final540'ı göndermenin sıralama riski yok.
 
 ## Süre bütçesi
