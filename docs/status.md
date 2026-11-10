@@ -24,6 +24,18 @@ En iyi model ayrıntısı: unseen 41.80 ± 1.91, seen 38.76 ± 1.41; HGB(c)'den 
 katta iyi. Kalibrasyon GRU/karışımda zarar veriyor → kullanılmıyor. Seed tekrarlanabilirliği: aynı seed
 = bit düzeyinde aynı; farklı seed üçlüleri açık testte σ ≈ 0.48 (3 seed'li karışım).
 
+## Warm-up metrikleri, açık test (40 kayıt, test kayıtlarını görmemiş modeller)
+bMAE/MAE = warm-up tanımı (tüm pencereler havuzda, 4 aralık eşit ağırlık; = neuralbench test/bmae,
+test/mae; `scripts/warmup_metrics.py`, EEGNet log'u ve final540 Docker çıktısıyla doğrulandı).
+
+| Model | W-bMAE | bMAE | MAE |
+|---|---|---|---|
+| Sabit 35 s | 60.74 | 171.38 | 339.37 |
+| Geçen süre kuralı | 61.25 | 155.21 | 297.39 |
+| EEGNet (3 seed ort.) | 60.03 | 165.57 | 326.18 |
+| hgb_v3 (np, kalibrasyonlu) | 52.48 | 119.06 | 220.62 |
+| mix_gru10_hgb (500) | 46.91 | 104.95 | 189.56 |
+
 ## Hazır ZIP'ler (submissions/, hepsi Docker'da test edildi)
 | ZIP | Durum | Docker süresi (açık test) |
 |---|---|---|
