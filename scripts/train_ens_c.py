@@ -7,9 +7,12 @@
 - calibration map: fit_monotone_map on the unseen-protocol OOF predictions of ensemble (c).
 Test is scored once, as a final check only.
 
-Usage: python scripts/train_ens_c.py   (writes ~/neuralbench/save/ens_c/)
+Usage: python scripts/train_ens_c.py [--all] [--tag=X]   (writes ~/neuralbench/save/ens_c/)
+  --all: final model on all 540 recordings (train+val+test) -> ens_c_all<X>/; no calibration map
+         (no OOF exists for 540; the mix does not use it); test score is in-sample (pipeline check).
 """
 import json
+import sys
 import time
 
 import joblib
@@ -26,22 +29,28 @@ from stream_utils import RANGE_NAMES, summarize, window_weights
 from train_hgb import SAVE
 
 FEAT_SET = "dyn_maxmin_spec_eye"
-OUT = SAVE / "ens_c"
+ALL = "--all" in sys.argv
+TAG = next((a.split("=", 1)[1] for a in sys.argv if a.startswith("--tag=")), "")
+OUT = SAVE / (f"ens_c_all{TAG}" if ALL else f"ens_c{TAG}")
 OUT.mkdir(parents=True, exist_ok=True)
 
 wg, sg, _ = ABLATIONS[FEAT_SET]
 df, X, names = build_table_ext(wg, sg)
-m_tv = (df.split != "test").to_numpy()
-d_tv, d_te = df[m_tv].reset_index(drop=True), df[~m_tv].reset_index(drop=True)
+m_te = (df.split == "test").to_numpy()
+m_tv = np.ones(len(df), bool) if ALL else ~m_te  # training rows
+d_tv, d_te = df[m_tv].reset_index(drop=True), df[m_te].reset_index(drop=True)
 
-z = np.load(CV_OUT / f"ens_{FEAT_SET}_(c)_B-B_h1-B_h2-B2@grid_unseen_preds.npz")
-oof = np.empty(len(d_tv))
-for k, (_, te) in enumerate(unseen_splits(d_tv)):
-    oof[te] = z[f"arr_{k}"]
-cal_x, cal_y = fit_monotone_map(oof, d_tv.target.to_numpy(), window_weights(d_tv), 20)
+if ALL:
+    cal_x = cal_y = None
+else:
+    z = np.load(CV_OUT / f"ens_{FEAT_SET}_(c)_B-B_h1-B_h2-B2@grid_unseen_preds.npz")
+    oof = np.empty(len(d_tv))
+    for k, (_, te) in enumerate(unseen_splits(d_tv)):
+        oof[te] = z[f"arr_{k}"]
+    cal_x, cal_y = fit_monotone_map(oof, d_tv.target.to_numpy(), window_weights(d_tv), 20)
 
 bins = fit_bin_edges(X[m_tv])
-Xtr, Xte = apply_bin_edges(X[m_tv], bins), apply_bin_edges(X[~m_tv], bins)
+Xtr, Xte = apply_bin_edges(X[m_tv], bins), apply_bin_edges(X[m_te], bins)
 models, info = [], {}
 t_all = time.perf_counter()
 for name, (edges, params, _) in MEMBERS.items():
@@ -58,14 +67,16 @@ for name, (edges, params, _) in MEMBERS.items():
 omega = grid_omega(d_tv)
 P = np.mean([to_grid(clf.predict_proba(Xte), e) for clf, e in models], axis=0)
 raw = decide(P, None, omega, True, GRID)
-cal = np.clip(np.interp(raw, cal_x, cal_y), 0, 600)
-scores = {k: summarize(d_te, p) for k, p in (("plain", raw), ("calib", cal))}
+scores = {"plain": summarize(d_te, raw)}
+if not ALL:
+    scores["calib"] = summarize(d_te, np.clip(np.interp(raw, cal_x, cal_y), 0, 600))
 for k, v in scores.items():
-    print(f"test {k:6s} {v['wbmae']:.4f}  " + " ".join(f"{r} {v[r]:.1f}" for r in RANGE_NAMES))
+    print(f"test{' (in-sample)' if ALL else ''} {k:6s} {v['wbmae']:.4f}  " + " ".join(f"{r} {v[r]:.1f}" for r in RANGE_NAMES))
 print(f"total fit {time.perf_counter() - t_all:.0f} s, {X.shape[1]} features")
 
 joblib.dump(dict(kind="ens_grid", models=[c for c, _ in models], member_edges=[e for _, e in models],
                  grid=GRID, grid_omega=omega, feature_names=names, bin_edges=bins,
                  calib_x=cal_x, calib_y=cal_y, groups=sg, window_groups=wg), OUT / "model.joblib")
 (OUT / "results.json").write_text(json.dumps(dict(
-    feat_set=FEAT_SET, members=info, calib_x=cal_x.tolist(), calib_y=cal_y.tolist(), test=scores), indent=2))
+    feat_set=FEAT_SET, all540=ALL, n_train_rows=int(m_tv.sum()), members=info,
+    calib_x=None if ALL else cal_x.tolist(), calib_y=None if ALL else cal_y.tolist(), test=scores), indent=2))

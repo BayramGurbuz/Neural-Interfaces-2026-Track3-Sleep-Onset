@@ -28,6 +28,7 @@ katta iyi. Kalibrasyon GRU/karışımda zarar veriyor → kullanılmıyor. Seed 
 | ZIP | Durum | Docker süresi (açık test) |
 |---|---|---|
 | mix_gru_hgb.zip | **17 Kasım gönderilecek (gönderim #1)** | 123 s |
+| final540.zip | **18 Kasım gönderilecek (gönderim #2)**; 540 kayıt, kontrollerden geçti | 122 s |
 | mix_gru10_hgb.zip | hazır aday (10 seed) | 132 s |
 | hgb_ens_c.zip | hazır aday | 115 s |
 | hgb_v3_np.zip / hgb_v3.zip | yedek | 89 s / 417 s |
@@ -39,7 +40,9 @@ model, testten geçerse) → 19–21 Kasım kalan 3 hak yedek. Final sıralama =
 yok). Günde 1, toplam 5 gönderim. Göndermeden önce ZIP Docker'da test edilmeli. Claude gönderim yapmaz.
 
 ## Sıradaki adım
-540 kayıtlık final eğitimi — `docs/final_plan.md` (henüz BAŞLATILMADI):
+540 kayıtlık final eğitimi TAMAMLANDI (2026-11-10): final540.zip, kontroller ve Docker geçti
+(ayrıntı `docs/submissions_log.md`). Sıradaki: 17 Kasım gönderim #1 (kullanıcı yapar), sealed skor/süre
+günlüğe. Eski plan adımları (yapıldı):
 1. `scripts/train_ens_c.py` ve `scripts/train_mix_final.py`'ye `--all` bayrağı (train+val+test).
 2. HGB(c) 4 üye (iterasyonlar 225/200/550/200), GRU uw 10 seed × 15 epoch, α 0.6, kalibrasyon yok.
 3. Kontroller: 540- ve 500-model tahmin karşılaştırması, örneklem içi skor, aynı seed'le ikinci koşu.

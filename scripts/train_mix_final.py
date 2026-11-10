@@ -3,7 +3,9 @@ epochs taken from the dual CV (same cosine schedule, stopped at that epoch), HGB
 trained ensemble (c) (~/neuralbench/save/ens_c/model.joblib). Mix weight alpha from the dual CV.
 No calibration (it hurt the mix in CV). Test is scored once, as a final check only.
 
-Usage: python scripts/train_mix_final.py CFG N_EPOCHS ALPHA [SEEDS] [TAG]
+Usage: python scripts/train_mix_final.py CFG N_EPOCHS ALPHA [SEEDS] [TAG] [--all] [--ens-tag=X]
+  --all: GRU on all 540 recordings, HGB part from ens_c_all<X>/, writes mix_<CFG><TAG>_all<X>/;
+         test score is then in-sample (pipeline check only).
   SEEDS: comma list (default gru_cv.SEEDS = 0,1,2); writes ~/neuralbench/save/mix_<CFG><TAG>/
 """
 import json
@@ -22,17 +24,21 @@ from gru_cv import CONFIGS, DEV, SEEDS, load_inputs, pad, run_fold, seq_inputs
 from stream_utils import RANGE_NAMES, summarize
 from train_hgb import SAVE
 
-cfg_name, n_epochs, alpha = sys.argv[1], int(sys.argv[2]), float(sys.argv[3])
-if len(sys.argv) > 4:
-    SEEDS = tuple(int(x) for x in sys.argv[4].split(","))
-TAG = sys.argv[5] if len(sys.argv) > 5 else ""
+ALL = "--all" in sys.argv
+ENS_TAG = next((a.split("=", 1)[1] for a in sys.argv if a.startswith("--ens-tag=")), "")
+argv = [a for a in sys.argv if not a.startswith("--")]
+cfg_name, n_epochs, alpha = argv[1], int(argv[2]), float(argv[3])
+if len(argv) > 4:
+    SEEDS = tuple(int(x) for x in argv[4].split(","))
+TAG = argv[5] if len(argv) > 5 else ""
 cfg = CONFIGS[cfg_name]
-OUT = SAVE / f"mix_{cfg_name}{TAG}"
+ENS_DIR = SAVE / (f"ens_c_all{ENS_TAG}" if ALL else "ens_c")
+OUT = SAVE / (f"mix_{cfg_name}{TAG}_all{ENS_TAG}" if ALL else f"mix_{cfg_name}{TAG}")
 OUT.mkdir(parents=True, exist_ok=True)
 B = VARIANTS["B"]
 
 # ---- GRU on all train+val
-d, recs, F, gain = load_inputs()
+d, recs, F, gain = load_inputs(include_test=ALL)
 tr = np.ones(len(d), bool)
 _, omega_b = class_stats(d, B)
 t0 = time.perf_counter()
@@ -44,7 +50,7 @@ fit_s = time.perf_counter() - t0
 print(f"GRU {cfg_name}: {len(SEEDS)} seeds x {n_epochs} epochs in {fit_s:.0f} s", flush=True)
 
 # ---- test check (once): GRU probs + HGB(c) grid probs, mixed
-ens = joblib.load(SAVE / "ens_c" / "model.joblib")
+ens = joblib.load(ENS_DIR / "model.joblib")
 wg, sg, _ = ABLATIONS["dyn_maxmin_spec_eye"]
 df, X, _ = build_table_ext(wg, sg)
 mt = (df.split == "test").to_numpy()
@@ -77,12 +83,12 @@ ones = np.ones(len(GRID) - 1)
 scores = {k: summarize(d_te, decide(W, None, ones, True, GRID)) for k, W in
           (("gru", q), ("hgb_c_plain", Wh), ("mix", alpha * q + (1 - alpha) * Wh))}
 for k, v in scores.items():
-    print(f"test {k:12s} {v['wbmae']:.4f}  " + " ".join(f"{r} {v[r]:.1f}" for r in RANGE_NAMES))
+    print(f"test{' (in-sample)' if ALL else ''} {k:12s} {v['wbmae']:.4f}  " + " ".join(f"{r} {v[r]:.1f}" for r in RANGE_NAMES))
 
 bundle = dict(ens)
 bundle.update(kind="mix", calib_x=None, calib_y=None, gru_states=grus, gru_mu=mu, gru_sd=sd,
               gru_cfg=dict(cfg), gru_weighted=cfg["weighted"], gru_omega_b=omega_b, gru_edges=B,
               mix_alpha=alpha, gru_baseline_n=24, gru_elapsed_clip=1500.0)
 joblib.dump(bundle, OUT / "model.joblib")
-(OUT / "results.json").write_text(json.dumps(dict(cfg=cfg_name, n_epochs=n_epochs, alpha=alpha, seeds=list(SEEDS),
+(OUT / "results.json").write_text(json.dumps(dict(cfg=cfg_name, all540=ALL, n_train_windows=len(d), ens_dir=str(ENS_DIR), n_epochs=n_epochs, alpha=alpha, seeds=list(SEEDS),
                                                   fit_s=fit_s, test=scores), indent=2))

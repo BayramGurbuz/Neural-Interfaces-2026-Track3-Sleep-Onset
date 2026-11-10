@@ -18,7 +18,9 @@ Sealed pencere: 17 Kasım 02:01 – 22 Kasım 01:59 TR (10 Kasım'dan ertelendi;
 | – | – | hgb_ens_c.zip | hazır aday | 42.50 | 52.8573 | 115 s ¹ | – | – |
 | 1 | 2026-11-17 (planlanan) | mix_gru_hgb.zip | gönderilecek | 40.43 | 48.2226 | 123 s | _bekleniyor_ | _bekleniyor_ |
 | – | – | mix_gru10_hgb.zip | hazır aday | 40.28 | 46.9131 | 132 s | – | – |
+| 2 | 2026-11-18 (planlanan) | final540.zip | gönderilecek | 40.28 ² | 31.5337 ³ | 122 s | – | – |
 
+² 500 kayıtlık çift CV (540'ta doğrulama seti yok). ³ Örneklem içi (test eğitimde) → yalnız boru hattı kontrolü.
 ¹ Arka planda CV koşusu çalışırken ölçüldü (yükte). sklearn yolu (hgb_v3.zip, aynı model/skor): 417 s.
 
 ## Ayrıntılar
@@ -93,6 +95,25 @@ Sealed pencere: 17 Kasım 02:01 – 22 Kasım 01:59 TR (10 Kasım'dan ertelendi;
   `python scripts/build_hgb_submission.py --model ~/neuralbench/save/mix_uw_n10/model.joblib --name mix_gru10_hgb --smooth-a 0`
 - Çift CV (kalibrasyonsuz): unseen 41.80 ± 1.91, seen 38.76 ± 1.41 → 40.28; 3 seed'li karışımdan 7/10 katta iyi.
 - Açık test 46.9128 (yerel) / 46.9131 (Docker); Docker 132 s.
+
+### final540.zip (gönderim #2, planlanan 2026-11-18)
+- Model: mix_gru10_hgb ile birebir aynı tarif (GRU uw 10 seed 0–9, 15 epoch, α 0.6; HGB(c) 4 üye
+  225/200/550/200 iterasyon, random_state 0; 817 öznitelik; kalibrasyon yok), eğitim verisi **540 kayıt**
+  (train+val+test, 80 975 pencere). Ön-binleme sınırları, ızgara ω, ω_B, GRU ortalama/std 540'tan.
+- Eğitim/paketleme commit'i: bu girişle aynı commit (`--all` bayrakları, `scripts/compare_final.py`).
+- Komutlar: `python scripts/train_ens_c.py --all` →
+  `python scripts/train_mix_final.py uw 15 0.6 0,1,2,3,4,5,6,7,8,9 _n10 --all` →
+  `python scripts/build_hgb_submission.py --model ~/neuralbench/save/mix_uw_n10_all/model.joblib --name final540 --smooth-a 0`
+- Süreler: HGB 4 üye 1822 s (tekrar 1579 s), GRU 10 seed 87 s (tekrar 39 s; GPU).
+- Kontroller (`python scripts/compare_final.py mix_uw_n10 mix_uw_n10_all mix_uw_n10_all_rep`):
+  - Tekrarlanabilirlik: aynı seed'lerle ikinci 540 koşusu (HGB + GRU) **bit düzeyinde aynı** (GRU
+    ağırlıkları, binleme, μ/σ, HGB ve GRU olasılıkları, tahminler: maks. fark 0.0).
+  - 500 ↔ 540 (train+val pencereleri, ikisi de örneklem içi): ort. |Δ| 15.0 s, p95 56.9 s, r 0.980;
+    TV(GRU) 0.062, TV(HGB) 0.067. Referans: aynı veri, yalnız GRU seed üçlüsü farklı (mix_uw ↔ mix_uw_s345)
+    ort. |Δ| 10.4 s, r 0.993, TV(GRU) 0.080 → 540'ın GRU değişimi seed gürültüsü mertebesinde.
+    Örneklem içi train+val W-bMAE: 500-model 27.99, 540-model 29.27 (aynı iterasyon, daha çok veri).
+  - Test (500 için örneklem dışı, 540 için içi): 46.91 → 31.53 (GRU 39.86, HGB 26.00); ort. |Δ| 37.2 s.
+- Docker 31.5337 (yerel 31.5338), 122 s (yüksüz).
 
 ## Tekrarlanabilirlik ölçümü (2026-11-10, mix_gru_hgb ayarları, açık test)
 Aynı seed'lerle (0,1,2) yeniden eğitim: bit düzeyinde aynı (48.2224). Farklı seed üçlüleri:

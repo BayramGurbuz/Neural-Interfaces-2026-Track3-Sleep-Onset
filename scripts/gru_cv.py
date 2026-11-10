@@ -63,8 +63,8 @@ for _n in (3, 5, 10):
 DEV = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-def load_inputs():
-    """-> d (train+val windows, original row order), list of per-recording index arrays in time order,
+def load_inputs(include_test=False):
+    """-> d (train+val windows [+ test if include_test], original row order), list of per-recording index arrays in time order,
     window feature matrix (N, 62) and the column offsets for the gain augmentation."""
     df, _, _ = build_table_ext()  # meta + targets, rows aligned with features_base.npz
     zb, ze = np.load(SAVE / "features_base.npz"), np.load(SAVE / "features_ext.npz")
@@ -75,7 +75,7 @@ def load_inputs():
     for c in range(n_ch):
         gain[c, c * n_pc + np.array([0, 1, 2, 3, 4, 7])] = 2.0
         gain[c, c * n_pc + np.array([8, 9])] = 1.0
-    m = (df.split != "test").to_numpy()
+    m = np.ones(len(df), bool) if include_test else (df.split != "test").to_numpy()
     d, F = df[m].reset_index(drop=True), F[m]
     recs = [g.sort_values("stop").index.to_numpy() for _, g in d.groupby("timeline", sort=False)]
     return d, recs, F, gain
