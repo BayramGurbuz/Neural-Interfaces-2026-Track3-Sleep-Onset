@@ -36,6 +36,11 @@ test/mae; `scripts/warmup_metrics.py`, EEGNet log'u ve final540 Docker çıktıs
 | hgb_v3 (np, kalibrasyonlu) | 52.48 | 119.06 | 220.62 |
 | mix_gru10_hgb (500) | 46.91 | 104.95 | 189.56 |
 
+**Warm-up leaderboard bilgi verici değil, sızıntılı girişler** (2026-11-10, `docs/warmup_update1_leaderboard.pdf`):
+Warm-up (update 1) leaderboard'unda W-bMAE sütunu var, ama üst sıralar büyük ölçüde test kayıtlarıyla eğitilmiş
+modeller (0.0 skorlar, "leaky" / "trained on all public data including warm-up test" notları). Dürüst kıyas
+yapılamıyor; model kararları yalnızca çift CV ile verilir.
+
 ## Hazır ZIP'ler (submissions/, hepsi Docker'da test edildi)
 | ZIP | Durum | Docker süresi (açık test) |
 |---|---|---|
