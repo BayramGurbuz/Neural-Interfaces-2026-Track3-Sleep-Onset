@@ -61,7 +61,7 @@ CONFIGS = {
 for _n in (3, 5, 10):
     CONFIGS[f"uw_n{_n}"] = dict(CONFIGS["uw"], run_epochs=40, n_seeds=_n)
 # experiment 3 (scripts/seq_cv.py): other sequence models, uw settings, 10 seeds, up to 30 epochs
-for _a in ("lstm", "tcn"):
+for _a in ("lstm", "tcn", "tcn_long"):
     CONFIGS[f"{_a}_n10"] = dict(CONFIGS["uw"], arch=_a, run_epochs=30, n_seeds=10)
 DEV = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -135,7 +135,14 @@ class TCNNet(nn.Module):
         return self.out(z), None
 
 
-ARCHS = {"gru": GRUNet, "lstm": LSTMNet, "tcn": TCNNet}
+class TCNLongNet(TCNNet):
+    """TCN with dilations 1..128: receptive field 511 windows (42.6 min) >= the longest recording."""
+
+    def __init__(self, n_in, n_out, hidden=HIDDEN, dropout=0.2, in_dropout=0.0):
+        super().__init__(n_in, n_out, hidden, dropout, in_dropout, dilations=(1, 2, 4, 8, 16, 32, 64, 128))
+
+
+ARCHS = {"gru": GRUNet, "lstm": LSTMNet, "tcn": TCNNet, "tcn_long": TCNLongNet}
 
 
 def pad(seqs, fill=0.0):

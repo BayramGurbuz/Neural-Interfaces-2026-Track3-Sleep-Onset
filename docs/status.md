@@ -118,13 +118,110 @@ ağırlıklar kat kat oynuyor ((0.4,0.3) ile (0.5,0.2) arası), basit ortalama +
 ızgara minimumu 39.98 ((0.4,0.3)) → gerçek kazanç ≈ 0.25–0.3, eşiğin tam kenarında. **Kabul kuralını geçen
 yok.**
 
+### Yedek aday: (GRU+TCN)/2 + HGB(c), α 0.7 (çift CV 40.00, Δ −0.28, 8/10)
+Kabul kuralını geçmediği için şimdi gönderilmiyor. **18 Kasım'a kadar daha iyisi çıkmazsa** 540 kayıtla
+eğitilip boşta kalan bir hakla gönderilecek (gerekli: `train_mix_final.py`'ye TCN eğitimi, builder'a TCN
+inference — hepsi torch, yeni kütüphane yok).
+
+## Teşhis (2026-11-11): seen/unseen dökümü ve deneğe özgü bilgi
+**Seen/unseen (mix_gru10_hgb OOF; katkılar W-bMAE'ye):**
+
+| Protokol | W-bMAE | [0,40) | [40,90) | [90,300) | [300,600] | bMAE | MAE |
+|---|---|---|---|---|---|---|---|
+| unseen (5 kat) | 41.80 | 8.38 | 8.37 | 14.32 | 10.73 | 104.06 | 197.10 |
+| seen (5 kat) | 38.76 | 7.46 | 7.65 | 13.82 | 9.83 | 96.07 | 180.84 |
+| makro | 40.28 | 7.92 | 8.01 | 14.07 | 10.28 | 100.06 | 188.97 |
+
+Seen–unseen farkı 3.0 s; her aralıkta seen daha iyi, en büyük fark [300,600] ve [0,40).
+
+**Girdi sözleşmesi (yarışma deposu `benchmark_utils/streaming.py`, `nb_task.py`, FAQ):** `predict(X)` yalnız
+(1, 4, 640) EEG tensörünü alır. `stream_id`, `record_id`, `onset`, `subject_id` pencere `info`'sunda taşınır ve
+modele verilmez ("kept away from the model"). `meta` = sfreq, ch_names, chs_info, n_chans, n_times,
+target_shape, device, submission_dir — denek/kayıt bilgisi yok. Her kayıt modelin taze kopyasında koşar →
+kayıtlar arası durum da taşınamaz. **Denek kimliği çıkarımda yok; yalnız sinyalden çıkarılabilir.**
+
+**Uykuya dalma süresi varyansı (`scripts/subject_info.py`, train+val 500 kayıt):** medyan 690 s (IQR 480–990,
+%10–90: 330–1265), ortalama 751 ± 347. ≥2 geceli 113 denek (410 kayıt): denekler arası SD 214, denek içi SD
+273, **ICC(1) = 0.38** (log: 0.40). Deneğin diğer gecelerinin medyanı bu geceyi 252 s MAE ile öngörüyor; genel
+medyan 291 s → kimlik bilgisi süreyi yalnız %13 daha iyi tahmin ediyor. Denek içi varyans baskın.
+
+**Denek tanıma sinyalden (LORO en yakın komşu, 62 pencere özniteliğinin ortalaması, 410 sorgu, şans %0.6):**
+ilk 60 s top-1 %12.9 (top-5 %27), ilk 120 s **%17.3** (top-5 %37), tüm kayıt %39.5 (top-5 %60). Kimlik
+sinyalden kısmen çıkarılabiliyor ama ilk 2 dakikada zayıf.
+
+**Oracle (seen katlar, HGB B üyesine deneğin diğer eğitim gecelerinin medyan süresi + sayısı + bundan türeyen
+kalan süre eklendi; yalnız katın eğitim kayıtlarından; `scripts/oracle_subject.py`, `oracle_subject.log`, B
+üyesi 400 ağaç LOFO, ~50 dk):**
+
+| Seen protokolü (5 kat) | W-bMAE | [0,40) | [40,90) | [90,300) | [300,600] | bMAE | MAE | iyi kat |
+|---|---|---|---|---|---|---|---|---|
+| B (817) | 41.47 | 8.08 | 7.91 | 15.23 | 10.26 | 100.82 | 188.54 | – |
+| B + oracle (820) | 40.87 (−0.60) | 8.15 | 7.89 | 15.04 | **9.78** | 96.85 | 178.99 | 5/5 |
+| B + GRU, α 0.6 | 38.82 | 7.48 | 7.70 | 13.94 | 9.69 | 95.31 | 178.69 | – |
+| B_oracle + GRU, α 0.6 | 38.52 (−0.30) | 7.56 | 7.71 | 13.83 | **9.43** | 93.20 | 173.60 | 5/5 |
+| yalnız oracle_rem (EEG yok) | 143.68 | 69.35 | 39.15 | 28.17 | **7.01** | 151.84 | 157.93 | – |
+
+Yorum: kimlik bilgisi tam verilse bile seen tarafında −0.30 (makroya −0.15; unseen'e katkısı yok) ve kazanç
+tamamen [300,600]'den. Çarpıcı nokta: EEG'siz "deneğin tipik süresi" [300,600]'de bizim tüm modellerden iyi
+(7.0 vs 9.4–10.3) → o aralıktaki hata büyük ölçüde "bu kişi ne kadar geç uyur" bilgisi; pencere EEG'si bunu
+taşımıyor. Kimlik çıkarımda verilmediği ve ilk 2 dk'dan tanıma %17 olduğu için gerçekçi üst sınır çok daha
+küçük (≈ −0.05 makro). Olası dolaylı yol: kayıt özeti ile eğitim kayıtlarına kNN "örtük önsel" (komşuların
+süre dağılımı öznitelik olarak; nedensel, model dosyasına 540 × 62 özet gömülür) — düşük öncelik.
+
+## Tahmin (çalıştırılmadı): ham pencereden öğrenen küçük CNN kodlayıcı → GRU
+Veri: 80 975 pencere × 4 × 640 float32 ≈ 83 MB, GPU'ya sığar. Kodlayıcı: 3 katman Conv1d (32–64 kanal,
+~30k parametre), çıkış 32-boyutlu gömme; kayıp = bizim 11 sınıflı dağılım CE'si (pencere başına).
+- **İki aşamalı** (önerilen): kodlayıcı pencere düzeyinde eğitilir, gömme GRU girdisine (125 → 157) eklenir,
+  GRU yeniden eğitilir. RTX 3050'de pencere epoch'u ≈ 5–10 s (batch 512, 158 adım) → 30 epoch × 10 kat × 3 seed
+  ≈ 1.5–2.5 saat; gömme çıkarımı + GRU çift CV (10 seed) ≈ 15 dk; final 540 eğitimi ≈ 20 dk. **Toplam ≈ 2–3 saat.**
+- **Uçtan uca** (kodlayıcı + GRU kayıt dizisi üzerinde): epoch ≈ 15 s; 15 epoch × 10 kat × 3 seed ≈ 2 saat,
+  10 seed ≈ 6 saat. Bellek: 32 kayıt × 300 pencere × 4 × 640 ≈ 100 MB + aktivasyonlar, 4 GB'a sığar.
+- **Sunucu süresi:** pencere başına CNN çıkarımı CPU'da ≈ 0.2–0.5 ms (1–5 MFLOP), mevcut ≈ 21 ms/pencere
+  (Welch + numpy ağaçlar) yanında ihmal edilebilir → Duration 1249 s → ≈ 1260–1290 s (+%1–3). Model dosyası
+  +~0.1 MB. Yeni kütüphane yok (torch zaten var). cuDNN conv nedeniyle yeniden eğitim bit düzeyinde aynı
+  olmayabilir (GRU notu gibi); ±2σ denetimi için sorun değil.
+- Beklenti: el yapımı bant güçleri zaten var; kazanç iğcik/K-kompleks morfolojisinden gelebilir, büyüklüğü
+  belirsiz. Uzun-ufuk deneylerinden sonra karar verilecek.
+
+## Uzun bağlam (2026-11-11)
+**TCN-long** (`gru_cv.TCNLongNet`: dilasyon 1–128, alıcı alan 511 pencere = 42.6 dk ≥ en uzun kayıt; 10 seed,
+LOFO epoch = 10 her katta; 1833 s; `seq_cv_tcn_long.log`, `mix_gru_tcnlong.log`):
+
+| Model | unseen | seen | Çift CV | Δ | [0,40) | [40,90) | [90,300) | [300,600] | bMAE | iyi kat |
+|---|---|---|---|---|---|---|---|---|---|---|
+| TCN-long tek | 43.03 | 40.60 | 41.81 | +1.53 | +0.41 | +0.63 | +0.31 | +0.18 | 102.74 | 0/10 |
+| TCN-long + HGB(c), α 0.6 | 41.72 | 39.32 | 40.52 | +0.24 | −0.13 | −0.01 | +0.31 | +0.07 | 101.69 | 4/10 |
+| (GRU+TCN-long)/2 + HGB(c), α 0.7 | 41.38 | 38.81 | 40.09 | −0.18 | −0.10 | −0.05 | −0.03 | −0.00 | 100.36 | 7/10 |
+
+Karşılaştırma: kısa TCN (alıcı alan 127 pencere) tek 41.51, +HGB 40.44, GRU+TCN+HGB 40.00. **Alıcı alanı
+büyütmek her yerde biraz kötü ve [300,600]'e hiçbir şey katmıyor.** 10 dk'dan uzun geçmiş dizi modeline
+ek bilgi vermiyor (ya da 500 kayıtla öğrenilemiyor).
+
+**"long" öznitelik grubu (HGB)**: `causal_features.py` "long" (28 çekirdek × {600 s eğim, 1200 s eğim, 600 s
+ortalama − taban, 1200 s EMA} = 112 öznitelik; mevcut dyn/maxmin çıktıları HEAD ile bit düzeyinde aynı,
+nedensellik testi geçti). B üyesi çift CV, aynı katlar/ağaç takvimi, referans = B on dyn_maxmin_spec_eye
+(817 öznitelik); karışım = B + GRU-uw(10 seed), α LOFO (her katta 0.6 seçildi); `long_features.log`, 5101 s:
+
+| Model | unseen | seen | Çift CV | Δ | [0,40) | [40,90) | [90,300) | [300,600] | bMAE | iyi kat |
+|---|---|---|---|---|---|---|---|---|---|---|
+| B (817, ref) | 44.94 | 41.47 | 43.20 | — | 8.57 | 8.27 | 15.49 | 10.88 | 106.10 | — |
+| B + long (929) | 44.59 | 41.66 | 43.12 | −0.08 | −0.19 | −0.07 | +0.16 | +0.02 | 106.45 | 5/10 |
+| B + GRU (ref), α 0.6 | 41.92 | 38.82 | 40.37 | — | 7.95 | 8.07 | 14.16 | 10.19 | 99.53 | — |
+| B_long + GRU, α 0.6 | 41.74 | 38.86 | 40.30 | −0.07 | −0.07 | −0.04 | +0.03 | −0.00 | 99.54 | 7/10 |
+
+Unseen'de küçük kazanç (−0.35 / −0.18), seen'de küçük kayıp (+0.19 / +0.04); hedeflenen [90,300) ve
+[300,600] aralıklarında hiç iyileşme yok (+0.16 / +0.02). Katlar 5/10 ve 7/10 → gürültü düzeyinde.
+**Sonuç: 10–20 dk ufuk ne dizi modelinde ne HGB'de işe yarıyor; [300,600] hatası uzun geçmişten değil
+kişi düzeyindeki gecikme farkından geliyor (oracle bulgusuyla tutarlı).** GRU+TCN karışımına eklemeye
+değmez (HGB tarafındaki −0.07 karışımda sıfıra iner; kabul kuralı eşiği 0.3).
+
 ## Sıradaki adım
-Deneyler 0–3 tamamlandı (yukarıda); hiçbiri kabul kuralını geçmedi. Seçenekler (kullanıcı kararı):
-(a) GRU+TCN karışımını 540'ta eğitip göndermek için kural dışına çıkmak (Δ −0.28 ≈ eşik; sealed'da ~0.3 s
-kazanç, sıralamayı değiştirmez); (b) [300,600] katkısına (10.3 → liderlerle farkın büyük kısmı) doğrudan hedefli
-bir yaklaşım: uzun-ufuk sınıflarında ayrı bir model / daha geniş zaman ufuklu öznitelikler (10–20 dk), ya da
-TCN'nin alıcı alanını büyütmek (TCN tek başına [300,600]'de −0.25 veriyor). Son işlemler (τ, bölgesel α) bu
-aralığı hiç değiştirmiyor.
+Bu turda kabul kuralını geçen model yok. Yedek aday hâlâ (GRU+TCN)/2 + HGB(c) α 0.7 (40.00, Δ −0.28,
+8/10). 18 Kasım'a kadar daha iyisi çıkmazsa 540 kayıtla eğitilip gönderilecek (TCN eğitimi
+`train_mix_final.py`'ye, TCN çıkarımı `build_hgb_submission.py`'ye eklenmeli; yalnız torch).
+Denenmemiş fikirler (öncelik sırasıyla): (1) ham pencereden CNN kodlayıcı → GRU (aşağıdaki tahmin, 2–3 saat);
+(2) kNN örtük önsel (ilk 2 dk spektral özetinden en yakın eğitim kişileri → gecikme medyanı özniteliği;
+üst sınır ≈ −0.05, düşük öncelik).
 
 ## Doküman güncellemesi (2026-11-10, depo 4a8c943 → 79b4453, 5 Kasım PDF'lerine göre)
 - Değişen: kota artık **takım başına ortak** (5 toplam, günde 1); leaderboard her katılımcının en iyisini

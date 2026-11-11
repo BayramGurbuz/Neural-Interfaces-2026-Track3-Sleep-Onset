@@ -51,8 +51,10 @@ Track 03 (Sleep Onset) yarışması için model geliştirme deposudur.
 - Değerlendirme yalnızca inference; worker hiçbir paket kurmaz. submission.py yalnızca worker
   image'ında olan paketleri import edebilir; kendi ek Python modüllerimiz desteklenmez.
   Mimari ve ön işleme tek dosyada olmalı.
-- Docker image: lionelyneuro/neural-compet:v4-sealed (2026-11-11'den itibaren TÜM yerel testler bununla;
-  v3 eski). Not: 11 Kasım itibarıyla bu tag Docker Hub'da bulunamadı — bkz. docs/status.md.
+- Docker image: sunucu sealed'da lionelyneuro/neural-compet:v4-sealed kullanıyor (Codabench sayfa başlığı);
+  bu imaj herkese açık değil (Docker Hub'da yalnız v2/v3). Yerel testler v3 ile sürer. KURAL: final540 bu
+  imajda sorunsuz çalıştı; yeni modellere final540'ın kullanmadığı HİÇBİR kütüphane/import eklenmez
+  (numpy, torch, joblib, scipy'nin mevcut kullanılan parçaları dışında bir şey yok).
 - Wrapper yalnızca `meta` ve batch'lere dayanmalı; dataset adı, dosya yolu, subject id veya sabit
   kanal sayısı okumamalı.
 - Checkpoint'i korumak için deneyi Python'dan çalıştır: Experiment.delete_checkpoints_on_exit = False.

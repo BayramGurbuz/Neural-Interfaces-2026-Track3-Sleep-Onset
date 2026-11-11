@@ -15,7 +15,8 @@ Optional groups (default off; the default output is unchanged):
   0.2-0.6 Hz of AF7-AF8, blink count on mean(AF7, AF8) with a per-window adaptive threshold).
 - stream level, ``CausalFeatureStream(groups=...)``: "dyn" (on the core band features: causal
   least-squares slopes over the last 30 s / 1 / 2 / 5 min, 5 min variance and lag-1
-  autocorrelation, 10 min EMA), "maxmin" (30 s EMA minus its running max and running min).
+  autocorrelation, 10 min EMA), "maxmin" (30 s EMA minus its running max and running min),
+  "long" (core features: causal slopes over 10 / 20 min, 10 min mean minus the baseline, 20 min EMA).
 Nothing depends on future windows, the recording length or its end.
 """
 import numpy as np
@@ -52,6 +53,8 @@ CORE = PER_CHANNEL[:7]  # band powers + ratios: inputs of the "dyn" group
 DYN_WINDOWS_S = (30.0, 60.0, 120.0, 300.0)
 DYN_VAR_S = 300.0
 DYN_EMA_S = 600.0
+LONG_WINDOWS_S = (600.0, 1200.0)  # "long" group: 10 / 20 min causal slopes on the core features
+LONG_EMA_S = 1200.0
 
 
 def window_features_ext(X, sfreq, ch_names, groups):
@@ -130,6 +133,10 @@ def feature_names(ch_names, groups=(), window_names=None):
     if "maxmin" in groups:
         e30 = [f"{n}_ema{int(EMA_TAUS_S[0])}s" for n in base]
         names += [f"{n}_minus_runmax" for n in e30] + [f"{n}_minus_runmin" for n in e30]
+    if "long" in groups:
+        names += [f"{n}_slope{int(w)}s" for w in LONG_WINDOWS_S for n in core]
+        names += [f"{n}_mean{int(LONG_WINDOWS_S[0])}s_rel" for n in core]
+        names += [f"{n}_ema{int(LONG_EMA_S)}s" for n in core]
     return names
 
 
@@ -143,8 +150,10 @@ class CausalFeatureStream:
         self.core_idx = np.asarray(core_idx if core_idx is not None else [], dtype=int)
         self.dyn_n = [max(1, int(round(w / self.step_s))) for w in DYN_WINDOWS_S]
         self.var_n = max(1, int(round(DYN_VAR_S / self.step_s)))
-        self.hist_n = max(self.dyn_n + [self.var_n])
+        self.long_n = [max(2, int(round(w / self.step_s))) for w in LONG_WINDOWS_S]
+        self.hist_n = max(self.dyn_n + [self.var_n] + (self.long_n if "long" in self.groups else []))
         self.alpha_long = 1.0 - np.exp(-self.step_s / DYN_EMA_S)
+        self.alpha_vlong = 1.0 - np.exp(-self.step_s / LONG_EMA_S)
         self.reset()
 
     def reset(self):
@@ -154,14 +163,40 @@ class CausalFeatureStream:
         self.base_n = 0
         self.hist = []
         self.ema_long = None
+        self.ema_vlong = None
         self.run_max = None
         self.run_min = None
 
-    def _dyn(self, f):
-        c = f[self.core_idx]
+    def _push(self, c):
+        """Append the newest core vector to the causal history (last ``hist_n`` windows)."""
         self.hist.append(c)
         if len(self.hist) > self.hist_n:
             self.hist.pop(0)
+
+    def _long(self, f, base):
+        """"long" group: slopes over LONG_WINDOWS_S, mean of the last LONG_WINDOWS_S[0] minus the
+        recording baseline, EMA with LONG_EMA_S; all on the core features, history only."""
+        c = f[self.core_idx]
+        if self.ema_vlong is None:
+            self.ema_vlong = c.copy()
+        else:
+            self.ema_vlong += self.alpha_vlong * (c - self.ema_vlong)
+        H = np.asarray(self.hist)
+        out = []
+        for n in self.long_n:
+            h = H[-n:]
+            if len(h) < 2:
+                out.append(np.zeros_like(c))
+                continue
+            t = np.arange(len(h), dtype=np.float64) * self.step_s
+            t -= t.mean()
+            out.append((t[:, None] * (h - h.mean(axis=0))).sum(axis=0) / (t ** 2).sum())
+        out.append(H[-self.long_n[0]:].mean(axis=0) - base[self.core_idx])
+        out.append(self.ema_vlong.copy())
+        return out
+
+    def _dyn(self, f):
+        c = f[self.core_idx]
         if self.ema_long is None:
             self.ema_long = c.copy()
         else:
@@ -212,8 +247,12 @@ class CausalFeatureStream:
         base = self.base_sum / self.base_n
         cur = [f] + self.emas
         parts = cur + [c - base for c in cur] + [np.array([elapsed])]
+        if "dyn" in self.groups or "long" in self.groups:
+            self._push(f[self.core_idx])
         if "dyn" in self.groups:
             parts += self._dyn(f)
         if "maxmin" in self.groups:
             parts += self._maxmin()
+        if "long" in self.groups:
+            parts += self._long(f, base)
         return np.concatenate(parts)
