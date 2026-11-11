@@ -122,6 +122,64 @@ class GRUNet(nn.Module):
         return self.out(y), h
 
 
+HIDDEN = 64
+EMB = 32
+
+
+# ---- verbatim copies of scripts/gru_cv.py TCNNet and scripts/cnn_encoder.py Encoder ----
+{tcn_src}
+
+{enc_src}
+# ---- end of copies ----
+
+
+class TCNBank:
+    """All TCN seeds evaluated together, window by window, with stacked parameters. Identical to the
+    batched left-padded causal convolution of TCNNet: output_t of a layer with dilation k =
+    W[:, :, 0] z_(t-2k) + W[:, :, 1] z_(t-k) + W[:, :, 2] z_t + b (zeros before the recording start)."""
+
+    def __init__(self, nets):
+        def g(f):
+            return torch.stack([f(n).detach() for n in nets])
+
+        self.dil = tuple(nets[0].dil)
+        self.eps = float(nets[0].inp[2].eps)
+        self.inp_w, self.inp_b = g(lambda n: n.inp[0].weight), g(lambda n: n.inp[0].bias)  # (S, H, n_in), (S, H)
+        self.inp_lw, self.inp_lb = g(lambda n: n.inp[2].weight), g(lambda n: n.inp[2].bias)
+        self.conv_w = [g(lambda n: n.convs[i].weight) for i in range(len(self.dil))]  # (S, H, H, 3)
+        self.conv_b = [g(lambda n: n.convs[i].bias) for i in range(len(self.dil))]
+        self.norm_w = [g(lambda n: n.norms[i].weight) for i in range(len(self.dil))]
+        self.norm_b = [g(lambda n: n.norms[i].bias) for i in range(len(self.dil))]
+        self.out_w, self.out_b = g(lambda n: n.out.weight), g(lambda n: n.out.bias)  # (S, n_out, H), (S, n_out)
+        self.zero = torch.zeros(self.inp_b.shape)
+        self.reset()
+
+    def reset(self):
+        self.hist = [[] for _ in self.dil]
+
+    def _ln(self, z, w, b):
+        m = z.mean(-1, keepdim=True)
+        v = z.var(-1, unbiased=False, keepdim=True)
+        return (z - m) / torch.sqrt(v + self.eps) * w + b
+
+    def step(self, x):
+        """x: (n_in,) standardised inputs of one window -> (S, n_out) logits of all seeds."""
+        z = self._ln(nn.functional.gelu(torch.einsum("shi,i->sh", self.inp_w, x) + self.inp_b), self.inp_lw, self.inp_lb)
+        for li, k in enumerate(self.dil):
+            h = self.hist[li]
+            h.append(z)
+            t = len(h) - 1
+            taps = [h[t - 2 * k] if t >= 2 * k else self.zero, h[t - k] if t >= k else self.zero, z]
+            y = sum(torch.einsum("soi,si->so", self.conv_w[li][:, :, :, j], taps[j]) for j in range(3)) + self.conv_b[li]
+            z = self._ln(z + nn.functional.gelu(y), self.norm_w[li], self.norm_b[li])
+        return torch.einsum("soh,sh->so", self.out_w, z) + self.out_b
+
+
+def load_net(net, state):
+    net.load_state_dict({k: torch.tensor(v) for k, v in state.items()})
+    return net.eval()
+
+
 class HGBStreamModel:
     def __init__(self, model, sfreq, bin_edges=None, bundle=None, ch_names=None):
         self.model = model  # sklearn object, or None when numpy tree arrays are shipped
@@ -133,7 +191,7 @@ class HGBStreamModel:
         self.groups = tuple(bundle.get("groups", ()))
         self.window_groups = tuple(bundle.get("window_groups", ()))
         self.ch_names = list(ch_names) if ch_names is not None else None
-        if self.kind in ("ens_grid", "mix"):  # several distribution members averaged on a common grid
+        if self.kind in ("ens_grid", "mix", "mix3"):  # several distribution members averaged on a common grid
             self.member_trees = bundle["member_trees"]
             self.member_edges = [np.asarray(e, dtype=np.float64) for e in bundle["member_edges"]]
             self.grid = np.asarray(bundle["grid"], dtype=np.float64)
@@ -156,6 +214,25 @@ class HGBStreamModel:
             self.alpha = float(bundle["mix_alpha"])
             self.base_n = int(bundle["gru_baseline_n"])
             self.el_clip = float(bundle["gru_elapsed_clip"])
+        if self.kind == "mix3":  # (GRU-uw + TCN + GRU-emb) / 3 on the grid, mixed with HGB(c) (weight alpha)
+            c = bundle["gru_cfg"]
+            n_out = len(bundle["gru_edges"]) - 1
+            self.gru_mu, self.gru_sd = (np.asarray(bundle[k], np.float32) for k in ("gru_mu", "gru_sd"))
+            self.tcn_mu, self.tcn_sd = (np.asarray(bundle[k], np.float32) for k in ("tcn_mu", "tcn_sd"))
+            self.gemb_mu, self.gemb_sd = (np.asarray(bundle[k], np.float32) for k in ("gemb_mu", "gemb_sd"))
+            self.grus = [load_net(GRUNet(len(self.gru_mu), n_out, c["hidden"]), s) for s in bundle["gru_states"]]
+            self.tcns = TCNBank([load_net(TCNNet(len(self.tcn_mu), n_out, c["hidden"],
+                                                 dilations=tuple(bundle["tcn_dilations"])), s)
+                                 for s in bundle["tcn_states"]])
+            self.encs = [load_net(Encoder(n_out, int(bundle["cnn_emb"])), s) for s in bundle["cnn_states"]]
+            self.gembs = [load_net(GRUNet(len(self.gemb_mu), n_out, c["hidden"]), s) for s in bundle["gemb_states"]]
+            assert len(self.encs) == len(self.gembs)
+            self.cnn_scale, self.cnn_clip = float(bundle["cnn_scale"]), float(bundle["cnn_clip"])
+            self.gru_edges = np.asarray(bundle["gru_edges"], np.float64)
+            self.gru_omega = np.asarray(bundle["gru_omega_b"], np.float64)
+            self.alpha = float(bundle["mix_alpha"])
+            self.base_n = int(bundle["gru_baseline_n"])
+            self.el_clip = float(bundle["gru_elapsed_clip"])
         self.sfreq = float(sfreq)
         self.stream = None
         self.reset_state()
@@ -169,6 +246,54 @@ class HGBStreamModel:
         self.gru_sum = None
         self.gru_cnt = 0
         self.gru_t = 0
+        if self.kind == "mix3":
+            self.gemb_h = [None] * len(self.gembs)
+            self.emb_sum = [None] * len(self.encs)
+            self.tcns.reset()
+
+    def _grid_q(self, P):
+        """(B, n_classes) probabilities -> metric-weighted, normalised grid distribution."""
+        q = P * self.gru_omega
+        return to_grid(q / q.sum(axis=1, keepdims=True), self.gru_edges, self.grid)
+
+    def _mix3_q(self, f32, x):
+        """f32: (B, 62) window features, x: (B, C, T) raw windows, time order -> mean grid distribution
+        of GRU-uw (10 seeds), TCN (10 seeds) and GRU-emb (3 encoder/GRU seed pairs)."""
+        with torch.no_grad():
+            xr = torch.clamp(torch.tensor(x, dtype=torch.float32) / self.cnn_scale, -self.cnn_clip, self.cnn_clip)
+            embs = [enc(xr)[1].numpy().astype(np.float32) for enc in self.encs]  # (B, EMB) per seed
+        rows, erows = [], [[] for _ in self.encs]
+        for i, fi in enumerate(f32):
+            self.gru_t += 1
+            if self.gru_cnt < self.base_n:
+                self.gru_sum = fi.copy() if self.gru_sum is None else self.gru_sum + fi
+                for s, E in enumerate(embs):
+                    self.emb_sum[s] = E[i].copy() if self.emb_sum[s] is None else self.emb_sum[s] + E[i]
+                self.gru_cnt += 1
+            n = np.float32(self.gru_cnt)
+            el = np.float32(np.log1p(min(self.gru_t * 5.0, self.el_clip)))
+            row = np.concatenate([fi, fi - self.gru_sum / n, [el]]).astype(np.float32)
+            rows.append(row)
+            for s, E in enumerate(embs):
+                erows[s].append(np.concatenate([row, E[i], E[i] - self.emb_sum[s] / n]).astype(np.float32))
+        rows = np.stack(rows)
+        ps_g, ps_t, ps_e = [], [], []
+        with torch.no_grad():
+            xg = torch.tensor((rows - self.gru_mu) / self.gru_sd)[None]
+            if self.gru_h is None:
+                self.gru_h = [None] * len(self.grus)
+            for i, net in enumerate(self.grus):
+                logits, self.gru_h[i] = net(xg, self.gru_h[i])
+                ps_g.append(torch.softmax(logits[0], -1).numpy().astype(np.float64))
+            xt = torch.tensor((rows - self.tcn_mu) / self.tcn_sd)
+            logits = torch.stack([self.tcns.step(xt[j]) for j in range(len(xt))])  # (B, S, n_out)
+            ps_t = list(torch.softmax(logits, -1).permute(1, 0, 2).numpy().astype(np.float64))
+            for s, net in enumerate(self.gembs):
+                xe = torch.tensor((np.stack(erows[s]) - self.gemb_mu) / self.gemb_sd)[None]
+                logits, self.gemb_h[s] = net(xe, self.gemb_h[s])
+                ps_e.append(torch.softmax(logits[0], -1).numpy().astype(np.float64))
+        return (self._grid_q(np.mean(ps_g, axis=0)) + self._grid_q(np.mean(ps_t, axis=0))
+                + self._grid_q(np.mean(ps_e, axis=0))) / 3.0
 
     def _gru_probs(self, f32):
         """f32: (B, 62) window features (float32), time order -> (B, n_classes) mean GRU probabilities."""
@@ -233,6 +358,12 @@ class HGBStreamModel:
             q = to_grid(q / q.sum(axis=1, keepdims=True), self.gru_edges, self.grid)
             W = self.alpha * q + (1.0 - self.alpha) * Wh
             pred = decide(W, None, np.ones(W.shape[1]), self.grid)
+        elif self.kind == "mix3":
+            Wh = np.mean([to_grid(hgb_predict_proba(t, rows), e, self.grid)
+                          for t, e in zip(self.member_trees, self.member_edges)], axis=0) * self.grid_omega
+            Wh /= Wh.sum(axis=1, keepdims=True)
+            W = self.alpha * self._mix3_q(f32, x) + (1.0 - self.alpha) * Wh
+            pred = decide(W, None, np.ones(W.shape[1]), self.grid)
         elif self.trees is not None:
             if self.kind == "dist":
                 pred = decide(hgb_predict_proba(self.trees, rows), self.reps, self.omega, self.class_edges)
@@ -266,14 +397,22 @@ def literal(a):
     return "None" if a is None else "[" + ", ".join(repr(float(v)) for v in a) + "]"
 
 
+sys.path.insert(0, str(ROOT / "scripts"))
+import inspect  # noqa: E402
+from gru_cv import TCNNet  # noqa: E402
+from cnn_encoder import Encoder  # noqa: E402
+
 wrapper = (WRAPPER.replace("{tree_body}", tree_body).replace("{smooth_a!r}", repr(args.smooth_a))
            .replace("{calib_x}", literal(bundle.get("calib_x")))
-           .replace("{calib_y}", literal(bundle.get("calib_y"))))
+           .replace("{calib_y}", literal(bundle.get("calib_y")))
+           .replace("{tcn_src}", inspect.getsource(TCNNet)).replace("{enc_src}", inspect.getsource(Encoder)))
 (out / "submission.py").write_text(HEADER + feat_body + "\n" + wrapper)
 keep = {k: bundle[k] for k in ("model", "feature_names", "bin_edges", "kind", "groups", "reps", "omega",
                                "class_edges", "window_groups", "member_edges", "grid", "grid_omega", "gru_states", "gru_mu",
                                "gru_sd", "gru_cfg", "gru_weighted", "gru_omega_b", "gru_edges", "mix_alpha",
-                               "gru_baseline_n", "gru_elapsed_clip")
+                               "gru_baseline_n", "gru_elapsed_clip",
+                               "tcn_states", "tcn_mu", "tcn_sd", "tcn_dilations", "cnn_states", "cnn_scale",
+                               "cnn_clip", "cnn_emb", "gemb_states", "gemb_mu", "gemb_sd")
         if k in bundle}
 if not args.sklearn_trees:
     sys.path.insert(0, str(ROOT / "scripts"))

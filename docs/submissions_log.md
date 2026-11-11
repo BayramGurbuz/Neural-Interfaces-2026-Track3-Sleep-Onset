@@ -21,11 +21,21 @@ Sealed log/tahmin/skorlama çıktıları gizli. Plan: #1 final540 (10 Kasım, ya
 | – | – | mix_gru_hgb.zip | yedek | 40.43 | 48.2226 | 123 s | _bekleniyor_ | _bekleniyor_ |
 | – | (gönderilmeyecek) | mix_gru10_hgb.zip | plandan çıkarıldı ⁴ | 40.28 | 46.9131 | 132 s | – | – |
 | 1 | 2026-11-10 | final540.zip | **gönderildi** | 40.28 ² | 31.5337 ³ | 122 s | **39.56** (23/60) | 1249.51 s |
+| 2 | (onay bekliyor) | mix3_540.zip | **aday** ⁵ | 39.40 ² | 32.7449 ³ | 225 s / 213 s (×2, aynı skor) | – | – |
 
 ² 500 kayıtlık çift CV (540'ta doğrulama seti yok). ³ Örneklem içi (test eğitimde) → yalnız boru hattı kontrolü.
 ⁴ final540 ile tek fark eğitim kayıt sayısı (submission.py birebir aynı; model.joblib'de α, GRU ayarı, seed, epoch, ızgara
   aynı; yalnız veriye bağlı binleme sınırları ve ağaç yapıları farklı) → ayrı bilgi vermez (2026-11-11).
 ¹ Arka planda CV koşusu çalışırken ölçüldü (yükte). sklearn yolu (hgb_v3.zip, aynı model/skor): 417 s.
+⁵ mix3 = (GRU-uw 10 seed + TCN 10 seed + GRU-emb 3 seed)/3 metrik-ağırlıklı grid dağılımı, HGB(c) ile α 0.7;
+  kabul kuralı: çift CV 39.40, mix_gru10_hgb'ye göre −0.88, 10/10 kat (`scripts/mix_seq.py`). Eğitim:
+  `scripts/train_mix3_final.py --all` (540 kayıt; GRU 10×15 ep, TCN 10×10 ep, CNN kodlayıcı 3×12 ep, GRU-emb
+  3×10 ep; HGB = ens_c_all) → `~/neuralbench/save/mix3_all/`; paket: `scripts/build_hgb_submission.py
+  --model ~/neuralbench/save/mix3_all/model.joblib --name mix3_540` (12.9 MB). Akış ↔ toplu eşdeğerlik
+  `scripts/check_stream_mix3.py`. Train+val sürümü (`mix3/`, mix3_tv.zip): açık test 47.0597.
+  Docker v3 iki koşu: wbmae 32.74462474110901 her ikisinde de (bit düzeyinde aynı → deterministik), bMAE 81.76,
+  MAE 151.95; duration 225.3 s / 213.1 s (final540: 122 s) → oran ≈ 1.75–1.85 → sunucu tahmini ≈ 2200–2300 s
+  (sınır 3600 s, ~%37 pay). Pencere başına ≈ 36 ms (final540 ≈ 21 ms).
 
 ## Sealed sonuçlar
 | # | Tarih | ZIP | W-bMAE macro (sıralama) | W-bMAE | bMAE | MAE | Duration | Sıra |

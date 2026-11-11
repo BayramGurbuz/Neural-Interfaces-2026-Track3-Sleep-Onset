@@ -18,7 +18,8 @@ yalnız son kontrol (seçim için kullanılmadı).
 | HGB ensemble (c): 4 dağılım modeli (hgb_ens_c) | 42.50 | 52.86 | |
 | GRU-uw (3 seed) | 41.66 | 48.46 | nedensel GRU, ağırlıksız CE |
 | GRU(3) + HGB(c), α 0.5 (mix_gru_hgb) | 40.43 | 48.22 | |
-| **GRU(10) + HGB(c), α 0.6 (mix_gru10_hgb)** | **40.28** | **46.91** | en iyi |
+| GRU(10) + HGB(c), α 0.6 (mix_gru10_hgb / final540) | 40.28 | 46.91 | gönderildi, sealed 39.56 |
+| **(GRU10 + TCN10 + GRU-emb3)/3 + HGB(c), α 0.7 (mix3)** | **39.40** | 47.06 | kabul kuralını geçti (−0.88, 10/10); aday #2 |
 
 En iyi model ayrıntısı: unseen 41.80 ± 1.91, seen 38.76 ± 1.41; HGB(c)'den ve yalnız GRU'dan 10/10
 katta iyi. Kalibrasyon GRU/karışımda zarar veriyor → kullanılmıyor. Seed tekrarlanabilirliği: aynı seed
@@ -46,6 +47,7 @@ yapılamıyor; model kararları yalnızca çift CV ile verilir.
 |---|---|---|
 | mix_gru_hgb.zip | yedek (3 seed; mix_gru10_hgb onun yerine) | 123 s |
 | final540.zip | **gönderildi (#1, 10 Kasım) → sealed 39.56** | 122 s (v3) |
+| mix3_540.zip | **aday #2** (kabul kuralını geçti; gönderim onay bekliyor) | 225 s / 213 s (v3, ×2 aynı skor) |
 | mix_gru10_hgb.zip | gönderilmeyecek (final540 ile aynı tarif, 500 kayıt) | 132 s |
 | hgb_ens_c.zip | hazır aday | 115 s |
 | hgb_v3_np.zip / hgb_v3.zip | yedek | 89 s / 417 s |
@@ -219,6 +221,26 @@ birebir yeniden üretiyor: 40.00, α 0.7).
   (40.08, −0.20, 7/10) — kural eşiğinin altında, seed gürültüsü (σ≈0.3) düzeyinde.
 - Süre: çıkarım 20 s, kodlayıcı 1263 + 1330 s, GRU 473 + 397 s, karışımlar ~2 dk → toplam ≈ 1 saat GPU.
 
+**Üçlü karışım (kullanıcı isteği, yalnız karışım):** `mix_seq.py mix3_gru_tcn_cnnemb uw_n10 tcn_n10 cnn3_emb` —
+dizi modelleri eşit ağırlık (her biri metrik-ağırlıklı normalize grid dağılımı, ortalama), yalnız α iç içe LOFO
+(10 katta da 0.7):
+
+| Model | unseen | seen | Çift CV | Δ (ref) | [0,40) | [40,90) | [90,300) | [300,600] | bMAE | iyi kat |
+|---|---|---|---|---|---|---|---|---|---|---|
+| **(GRU10+TCN10+GRU-emb3)/3 + HGB(c), α 0.7** | **40.73** | **38.07** | **39.40** | **−0.88** (mix_uw_n10) | −0.22 | −0.27 | −0.47 | +0.09 | 99.69 | **10/10** |
+| aynı, ref yedek aday (GRU+TCN)/2 + HGB (40.00) | | | | −0.60 | −0.13 | −0.24 | −0.46 | +0.23 | | 10/10 |
+
+**Kabul kuralını geçti** (Δ ≤ −0.30 ve ≥ 8/10): kazanç [0,40)/[40,90)/[90,300)'den, [300,600] hafif kötü.
+Tek başına zayıf olan GRU-emb (44.18), karışımda çeşitlilikle −0.60 getiriyor (ref GRU+TCN+HGB).
+**Aday #2 = bu model.** 540 eğitimi: `train_mix3_final.py --all` (GRU 10×15 ep, TCN 10×10 ep, kodlayıcı 3×12 ep,
+GRU-emb 3×10 ep; HGB = ens_c_all) → `~/neuralbench/save/mix3_all/`; `build_hgb_submission.py` "mix3" türü
+(vektörleştirilmiş `TCNBank`, kodlayıcı, GRU-emb; yalnız numpy/torch/joblib/scipy). Train+val sürümü
+(`mix3/`): açık test mix3 47.06 (mix2 46.55, mix_gru10 46.91 — 40 kayıt, gürültülü, seçimde kullanılmaz).
+Akış ↔ toplu eşdeğerlik (`check_stream_mix3.py`): maks |Δ| 0.055 s, W-bMAE 47.0599 ↔ 47.0597 ✓.
+Yerel süre 33.6 ms/pencere (TCNBank öncesi 53.9; final540 ≈ 21) → sunucu tahmini ≈ 1249 × 1.6 ≈ 2000 s (< 3600).
+Docker v3 ×2: skor 32.74462474110901 her ikisinde (deterministik), süre 225 / 213 s (final540 122 s) →
+sunucu tahmini ≈ 2200–2300 s (< 3600, ~%37 pay). Ayrıntı submissions_log.md.
+
 ## Uzun bağlam (2026-11-11)
 **TCN-long** (`gru_cv.TCNLongNet`: dilasyon 1–128, alıcı alan 511 pencere = 42.6 dk ≥ en uzun kayıt; 10 seed,
 LOFO epoch = 10 her katta; 1833 s; `seq_cv_tcn_long.log`, `mix_gru_tcnlong.log`):
@@ -262,9 +284,9 @@ değmez (HGB tarafındaki −0.07 karışımda sıfıra iner; kabul kuralı eşi
 Bu turda kabul kuralını geçen model yok. Yedek aday hâlâ (GRU+TCN)/2 + HGB(c) α 0.7 (40.00, Δ −0.28,
 8/10). 18 Kasım'a kadar daha iyisi çıkmazsa 540 kayıtla eğitilip gönderilecek (TCN eğitimi
 `train_mix_final.py`'ye, TCN çıkarımı `build_hgb_submission.py`'ye eklenmeli; yalnız torch).
-CNN kodlayıcı deneyi (yukarıda) bitti, eşik geçilmedi; (GRU+TCN)/2 karışımı ve 10 seed/2D varyantı
-çalıştırılmadı. Yeni deney önerisi için kullanıcı kararı bekleniyor; 18 Kasım'a kadar daha iyisi yoksa yedek
-aday 540 ile eğitilir.
+Aday #2 = mix3 (üçlü karışım, çift CV 39.40). 540 ile eğitildi, ZIP üretildi (mix3_540.zip), Docker v3 ×2
+testi yapılıyor/yapıldı (submissions_log.md). **Gönderim kullanıcı onayına bağlı.** Yedek aday (GRU+TCN)/2 +
+HGB(c) α 0.7 artık ikincil (mix3 ona göre de −0.60, 10/10).
 
 ## Doküman güncellemesi (2026-11-10, depo 4a8c943 → 79b4453, 5 Kasım PDF'lerine göre)
 - Değişen: kota artık **takım başına ortak** (5 toplam, günde 1); leaderboard her katılımcının en iyisini

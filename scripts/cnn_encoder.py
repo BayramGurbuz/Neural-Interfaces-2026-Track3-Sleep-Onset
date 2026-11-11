@@ -82,19 +82,22 @@ def infer(model, X, idx, bs=2048):
     return torch.cat(logits), torch.cat(embs)
 
 
-def train_fold(X, y, tr, te, seed):
-    """Returns per-epoch held-out probs, per-epoch (ce_in, ce_out), and per-epoch state dicts."""
+def train_fold(X, y, tr, te, seed, stop_epoch=None):
+    """Returns per-epoch held-out probs, per-epoch (ce_in, ce_out), and per-epoch state dicts.
+    te=None (final training): same schedule (cosine over EPOCHS), no evaluation, returns the model
+    after ``stop_epoch`` epochs."""
     torch.manual_seed(seed)
     g = torch.Generator(device=DEV).manual_seed(seed)
     tr_idx = torch.as_tensor(np.flatnonzero(tr), device=DEV)
-    te_idx = torch.as_tensor(np.flatnonzero(te), device=DEV)
-    sub = tr_idx[torch.randperm(len(tr_idx), generator=g, device=DEV)[:len(te_idx)]]  # in-sample CE subset
+    if te is not None:
+        te_idx = torch.as_tensor(np.flatnonzero(te), device=DEV)
+        sub = tr_idx[torch.randperm(len(tr_idx), generator=g, device=DEV)[:len(te_idx)]]  # in-sample CE subset
     model = Encoder().to(DEV)
     opt = torch.optim.AdamW(model.parameters(), lr=LR, weight_decay=WD)
     sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, EPOCHS)
     ce = nn.CrossEntropyLoss()
     probs, ces, states = [], [], []
-    for ep in range(EPOCHS):
+    for ep in range(EPOCHS if te is not None else stop_epoch):
         model.train()
         perm = tr_idx[torch.randperm(len(tr_idx), generator=g, device=DEV)]
         for b in range(0, len(perm), BATCH):
@@ -108,11 +111,15 @@ def train_fold(X, y, tr, te, seed):
             nn.utils.clip_grad_norm_(model.parameters(), 1.0)
             opt.step()
         sched.step()
+        if te is None:
+            continue
         lo_te, _ = infer(model, X, te_idx)
         lo_in, _ = infer(model, X, sub)
         probs.append(torch.softmax(lo_te, 1).cpu().numpy())
         ces.append((float(ce(lo_in, y[sub])), float(ce(lo_te, y[te_idx]))))
         states.append({k: v.detach().clone() for k, v in model.state_dict().items()})
+    if te is None:
+        return model.eval()
     return probs, ces, states
 
 
