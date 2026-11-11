@@ -60,6 +60,9 @@ CONFIGS = {
 # seed-count study (scripts/seeds_cv.py): uw, trained only to epoch 40 (selection was always 10-15)
 for _n in (3, 5, 10):
     CONFIGS[f"uw_n{_n}"] = dict(CONFIGS["uw"], run_epochs=40, n_seeds=_n)
+# experiment 3 (scripts/seq_cv.py): other sequence models, uw settings, 10 seeds, up to 30 epochs
+for _a in ("lstm", "tcn"):
+    CONFIGS[f"{_a}_n10"] = dict(CONFIGS["uw"], arch=_a, run_epochs=30, n_seeds=10)
 DEV = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
@@ -102,6 +105,39 @@ class GRUNet(nn.Module):
         return self.out(y), h
 
 
+class LSTMNet(GRUNet):
+    """Same as GRUNet with a 2-layer LSTM (experiment 3)."""
+
+    def __init__(self, n_in, n_out, hidden=HIDDEN, dropout=0.2, in_dropout=0.0):
+        super().__init__(n_in, n_out, hidden, dropout, in_dropout)
+        self.gru = nn.LSTM(hidden, hidden, num_layers=2, batch_first=True, dropout=dropout)
+
+
+class TCNNet(nn.Module):
+    """Causal dilated temporal convolutions (left padding only): kernel 3, dilations 1..32,
+    receptive field 127 windows (10.6 min). Residual blocks with GELU, dropout, LayerNorm."""
+
+    def __init__(self, n_in, n_out, hidden=HIDDEN, dropout=0.2, in_dropout=0.0, dilations=(1, 2, 4, 8, 16, 32)):
+        super().__init__()
+        self.inp = nn.Sequential(nn.Linear(n_in, hidden), nn.GELU(), nn.LayerNorm(hidden), nn.Dropout(in_dropout))
+        self.dil = dilations
+        self.convs = nn.ModuleList(nn.Conv1d(hidden, hidden, 3, dilation=k) for k in dilations)
+        self.norms = nn.ModuleList(nn.LayerNorm(hidden) for _ in dilations)
+        self.drop = nn.Dropout(dropout)
+        self.act = nn.GELU()
+        self.out = nn.Linear(hidden, n_out)
+
+    def forward(self, x, h=None):
+        z = self.inp(x)  # (B, L, H)
+        for k, conv, norm in zip(self.dil, self.convs, self.norms):
+            y = conv(nn.functional.pad(z.transpose(1, 2), (2 * k, 0))).transpose(1, 2)
+            z = norm(z + self.drop(self.act(y)))
+        return self.out(z), None
+
+
+ARCHS = {"gru": GRUNet, "lstm": LSTMNet, "tcn": TCNNet}
+
+
 def pad(seqs, fill=0.0):
     L = max(len(s) for s in seqs)
     out = np.full((len(seqs), L) + seqs[0].shape[1:], fill, dtype=np.float32)
@@ -127,7 +163,8 @@ def run_fold(d, recs, F, gain, tr, te, cfg, seed, stop_epoch=None):
     mu, sd = allx.mean(0), allx.std(0) + 1e-6
     gain_std = np.concatenate([gain, np.zeros((4, F.shape[1] + 1), np.float32)], axis=1) / sd  # rel/elapsed: 0
     Xte = torch.tensor(pad([(seq_inputs(F[r]) - mu) / sd for r in te_recs]), device=DEV) if te_recs else None
-    model = GRUNet(allx.shape[1], len(EDGES) - 1, cfg["hidden"], cfg["dropout"], cfg["in_dropout"]).to(DEV)
+    model = ARCHS[cfg.get("arch", "gru")](allx.shape[1], len(EDGES) - 1, cfg["hidden"], cfg["dropout"],
+                                          cfg["in_dropout"]).to(DEV)
     opt = torch.optim.AdamW(model.parameters(), lr=cfg["lr"], weight_decay=cfg["wd"])
     sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, cfg["epochs"])
     Xs = [(x - mu) / sd for x in X_tr]

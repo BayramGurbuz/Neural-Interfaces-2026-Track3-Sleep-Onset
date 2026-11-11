@@ -51,7 +51,8 @@ Track 03 (Sleep Onset) yarışması için model geliştirme deposudur.
 - Değerlendirme yalnızca inference; worker hiçbir paket kurmaz. submission.py yalnızca worker
   image'ında olan paketleri import edebilir; kendi ek Python modüllerimiz desteklenmez.
   Mimari ve ön işleme tek dosyada olmalı.
-- Docker image: lionelyneuro/neural-compet:v3 (yerel test için kullanılabilir).
+- Docker image: lionelyneuro/neural-compet:v4-sealed (2026-11-11'den itibaren TÜM yerel testler bununla;
+  v3 eski). Not: 11 Kasım itibarıyla bu tag Docker Hub'da bulunamadı — bkz. docs/status.md.
 - Wrapper yalnızca `meta` ve batch'lere dayanmalı; dataset adı, dosya yolu, subject id veya sabit
   kanal sayısı okumamalı.
 - Checkpoint'i korumak için deneyi Python'dan çalıştır: Experiment.delete_checkpoints_on_exit = False.
@@ -72,7 +73,7 @@ Track 03 (Sleep Onset) yarışması için model geliştirme deposudur.
 - Sealed'da çalışma log'ları, tahmin dosyaları ve skorlama çıktısı GİZLİ; yalnız durum ve skor görünür.
   Hata ayıklama ancak yerelde yapılabilir.
 - KURAL: Günde 1 gönderim olduğu için her gönderimden önce ZIP yerelde Docker image
-  (lionelyneuro/neural-compet:v3) ile test edilmeli.
+  (lionelyneuro/neural-compet:v4-sealed) ile test edilmeli.
 - Değişiklikler Codabench Phases sekmesinden ve Discord'dan takip edilecek.
 
 ## Değerlendirme kuralı ve strateji
@@ -80,9 +81,11 @@ Track 03 (Sleep Onset) yarışması için model geliştirme deposudur.
   Görülmemiş kişi CV = train+val üzerinde kişi bazlı 5 katlı GroupKFold. Görülmüş kişi CV = birden
   fazla gecesi olan kişilerin birer gecesi dışarıda, kalan geceleri eğitimde. Açık test setine
   (40 kayıt) sadece son kontrol için bakılır; test'e bakarak seçim/ayar yapılmaz.
-- Gönderim planı: 10 Kasım #1 submissions/final540.zip → 11 Kasım #2 submissions/mix_gru10_hgb.zip
-  → kalan 3 hak YALNIZCA kabul kuralını geçen yeni modeller için. Ayrıntı: docs/status.md,
+- Gönderim planı: #1 final540 10 Kasım'da gönderildi (sealed 39.56). Kalan 4 hak YALNIZCA kabul kuralını
+  geçen yeni modeller için; son gönderim en geç 20 Kasım, 21 Kasım yedek gün. Ayrıntı: docs/status.md,
   docs/submissions_log.md.
+- KABUL KURALI: çift CV'de mix_gru10_hgb'ye (40.28) göre ≥ 0.3 iyileşme VE 10 katın ≥ 8'inde iyileşme;
+  540 kayıtla eğitilmiş; v4-sealed Docker testini geçmiş.
 - Plan (sırayla, her adım çift CV ile raporlanır):
   A. Çift CV protokolü; v1 ve c5 yeniden ölçülür.
   B. Dağılım tahmini: kalan süre 10–14 aralığa bölünür, HistGradientBoostingClassifier; tahmin =

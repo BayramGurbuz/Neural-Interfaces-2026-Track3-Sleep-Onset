@@ -10,8 +10,8 @@ açık test = 40 kayıt (yalnız son kontrol). Docker = lionelyneuro/neural-comp
 
 Sealed pencere: 10 Kasım'da açıldı (organizatör maili), bitiş 21 Kasım 23:59 CET = 22 Kasım 01:59 TR.
 5 hak takım başına ortak, günde en fazla 1; en iyi geçerli skor sayılır (tekrarlanabilirlik denetimine bağlı).
-Sealed log/tahmin/skorlama çıktıları gizli. Plan: #1 final540 (10 Kasım), #2 mix_gru10_hgb (11 Kasım),
-#3–#5 yalnızca kabul kuralını geçen modeller.
+Sealed log/tahmin/skorlama çıktıları gizli. Plan: #1 final540 (10 Kasım, yapıldı), #2–#5 yalnızca kabul kuralını geçen modeller
+(mix_gru10_hgb plandan çıkarıldı). Son gönderim en geç 20 Kasım, 21 Kasım yedek gün.
 
 | # | Gönderim tarihi | ZIP | Durum | Çift CV | Açık test | Docker süresi | Sealed skor | Sealed süre |
 |---|---|---|---|---|---|---|---|---|
@@ -19,11 +19,24 @@ Sealed log/tahmin/skorlama çıktıları gizli. Plan: #1 final540 (10 Kasım), #
 | – | (gönderilmedi) | hgb_v3_np.zip | yedek | 43.30 | 52.4791 | 89 s ¹ | – | – |
 | – | – | hgb_ens_c.zip | hazır aday | 42.50 | 52.8573 | 115 s ¹ | – | – |
 | – | – | mix_gru_hgb.zip | yedek | 40.43 | 48.2226 | 123 s | _bekleniyor_ | _bekleniyor_ |
-| 2 | 2026-11-11 (planlanan) | mix_gru10_hgb.zip | gönderilecek | 40.28 | 46.9131 | 132 s | – | – |
-| 1 | 2026-11-10 (planlanan) | final540.zip | gönderilecek | 40.28 ² | 31.5337 ³ | 122 s | – | – |
+| – | (gönderilmeyecek) | mix_gru10_hgb.zip | plandan çıkarıldı ⁴ | 40.28 | 46.9131 | 132 s | – | – |
+| 1 | 2026-11-10 | final540.zip | **gönderildi** | 40.28 ² | 31.5337 ³ | 122 s | **39.56** (23/60) | 1249.51 s |
 
 ² 500 kayıtlık çift CV (540'ta doğrulama seti yok). ³ Örneklem içi (test eğitimde) → yalnız boru hattı kontrolü.
+⁴ final540 ile tek fark eğitim kayıt sayısı (submission.py birebir aynı; model.joblib'de α, GRU ayarı, seed, epoch, ızgara
+  aynı; yalnız veriye bağlı binleme sınırları ve ağaç yapıları farklı) → ayrı bilgi vermez (2026-11-11).
 ¹ Arka planda CV koşusu çalışırken ölçüldü (yükte). sklearn yolu (hgb_v3.zip, aynı model/skor): 417 s.
+
+## Sealed sonuçlar
+| # | Tarih | ZIP | W-bMAE macro (sıralama) | W-bMAE | bMAE | MAE | Duration | Sıra |
+|---|---|---|---|---|---|---|---|---|
+| 1 | 2026-11-10 | final540.zip | **39.56** | 39.91 | 101.36 | 198.26 | 1249.51 s | 23 / 60 |
+
+Leaderboard bağlamı (2026-11-11): ilk 3 = 33.06 / 34.62 / 35.26 (bMAE 80.03 / 87.72 / 96.64); 10. sıra 37.22.
+**Çift CV tahmini sealed ile tutarlı:** mix_gru10_hgb OOF (aynı tarif, 500 kayıt) makro W-bMAE 40.28,
+bMAE 100.06, MAE 188.97 (`scripts/range_breakdown.py`, pencere havuzlu tanım) ↔ sealed 39.56 / 101.36 / 198.26.
+Duration: yerel Docker CPU 122 s (40 kayıt) ↔ sealed 1249.51 s (sealed set daha büyük ve/veya donanım/kuyruk farkı);
+60 dk sınırının ~%35'i.
 
 ## Ayrıntılar
 
@@ -90,7 +103,7 @@ Sealed log/tahmin/skorlama çıktıları gizli. Plan: #1 final540 (10 Kasım), #
   yalnız GRU'dan 9/10 katta iyi.
 - Açık test 48.2224 (yerel) / 48.2226 (Docker); Docker 123 s (yüksüz), pencere başına ~21 ms.
 
-### mix_gru10_hgb.zip (gönderim #2, planlanan 2026-11-11)
+### mix_gru10_hgb.zip (gönderilmeyecek; final540 ile aynı tarif, 500 kayıt)
 - mix_gru_hgb ile aynı, farklar: GRU **10 seed (0–9)**, **15 epoch** (10 LOFO seçiminin medyanı,
   `scripts/seeds_cv.py`), **α = 0.6** (`mix_gru_hgb.py uw_n10`, LOFO medyanı).
 - Komut: `python scripts/train_mix_final.py uw 15 0.6 0,1,2,3,4,5,6,7,8,9 _n10` →
@@ -98,7 +111,7 @@ Sealed log/tahmin/skorlama çıktıları gizli. Plan: #1 final540 (10 Kasım), #
 - Çift CV (kalibrasyonsuz): unseen 41.80 ± 1.91, seen 38.76 ± 1.41 → 40.28; 3 seed'li karışımdan 7/10 katta iyi.
 - Açık test 46.9128 (yerel) / 46.9131 (Docker); Docker 132 s.
 
-### final540.zip (gönderim #1, planlanan 2026-11-10)
+### final540.zip (gönderim #1, 2026-11-10, sealed 39.56)
 - Model: mix_gru10_hgb ile birebir aynı tarif (GRU uw 10 seed 0–9, 15 epoch, α 0.6; HGB(c) 4 üye
   225/200/550/200 iterasyon, random_state 0; 817 öznitelik; kalibrasyon yok), eğitim verisi **540 kayıt**
   (train+val+test, 80 975 pencere). Ön-binleme sınırları, ızgara ω, ω_B, GRU ortalama/std 540'tan.
