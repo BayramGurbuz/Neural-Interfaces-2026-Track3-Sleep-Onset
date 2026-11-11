@@ -183,6 +183,42 @@ Veri: 80 975 pencere × 4 × 640 float32 ≈ 83 MB, GPU'ya sığar. Kodlayıcı:
 - Beklenti: el yapımı bant güçleri zaten var; kazanç iğcik/K-kompleks morfolojisinden gelebilir, büyüklüğü
   belirsiz. Uzun-ufuk deneylerinden sonra karar verilecek.
 
+## CNN kodlayıcı, iki aşamalı (2026-11-11)
+Kurulum: `extract_raw.py` (ham pencereler, 829 MB, sıra features_base ile doğrulandı); `cnn_encoder.py`:
+1D CNN, 4 blok stride 2 + 2 dilasyonlu blok (çekirdek 7) → alıcı alan 667 örnek (tüm pencere), 35 323
+parametre, global ort+maks havuz → 32-b gömme → 11 sınıf (B kenarları, ağırlıksız CE); pencere başına
+ölçek x/20, ±300 µV kırpma; kazanç + gürültü artırması; **kat başına ayrı kodlayıcı** (held-out kayıtlar
+kodlayıcıyı görmez), 3 seed, LOFO epoch (9–15), 1263 s. `gru_cnn.py`: GRU-uw + gömme (+ ilk-2-dk farkı),
+seed s GRU ↔ seed s kodlayıcı. `mix_seq.py`: dizi modeli(leri) + HGB(c), iç içe LOFO α (yedek adayı
+birebir yeniden üretiyor: 40.00, α 0.7).
+
+| Model | unseen | seen | Çift CV | Δ (ref) | [0,40) | [40,90) | [90,300) | [300,600] | bMAE | iyi kat |
+|---|---|---|---|---|---|---|---|---|---|---|
+| CNN tek başına (3 seed) | 50.46 | 50.51 | 50.49 | +8.82 (uw_n3) | +1.74 | +0.13 | +3.35 | +3.60 | 128.2 | 0/10 |
+| GRU + emb (in-sample, 3 seed) | 44.94 | 43.42 | 44.18 | +2.51 (uw_n3) | +1.85 | +0.71 | −0.59 | +0.55 | 103.1 | 1/10 |
+| GRU+emb + HGB(c), α 0.5 | 41.21 | 38.95 | 40.08 | −0.20 (mix_uw_n10) | +0.10 | −0.14 | −0.49 | +0.34 | 101.0 | 7/10 |
+| aynı, ref mix_uw_n3 (40.43) | | | | −0.35 | +0.07 | −0.10 | −0.55 | +0.23 | | 8/10 |
+| CNN split-half tek başına | 53.04 | 51.54 | 52.29 | +10.63 (uw_n3) | +1.35 | −0.47 | +4.96 | +4.79 | 136.8 | 0/10 |
+| GRU + logit (split-half, 3 seed) | 42.91 | 42.23 | 42.57 | +0.90 (uw_n3) | +0.65 | +0.21 | −0.15 | +0.19 | 101.8 | 4/10 |
+| GRU+logit + HGB(c), α 0.5 | 41.51 | 39.31 | 40.41 | +0.13 (mix_uw_n10) | +0.11 | −0.11 | −0.06 | +0.19 | 101.2 | 4/10 |
+| aynı, ref mix_uw_n3 (40.43) | | | | −0.02 | +0.08 | −0.07 | −0.11 | +0.08 | | 6/10 |
+
+- CNN tek başına: [40,90) katkısı GRU ile aynı (tek pencereden "1–1,5 dk kala" morfolojisi görülüyor), kayıp
+  bağlam gerektiren [90,300)/[300,600]'de; unseen ≈ seen → kodlayıcı kişiye özgü bir şey öğrenmiyor.
+- CE in/out (seçilen epoch): oran ort. 1.07; unseen katlarında 1.03–1.115 (2/10 kat > %10), seen 1.04–1.07.
+- GRU+emb: eğriler epoch 5'ten sonra hızla bozuluyor = stacking kayması (GRU in-sample gömmelere aşırı güveniyor).
+  Tek başına kötü ama HGB ile karışımı mix_uw'dan iyi (α 0.5; kazanç [90,300)'den, [300,600] kötü):
+  kodlayıcılı GRU HGB'yi daha iyi tamamlıyor. Kabul kuralını geçmiyor (−0.20, 7/10).
+- Split-half (`cnn_encoder.py cnn3h 3 half`, 1330 s; eğitim kayıtları ikiye bölünür, her yarının kodlayıcısı
+  diğer yarıyı kodlar, held-out = iki kodlayıcının logit ortalaması; GRU'ya 11 logit): kodlayıcı yarı veriyle
+  daha zayıf (52.29), CE out/in oranı 1.08–1.19. GRU+logit 42.57: stacking kayması azalmış (emb 44.18 → 42.57,
+  eğriler daha yavaş bozuluyor) ama hâlâ düz GRU'dan kötü (+0.90, 4/10); HGB karışımı 40.41 = mix_uw_n3 ile aynı.
+- **Sonuç: iki varyant da kullanıcı eşiğini (Δ ≤ −0.15 veya ≥ 7/10 kat, uw_n3'e göre) geçmedi → 10 seed ve
+  2D CNN varyantı çalıştırılmadı; kabul kuralını geçen model yok.** Ham pencereden öğrenilen morfoloji, el yapımı
+  62 öznitelikten GRU'ya ek bilgi vermiyor; tek işe yarar iz, emb-GRU'nun HGB'yi çeşitlilikle tamamlaması
+  (40.08, −0.20, 7/10) — kural eşiğinin altında, seed gürültüsü (σ≈0.3) düzeyinde.
+- Süre: çıkarım 20 s, kodlayıcı 1263 + 1330 s, GRU 473 + 397 s, karışımlar ~2 dk → toplam ≈ 1 saat GPU.
+
 ## Uzun bağlam (2026-11-11)
 **TCN-long** (`gru_cv.TCNLongNet`: dilasyon 1–128, alıcı alan 511 pencere = 42.6 dk ≥ en uzun kayıt; 10 seed,
 LOFO epoch = 10 her katta; 1833 s; `seq_cv_tcn_long.log`, `mix_gru_tcnlong.log`):
@@ -215,13 +251,20 @@ Unseen'de küçük kazanç (−0.35 / −0.18), seen'de küçük kayıp (+0.19 /
 kişi düzeyindeki gecikme farkından geliyor (oracle bulgusuyla tutarlı).** GRU+TCN karışımına eklemeye
 değmez (HGB tarafındaki −0.07 karışımda sıfıra iner; kabul kuralı eşiği 0.3).
 
+## Kapatılan yönler (2026-11-11, kullanıcı kararı)
+- **Deneğe özgü bilgi**: kimlik çıkarımda yok; örtük tanıma (ilk 2 dk %17) ile gerçekçi üst sınır ≈ −0.05.
+  kNN örtük önsel DENENMEYECEK.
+- **Uzun bağlam**: TCN-long (alıcı alan 42 dk) ve 10–20 dk "long" öznitelik grubu hedef aralıklarda sıfır
+  kazanç. 10 dk'dan uzun geçmiş değersiz; [300,600] hatası kişi düzeyinde gecikme farkı.
+- Bu iki yönde başka deney yapılmayacak.
+
 ## Sıradaki adım
 Bu turda kabul kuralını geçen model yok. Yedek aday hâlâ (GRU+TCN)/2 + HGB(c) α 0.7 (40.00, Δ −0.28,
 8/10). 18 Kasım'a kadar daha iyisi çıkmazsa 540 kayıtla eğitilip gönderilecek (TCN eğitimi
 `train_mix_final.py`'ye, TCN çıkarımı `build_hgb_submission.py`'ye eklenmeli; yalnız torch).
-Denenmemiş fikirler (öncelik sırasıyla): (1) ham pencereden CNN kodlayıcı → GRU (aşağıdaki tahmin, 2–3 saat);
-(2) kNN örtük önsel (ilk 2 dk spektral özetinden en yakın eğitim kişileri → gecikme medyanı özniteliği;
-üst sınır ≈ −0.05, düşük öncelik).
+CNN kodlayıcı deneyi (yukarıda) bitti, eşik geçilmedi; (GRU+TCN)/2 karışımı ve 10 seed/2D varyantı
+çalıştırılmadı. Yeni deney önerisi için kullanıcı kararı bekleniyor; 18 Kasım'a kadar daha iyisi yoksa yedek
+aday 540 ile eğitilir.
 
 ## Doküman güncellemesi (2026-11-10, depo 4a8c943 → 79b4453, 5 Kasım PDF'lerine göre)
 - Değişen: kota artık **takım başına ortak** (5 toplam, günde 1); leaderboard her katılımcının en iyisini

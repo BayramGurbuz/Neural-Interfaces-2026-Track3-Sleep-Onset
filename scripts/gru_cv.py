@@ -84,13 +84,17 @@ def load_inputs(include_test=False):
     return d, recs, F, gain
 
 
-def seq_inputs(Fw):
-    """(L, 62) window features of one recording -> (L, 125) causal inputs."""
+def seq_inputs(Fw, Ew=None):
+    """(L, 62) window features of one recording -> (L, 125) causal inputs.
+    Ew (L, E) optional per-window extras (e.g. CNN embeddings): appended as Ew and Ew - first-2-min mean."""
     L = len(Fw)
     n = np.minimum(np.arange(1, L + 1), BASELINE_N)
     base = np.cumsum(Fw, axis=0)[n - 1] / n[:, None]
     el = np.log1p(np.minimum(np.arange(1, L + 1) * 5.0, ELAPSED_CLIP))[:, None]
-    return np.concatenate([Fw, Fw - base, el], axis=1).astype(np.float32)
+    parts = [Fw, Fw - base, el]
+    if Ew is not None:
+        parts += [Ew, Ew - np.cumsum(Ew, axis=0)[n - 1] / n[:, None]]
+    return np.concatenate(parts, axis=1).astype(np.float32)
 
 
 class GRUNet(nn.Module):
@@ -153,10 +157,11 @@ def pad(seqs, fill=0.0):
     return out
 
 
-def run_fold(d, recs, F, gain, tr, te, cfg, seed, stop_epoch=None):
+def run_fold(d, recs, F, gain, tr, te, cfg, seed, stop_epoch=None, extra=None):
     """Train one model; return list over checkpoints of (n_te_windows, 11) probs (rows in d[te] order).
     te=None (final training): same schedule (cosine over cfg["epochs"]), stop after ``stop_epoch``
-    epochs, no evaluation; returns (model, mu, sd)."""
+    epochs, no evaluation; returns (model, mu, sd).
+    extra: optional (len(d), E) per-window inputs appended via seq_inputs (no gain augmentation)."""
     torch.manual_seed(seed)
     rng = np.random.default_rng(seed)
     tr_recs = [r for r in recs if tr[r[0]]]
@@ -165,11 +170,16 @@ def run_fold(d, recs, F, gain, tr, te, cfg, seed, stop_epoch=None):
     w_all = np.zeros(len(d), np.float32)
     w_all[np.flatnonzero(tr)] = window_weights(dtr.reset_index(drop=True)) if cfg["weighted"] else 1.0
     y_all = to_class(d.target.to_numpy(), EDGES)
-    X_tr = [seq_inputs(F[r]) for r in tr_recs]
+
+    def inputs(r):
+        return seq_inputs(F[r], None if extra is None else extra[r])
+
+    X_tr = [inputs(r) for r in tr_recs]
     allx = np.concatenate(X_tr)
     mu, sd = allx.mean(0), allx.std(0) + 1e-6
-    gain_std = np.concatenate([gain, np.zeros((4, F.shape[1] + 1), np.float32)], axis=1) / sd  # rel/elapsed: 0
-    Xte = torch.tensor(pad([(seq_inputs(F[r]) - mu) / sd for r in te_recs]), device=DEV) if te_recs else None
+    n_zero = allx.shape[1] - gain.shape[1]  # rel / elapsed / extra columns: no gain augmentation
+    gain_std = np.concatenate([gain, np.zeros((4, n_zero), np.float32)], axis=1) / sd
+    Xte = torch.tensor(pad([(inputs(r) - mu) / sd for r in te_recs]), device=DEV) if te_recs else None
     model = ARCHS[cfg.get("arch", "gru")](allx.shape[1], len(EDGES) - 1, cfg["hidden"], cfg["dropout"],
                                           cfg["in_dropout"]).to(DEV)
     opt = torch.optim.AdamW(model.parameters(), lr=cfg["lr"], weight_decay=cfg["wd"])
