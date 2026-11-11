@@ -8,17 +8,19 @@ açık test = 40 kayıt (yalnız son kontrol). Docker = lionelyneuro/neural-comp
 
 ## Özet
 
-Sealed pencere: 17 Kasım 02:01 – 22 Kasım 01:59 TR (10 Kasım'dan ertelendi; 10 Kasım'da gönderim yapılmadı,
-5 hakkın tamamı duruyor).
+Sealed pencere: 10 Kasım'da açıldı (organizatör maili), bitiş 21 Kasım 23:59 CET = 22 Kasım 01:59 TR.
+5 hak takım başına ortak, günde en fazla 1; en iyi geçerli skor sayılır (tekrarlanabilirlik denetimine bağlı).
+Sealed log/tahmin/skorlama çıktıları gizli. Plan: #1 final540 (10 Kasım), #2 mix_gru10_hgb (11 Kasım),
+#3–#5 yalnızca kabul kuralını geçen modeller.
 
 | # | Gönderim tarihi | ZIP | Durum | Çift CV | Açık test | Docker süresi | Sealed skor | Sealed süre |
 |---|---|---|---|---|---|---|---|---|
 | – | (gönderilmedi) | hgb_v2_s0.zip | yedek | 46.42 | 54.9426 | 141 s | – | – |
 | – | (gönderilmedi) | hgb_v3_np.zip | yedek | 43.30 | 52.4791 | 89 s ¹ | – | – |
 | – | – | hgb_ens_c.zip | hazır aday | 42.50 | 52.8573 | 115 s ¹ | – | – |
-| 1 | 2026-11-17 (planlanan) | mix_gru_hgb.zip | gönderilecek | 40.43 | 48.2226 | 123 s | _bekleniyor_ | _bekleniyor_ |
-| – | – | mix_gru10_hgb.zip | hazır aday | 40.28 | 46.9131 | 132 s | – | – |
-| 2 | 2026-11-18 (planlanan) | final540.zip | gönderilecek | 40.28 ² | 31.5337 ³ | 122 s | – | – |
+| – | – | mix_gru_hgb.zip | yedek | 40.43 | 48.2226 | 123 s | _bekleniyor_ | _bekleniyor_ |
+| 2 | 2026-11-11 (planlanan) | mix_gru10_hgb.zip | gönderilecek | 40.28 | 46.9131 | 132 s | – | – |
+| 1 | 2026-11-10 (planlanan) | final540.zip | gönderilecek | 40.28 ² | 31.5337 ³ | 122 s | – | – |
 
 ² 500 kayıtlık çift CV (540'ta doğrulama seti yok). ³ Örneklem içi (test eğitimde) → yalnız boru hattı kontrolü.
 ¹ Arka planda CV koşusu çalışırken ölçüldü (yükte). sklearn yolu (hgb_v3.zip, aynı model/skor): 417 s.
@@ -69,7 +71,7 @@ Sealed pencere: 17 Kasım 02:01 – 22 Kasım 01:59 TR (10 Kasım'dan ertelendi;
 - Açık test 52.8573 (kalibrasyonsuz 52.18); Docker 52.8573, 115 s (GRU eğitimi arka planda çalışırken).
   meta ch_names = ['TP9', 'AF7', 'AF8', 'TP10'].
 
-### mix_gru_hgb.zip (gönderim #1, planlanan 2026-11-17)
+### mix_gru_hgb.zip (yedek)
 - Model: nedensel GRU (config `uw`: Linear(125→64)+GELU+LayerNorm → GRU 64×2, dropout 0.2;
   ağırlıksız CE, AdamW lr 2e-3, wd 1e-2, cosine T_max 150, **10 epoch'ta durduruldu**; 3 seed 0/1/2
   ortalaması; karar tarafında q·ω_B) + HGB ensemble (c) (hgb_ens_c ile aynı 4 üye, kalibrasyonsuz),
@@ -88,7 +90,7 @@ Sealed pencere: 17 Kasım 02:01 – 22 Kasım 01:59 TR (10 Kasım'dan ertelendi;
   yalnız GRU'dan 9/10 katta iyi.
 - Açık test 48.2224 (yerel) / 48.2226 (Docker); Docker 123 s (yüksüz), pencere başına ~21 ms.
 
-### mix_gru10_hgb.zip (hazır aday)
+### mix_gru10_hgb.zip (gönderim #2, planlanan 2026-11-11)
 - mix_gru_hgb ile aynı, farklar: GRU **10 seed (0–9)**, **15 epoch** (10 LOFO seçiminin medyanı,
   `scripts/seeds_cv.py`), **α = 0.6** (`mix_gru_hgb.py uw_n10`, LOFO medyanı).
 - Komut: `python scripts/train_mix_final.py uw 15 0.6 0,1,2,3,4,5,6,7,8,9 _n10` →
@@ -96,7 +98,7 @@ Sealed pencere: 17 Kasım 02:01 – 22 Kasım 01:59 TR (10 Kasım'dan ertelendi;
 - Çift CV (kalibrasyonsuz): unseen 41.80 ± 1.91, seen 38.76 ± 1.41 → 40.28; 3 seed'li karışımdan 7/10 katta iyi.
 - Açık test 46.9128 (yerel) / 46.9131 (Docker); Docker 132 s.
 
-### final540.zip (gönderim #2, planlanan 2026-11-18)
+### final540.zip (gönderim #1, planlanan 2026-11-10)
 - Model: mix_gru10_hgb ile birebir aynı tarif (GRU uw 10 seed 0–9, 15 epoch, α 0.6; HGB(c) 4 üye
   225/200/550/200 iterasyon, random_state 0; 817 öznitelik; kalibrasyon yok), eğitim verisi **540 kayıt**
   (train+val+test, 80 975 pencere). Ön-binleme sınırları, ızgara ω, ω_B, GRU ortalama/std 540'tan.

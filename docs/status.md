@@ -44,30 +44,42 @@ yapılamıyor; model kararları yalnızca çift CV ile verilir.
 ## Hazır ZIP'ler (submissions/, hepsi Docker'da test edildi)
 | ZIP | Durum | Docker süresi (açık test) |
 |---|---|---|
-| mix_gru_hgb.zip | **17 Kasım gönderilecek (gönderim #1)** | 123 s |
-| final540.zip | **18 Kasım gönderilecek (gönderim #2)**; 540 kayıt, kontrollerden geçti | 122 s |
-| mix_gru10_hgb.zip | hazır aday (10 seed) | 132 s |
+| mix_gru_hgb.zip | yedek (3 seed; mix_gru10_hgb onun yerine) | 123 s |
+| final540.zip | **10 Kasım gönderilecek (gönderim #1)**; 540 kayıt, kontrollerden geçti | 122 s |
+| mix_gru10_hgb.zip | **11 Kasım gönderilecek (gönderim #2)**; 10 seed, 500 kayıt | 132 s |
 | hgb_ens_c.zip | hazır aday | 115 s |
 | hgb_v3_np.zip / hgb_v3.zip | yedek | 89 s / 417 s |
 | hgb_v2_s0.zip | yedek | 141 s |
 
-Sealed pencere (2. erteleme): 17 Kasım 02:01 – 22 Kasım 01:59 TR. 5 hakkın tamamı duruyor.
-Gönderim planı: 17 Kasım mix_gru_hgb → 18 Kasım final540 (540 kayıtla yeniden eğitilmiş 10 seed'li
-model, testten geçerse) → 19–21 Kasım kalan 3 hak yedek. Final sıralama = en iyi sealed skor (otomatik, işaretleme
-yok). Günde 1, toplam 5 gönderim. Göndermeden önce ZIP Docker'da test edilmeli. Claude gönderim yapmaz.
+Sealed pencere AÇIK: 10 Kasım'da açıldı (organizatör maili + yarışma deposu 79b4453), bitiş 21 Kasım
+23:59 CET = 22 Kasım 01:59 TR. 5 hak, takım başına ortak, günde en fazla 1.
+Gönderim planı: **10 Kasım #1 final540** → **11 Kasım #2 mix_gru10_hgb** → kalan 3 hak YALNIZCA kabul
+kuralını geçen yeni modeller için (kural: bkz. "Açık sorular"). Final sıralama = takımın en iyi geçerli
+sealed skoru (otomatik, işaretleme yok), tekrarlanabilirlik denetimine bağlı. Sealed log/çıktılar gizli →
+göndermeden önce ZIP Docker'da test edilmeli. Claude gönderim yapmaz.
 
 ## Sıradaki adım
 540 kayıtlık final eğitimi TAMAMLANDI (2026-11-10): final540.zip, kontroller ve Docker geçti
-(ayrıntı `docs/submissions_log.md`). Sıradaki: 17 Kasım gönderim #1 (kullanıcı yapar), sealed skor/süre
-günlüğe. Eski plan adımları (yapıldı):
+(ayrıntı `docs/submissions_log.md`). Sıradaki: 10 Kasım gönderim #1 final540 (kullanıcı yapar), sealed
+skor/süre günlüğe; 11 Kasım #2 mix_gru10_hgb. Paralelde: bölgeye göre karışım deneyi (çift CV).
+
+## Doküman güncellemesi (2026-11-10, depo 4a8c943 → 79b4453, 5 Kasım PDF'lerine göre)
+- Değişen: kota artık **takım başına ortak** (5 toplam, günde 1); leaderboard her katılımcının en iyisini
+  ayrı gösterir, final sıralama yine takımın en iyi geçerli sealed skoru. Kayıt kapandı, Track 03 açık.
+  Sealed baseline skorları participant guide'da yayımlanıyor.
+- DEĞİŞMEYEN: Scientific FAQ'de yalnız "Opening update" notu silindi; W-bMAE tanımı, seen/unseen
+  eşit ağırlık, girdi/akış sözleşmesi aynı. Süre sınırı aynı (60 dk, 1 A100). Tekrarlanabilirlik
+  denetimi aynı (ilk 3, 22–30 Kasım, ±2σ, yöntem açıklaması + harici veri + compute tahmini). Sealed
+  log/çıktı gizliliği aynı. Eski plan adımları (yapıldı):
 1. `scripts/train_ens_c.py` ve `scripts/train_mix_final.py`'ye `--all` bayrağı (train+val+test).
 2. HGB(c) 4 üye (iterasyonlar 225/200/550/200), GRU uw 10 seed × 15 epoch, α 0.6, kalibrasyon yok.
 3. Kontroller: 540- ve 500-model tahmin karşılaştırması, örneklem içi skor, aynı seed'le ikinci koşu.
 4. Paketle, Docker'da test et (süre), `docs/submissions_log.md`'ye yaz, commit.
 
 ## Açık sorular
-- mix_gru_hgb'nin (ve v3_np yerine o gönderildiği için onun) sealed skoru ve sealed süresi — kullanıcı
-  bildirecek; günlüğe yazılacak, 60 dk bütçesi buna göre netleşecek (10 seed ≈ ×1.07 süre).
+- final540'ın sealed skoru ve süresi — kullanıcı bildirecek; günlüğe yazılacak, 60 dk bütçesi buna
+  göre netleşecek.
+- Kalan 3 hak için "kabul kuralı"nın kesin tanımı (eşik, kat sayısı) yazılı değil — kullanıcıdan alınacak.
 - Sealed set boyutu açıklanmıyor (FAQ: "remain private").
 - Train'deki en uzun kayıt 300 pencere (1500 s); GRU'nun daha uzun kayıtlardaki davranışı denenmedi
   (elapsed 1500 s'de kırpılıyor). İsteğe bağlı: sentetik uzatma testi.
