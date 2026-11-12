@@ -10,8 +10,9 @@ açık test = 40 kayıt (yalnız son kontrol). Docker = lionelyneuro/neural-comp
 
 Sealed pencere: 10 Kasım'da açıldı (organizatör maili), bitiş 21 Kasım 23:59 CET = 22 Kasım 01:59 TR.
 5 hak takım başına ortak, günde en fazla 1; en iyi geçerli skor sayılır (tekrarlanabilirlik denetimine bağlı).
-Sealed log/tahmin/skorlama çıktıları gizli. Plan: #1 final540 (10 Kasım, yapıldı), #2–#5 yalnızca kabul kuralını geçen modeller
-(mix_gru10_hgb plandan çıkarıldı). Son gönderim en geç 20 Kasım, 21 Kasım yedek gün.
+Sealed log/tahmin/skorlama çıktıları gizli. Plan: #1 final540 (10 Kasım, yapıldı), #2 mix3_540 (11 Kasım, yapıldı),
+#3–#5 yalnızca kabul kuralını geçen modeller (mix_gru10_hgb plandan çıkarıldı). **5 hakkın 2'si kullanıldı, kalan 3.**
+Son gönderim en geç 20 Kasım, 21 Kasım yedek gün.
 
 | # | Gönderim tarihi | ZIP | Durum | Çift CV | Açık test | Docker süresi | Sealed skor | Sealed süre |
 |---|---|---|---|---|---|---|---|---|
@@ -21,7 +22,9 @@ Sealed log/tahmin/skorlama çıktıları gizli. Plan: #1 final540 (10 Kasım, ya
 | – | – | mix_gru_hgb.zip | yedek | 40.43 | 48.2226 | 123 s | _bekleniyor_ | _bekleniyor_ |
 | – | (gönderilmeyecek) | mix_gru10_hgb.zip | plandan çıkarıldı ⁴ | 40.28 | 46.9131 | 132 s | – | – |
 | 1 | 2026-11-10 | final540.zip | **gönderildi** | 40.28 ² | 31.5337 ³ | 122 s | **39.56** (23/60) | 1249.51 s |
-| 2 | (onay bekliyor) | mix3_540.zip | **aday** ⁵ | 39.40 ² | 32.7449 ³ | 225 s / 213 s (×2, aynı skor) | – | – |
+| 2 | 2026-11-11 | mix3_540.zip | **gönderildi** ⁵ | 39.40 ² | 32.7449 ³ | 225 s / 213 s (×2, aynı skor) | **38.66** | kaydedilmedi |
+
+| – | (onay bekliyor) | mix3_540_grid.zip | **aday** ⁶ | 38.35 ² | 31.6917 ³ | 230 s / 218 s (×2, aynı skor) | – | – |
 
 ² 500 kayıtlık çift CV (540'ta doğrulama seti yok). ³ Örneklem içi (test eğitimde) → yalnız boru hattı kontrolü.
 ⁴ final540 ile tek fark eğitim kayıt sayısı (submission.py birebir aynı; model.joblib'de α, GRU ayarı, seed, epoch, ızgara
@@ -41,6 +44,11 @@ Sealed log/tahmin/skorlama çıktıları gizli. Plan: #1 final540 (10 Kasım, ya
 | # | Tarih | ZIP | W-bMAE macro (sıralama) | W-bMAE | bMAE | MAE | Duration | Sıra |
 |---|---|---|---|---|---|---|---|---|
 | 1 | 2026-11-10 | final540.zip | **39.56** | 39.91 | 101.36 | 198.26 | 1249.51 s | 23 / 60 |
+| 2 | 2026-11-11 | mix3_540.zip | **38.66** | kaydedilmedi | kaydedilmedi | kaydedilmedi | kaydedilmedi | kaydedilmedi |
+
+mix3_540: final540'a göre sealed −0.90 (çift CV'de beklenen −0.88); çift CV ↔ sealed farkı −0.74 (final540'ta −0.72).
+İlk 3 eşiği ≈ 33.06 → fark 5.60 s. Kalan hak: 3. Bilinen kusur (gönderilen ZIP'te): NaN içeren bir pencere kaydın
+kalan tahminlerini 0'a kilitliyor (`DURUM_RAPORU.md` §10.1); düzeltme `scripts/build_hgb_submission.py`'de.
 
 Leaderboard bağlamı (2026-11-11): ilk 3 = 33.06 / 34.62 / 35.26 (bMAE 80.03 / 87.72 / 96.64); 10. sıra 37.22.
 **Çift CV tahmini sealed ile tutarlı:** mix_gru10_hgb OOF (aynı tarif, 500 kayıt) makro W-bMAE 40.28,
@@ -144,3 +152,20 @@ Duration: yerel Docker CPU 122 s (40 kayıt) ↔ sealed 1249.51 s (sealed set da
 Aynı seed'lerle (0,1,2) yeniden eğitim: bit düzeyinde aynı (48.2224). Farklı seed üçlüleri:
 0,1,2 → 48.22; 3,4,5 → 48.70; 6,7,8 → 47.90; 9,10,11 → 47.58 ⇒ karışım 48.10 ± 0.48
 (yalnız GRU 48.54 ± 0.81).
+
+### mix3_540_grid.zip (aday, 2026-11-12; gönderilmedi) ⁶
+- Model: mix3_540 ile **aynı model.joblib** (SHA-256 265bb6b2…55d32, yeniden eğitim yok). Fark yalnız submission.py:
+  (1) 30 sn ızgara kararı, π = 0.86: her bileşenin dağılımı 1 s hücrelere inceltilir, kütlenin π kadarı "onset kayıt
+  başından itibaren 30 s'nin katı" olan en yakın kalan süreye taşınır, aynı sınıf ağırlıkları (ω) ve α 0.7 ile sürekli
+  medyan; (2) girdi temizliği `_clean` (NaN/inf; kanalın > %50'si geçersizse o kanalın son temiz penceresi, değilse son
+  geçerli örnek). Pencere bitişi 5 s'nin katı değilse eski karara düşer.
+- Seçim: `scripts/decision_layer.py` (iç içe LOFO, resmi binned_mae); çift CV unseen 39.74, seen 36.96 → 38.35;
+  mix3'e (39.40) göre −1.05, 10/10 kat. π tüm katlar üzerinden 0.86. Açık test (500-kayıt modeli) 47.06 → 46.61.
+- Komut: `python scripts/build_hgb_submission.py --model ~/neuralbench/save/mix3_all/model.joblib --name mix3_540_grid --grid-pi 0.86`
+  (zip 13.23 MB, SHA-256 f4e60d85…7dab0).
+- Kontroller: `scripts/check_stream_grid.py submissions/mix3_540_grid mix3_all` → akış ↔ toplu maks |Δ| 0.0009 s,
+  31.6917 ↔ 31.6917; Docker v3 ×2: wbmae 31.691708741918738 (her ikisinde), bMAE 81.35, MAE 151.66, duration
+  230.4 / 218.1 s (aynı oturumda mix3_540: 210.7 s); pencere başına 31.5 ms. Temiz veride NaN düzeltmesinin etkisi 0.0.
+  Log: `~/neuralbench/save/mix3_540_grid_build.log`. v4-sealed testi yapılamadı (imaj yok).
+- Risk: kazanç sealed onset'lerinin 30 s ızgarasında olmasına bağlı; ızgara dışı kayıtlarda çift CV'de +1.11 s.
+  Ayrıntı: `KARAR_KATMANI_RAPORU.md`.

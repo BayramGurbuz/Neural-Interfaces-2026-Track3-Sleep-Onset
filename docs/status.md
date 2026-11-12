@@ -19,7 +19,7 @@ yalnız son kontrol (seçim için kullanılmadı).
 | GRU-uw (3 seed) | 41.66 | 48.46 | nedensel GRU, ağırlıksız CE |
 | GRU(3) + HGB(c), α 0.5 (mix_gru_hgb) | 40.43 | 48.22 | |
 | GRU(10) + HGB(c), α 0.6 (mix_gru10_hgb / final540) | 40.28 | 46.91 | gönderildi, sealed 39.56 |
-| **(GRU10 + TCN10 + GRU-emb3)/3 + HGB(c), α 0.7 (mix3)** | **39.40** | 47.06 | kabul kuralını geçti (−0.88, 10/10); aday #2 |
+| **(GRU10 + TCN10 + GRU-emb3)/3 + HGB(c), α 0.7 (mix3 / mix3_540)** | **39.40** | 47.06 | kabul kuralını geçti (−0.88, 10/10); gönderildi (#2, 11 Kasım), sealed 38.66 |
 
 En iyi model ayrıntısı: unseen 41.80 ± 1.91, seen 38.76 ± 1.41; HGB(c)'den ve yalnız GRU'dan 10/10
 katta iyi. Kalibrasyon GRU/karışımda zarar veriyor → kullanılmıyor. Seed tekrarlanabilirliği: aynı seed
@@ -47,7 +47,8 @@ yapılamıyor; model kararları yalnızca çift CV ile verilir.
 |---|---|---|
 | mix_gru_hgb.zip | yedek (3 seed; mix_gru10_hgb onun yerine) | 123 s |
 | final540.zip | **gönderildi (#1, 10 Kasım) → sealed 39.56** | 122 s (v3) |
-| mix3_540.zip | **aday #2** (kabul kuralını geçti; gönderim onay bekliyor) | 225 s / 213 s (v3, ×2 aynı skor) |
+| mix3_540.zip | **gönderildi (#2, 11 Kasım) → sealed 38.66** | 225 s / 213 s (v3, ×2 aynı skor) |
+| mix3_540_grid.zip | **aday #3** (mix3_540 ağırlıkları + 30 sn ızgara kararı π 0.86 + NaN düzeltmesi; çift CV 38.35, Δ −1.05, 10/10; gönderim onay bekliyor) | 230 s / 218 s (v3, ×2 aynı skor) |
 | mix_gru10_hgb.zip | gönderilmeyecek (final540 ile aynı tarif, 500 kayıt) | 132 s |
 | hgb_ens_c.zip | hazır aday | 115 s |
 | hgb_v3_np.zip / hgb_v3.zip | yedek | 89 s / 417 s |
@@ -55,13 +56,30 @@ yapılamıyor; model kararları yalnızca çift CV ile verilir.
 
 Sealed pencere AÇIK: 10 Kasım'da açıldı (organizatör maili + yarışma deposu 79b4453), bitiş 21 Kasım
 23:59 CET = 22 Kasım 01:59 TR. 5 hak, takım başına ortak, günde en fazla 1.
-Gönderim planı: **#1 final540 (10 Kasım, yapıldı → sealed 39.56, 23/60)** → kalan 4 hak YALNIZCA kabul
-kuralını geçen yeni modeller için. **Son gönderim en geç 20 Kasım; 21 Kasım yedek gün.** mix_gru10_hgb
+Gönderim planı: **#1 final540 (10 Kasım, yapıldı → sealed 39.56, 23/60)**, **#2 mix3_540 (11 Kasım, yapıldı →
+sealed 38.66)** → **5 hakkın 2'si kullanıldı, kalan 3 hak** YALNIZCA kabul kuralını geçen yeni modeller için. **Son gönderim en geç 20 Kasım; 21 Kasım yedek gün.** mix_gru10_hgb
 plandan çıkarıldı (final540 ile tek fark eğitim kayıt sayısı). Final sıralama = takımın en iyi geçerli
 sealed skoru (otomatik, işaretleme yok), tekrarlanabilirlik denetimine bağlı. Sealed log/çıktılar gizli →
 göndermeden önce ZIP Docker'da test edilmeli. Claude gönderim yapmaz.
 
-## Kabul kuralı (kalan 4 hak için, 2026-11-11)
+## Karar katmanı deneyleri (2026-11-12, yeniden eğitim yok; ayrıntı `KARAR_KATMANI_RAPORU.md`)
+`scripts/decision_layer.py`, mix3'ün kayıtlı fold-dışı olasılıkları, resmi binned_mae, iç içe LOFO. Referans 39.40.
+| Varyant | unseen | seen | Çift CV | Δ | iyi kat |
+|---|---|---|---|---|---|
+| tam metrik ağırlığı w(t, y) | 41.10 | 38.33 | 39.71 | +0.32 | 2/10 |
+| **30 sn ızgarası, π 0.86** | **39.74** | **36.96** | **38.35** | **−1.05** | **10/10** |
+| ızgara, π LOFO | 39.77 | 37.00 | 38.38 | −1.02 | 10/10 |
+| nokta tahminini ızgaraya çekme | 39.86 | 37.21 | 38.54 | −0.86 | 10/10 |
+| yumuşatma (LOFO a = 0) | 40.73 | 38.07 | 39.40 | 0.00 | 0/10 |
+| tam ağırlık + ızgara | 40.01 | 37.17 | 38.59 | −0.81 | 9/10 |
+
+Izgara kazancı [0,40)'tan (−1.31); ızgaradaki kayıtlarda −1.39, ızgara dışı kayıtlarda +1.11 (sıfır noktası ızgara oranı
+≈ 0.44; açık veride 0.857, sealed'da bilinmiyor). Açık test 47.06 → 46.61. **Aday #3 = mix3_540_grid.zip** (aynı
+model.joblib, yalnız submission.py: ızgara kararı + NaN girdi temizliği); akış ↔ toplu maks |Δ| 0.0009 s, Docker v3 ×2
+31.6917 (örneklem içi), süre mix3_540 ile aynı düzeyde. **Gönderilmedi; kullanıcı onayına bağlı.** v4-sealed testi yok.
+NaN düzeltmesi: `build_hgb_submission.py` `_clean` (temiz veride çıktı birebir aynı; senaryolar raporda).
+
+## Kabul kuralı (kalan haklar için, 2026-11-11; 11 Kasım gönderiminden sonra kalan 3 hak)
 Yeni bir model ancak şu dört koşulun hepsini sağlarsa gönderilir:
 1. Çift CV ortalaması mix_gru10_hgb'ye (40.28) göre **en az 0.3 iyi** (≤ 39.98);
 2. **10 katın en az 8'inde** mix_gru10_hgb'den iyi (5 unseen + 5 seen kat, kat bazında eşleştirilmiş);
@@ -72,6 +90,9 @@ Her deneyde aralık bazında döküm (`scripts/range_breakdown.py`) final540 tar
 ## Sealed sonuç ve CV tutarlılığı
 final540: W-bMAE macro **39.56** (W-bMAE 39.91, bMAE 101.36, MAE 198.26), Duration 1249.51 s, 23/60.
 İlk 3: 33.06 / 34.62 / 35.26 (bMAE 80.03 / 87.72 / 96.64); 10. sıra 37.22.
+mix3_540 (gönderim #2, 11 Kasım): W-bMAE macro **38.66** (final540'a göre −0.90; çift CV farkı −0.88). İlk 3 eşiği
+≈ 33.06 → fark 5.60 s. Sealed sıra, bMAE/MAE ve Duration bu dosyaya kaydedilmedi (gönderim öncesi süre tahmini
+≈ 2200–2300 s). Çift CV ↔ sealed farkı: final540 40.28 → 39.56 (−0.72), mix3 39.40 → 38.66 (−0.74).
 **Çift CV tahminimiz (~40) sealed ile tutarlı:** mix_gru10_hgb OOF makro 40.28 / bMAE 100.06 / MAE 188.97.
 OOF aralık katkıları (makro, W-bMAE'ye): [0,40) 7.92, [40,90) 8.01, [90,300) 14.07, [300,600] 10.28;
 havuzlu aralık MAE'leri 14.95 / 30.16 / 87.73 / 267.42 → bMAE'nin ~2/3'ü [300,600]'den.
@@ -284,9 +305,9 @@ değmez (HGB tarafındaki −0.07 karışımda sıfıra iner; kabul kuralı eşi
 Bu turda kabul kuralını geçen model yok. Yedek aday hâlâ (GRU+TCN)/2 + HGB(c) α 0.7 (40.00, Δ −0.28,
 8/10). 18 Kasım'a kadar daha iyisi çıkmazsa 540 kayıtla eğitilip gönderilecek (TCN eğitimi
 `train_mix_final.py`'ye, TCN çıkarımı `build_hgb_submission.py`'ye eklenmeli; yalnız torch).
-Aday #2 = mix3 (üçlü karışım, çift CV 39.40). 540 ile eğitildi, ZIP üretildi (mix3_540.zip), Docker v3 ×2
-testi yapılıyor/yapıldı (submissions_log.md). **Gönderim kullanıcı onayına bağlı.** Yedek aday (GRU+TCN)/2 +
-HGB(c) α 0.7 artık ikincil (mix3 ona göre de −0.60, 10/10).
+mix3 (üçlü karışım, çift CV 39.40) 540 ile eğitildi, mix3_540.zip olarak **11 Kasım'da gönderildi (#2) →
+sealed 38.66**. Kalan 3 hak. Yedek aday (GRU+TCN)/2 + HGB(c) α 0.7 artık ikincil (mix3 ona göre de −0.60, 10/10).
+Durum denetimi: `DURUM_RAPORU.md` (2026-11-11); karar katmanı deneyleri: `KARAR_KATMANI_RAPORU.md`.
 
 ## Doküman güncellemesi (2026-11-10, depo 4a8c943 → 79b4453, 5 Kasım PDF'lerine göre)
 - Değişen: kota artık **takım başına ortak** (5 toplam, günde 1); leaderboard her katılımcının en iyisini

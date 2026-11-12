@@ -1,6 +1,7 @@
 """Assemble submissions/hgb_v1/: submission.py (with causal_features.py embedded verbatim) + model.
 
 Usage: python scripts/build_hgb_submission.py [--model M.joblib] [--name hgb_v1] [--smooth-a 0.3]
+                                              [--grid-pi 0.86] [--out-root DIR] [--no-zip]
   default model: ~/neuralbench/save/hgb/hgb_all.joblib, out: submissions/<name>/ (+ <name>.zip)
   --smooth-a a: causal output smoothing s_t = a*max(s_{t-1}-dt,0) + (1-a)*p_t (0 = off)
 """
@@ -18,11 +19,15 @@ ap = argparse.ArgumentParser()
 ap.add_argument("--model", type=Path, default=Path.home() / "neuralbench/save/hgb/hgb_all.joblib")
 ap.add_argument("--name", default="hgb_v1")
 ap.add_argument("--smooth-a", type=float, default=0.0)
+ap.add_argument("--grid-pi", type=float, default=0.0,
+                help="mix3 only: weight of the 30 s onset-grid hypothesis in the decision (0 = off)")
+ap.add_argument("--out-root", type=Path, default=ROOT / "submissions", help="where <name>/ is written")
+ap.add_argument("--no-zip", action="store_true", help="write the folder only (tests)")
 ap.add_argument("--sklearn-trees", action="store_true",
                 help="ship the sklearn model object instead of numpy tree arrays (old path)")
 args = ap.parse_args()
 src_model, name = args.model, args.name
-out = ROOT / "submissions" / name
+out = args.out_root / name
 out.mkdir(parents=True, exist_ok=True)
 
 # causal_features.py without its module docstring and imports (re-imported in the header).
@@ -106,6 +111,53 @@ def to_grid(P, edges, grid):
             if g1 > g0:
                 A[c, j] = max(0.0, min(hi, g1) - max(lo, g0)) / (hi - lo)
     return P @ A
+
+
+# ---- 30 s onset-grid decision (scripts/decision_layer.py, variant "E2 grid"); off when GRID_PI = 0 ----
+GRID_PI = {grid_pi!r}  # weight of the "onset = multiple of 30 s after the recording start" hypothesis
+N_FINE, N_SLOT = 600, 1201  # 1 s cells of remaining time; slots = atoms at 0, 1, ..., 600 s interleaved with them
+
+
+def grid_tables(grid, seq_edges, omega_seq, omega_grid):
+    """Constants: grid cells -> 1 s cells (+ point class), class weights on the slots, nearest on-grid
+    atom slot of every 1 s cell for each elapsed time modulo 30 s (elapsed is a multiple of 5 s)."""
+    fine = np.zeros((len(grid) - 1, N_FINE + 1))
+    for g in range(len(grid) - 1):
+        lo, hi = grid[g], grid[g + 1]
+        if hi == lo:
+            fine[g, N_FINE] = 1.0
+        else:
+            fine[g, int(lo):int(hi)] = 1.0 / (hi - lo)
+    y = np.minimum(np.arange(N_SLOT) / 2.0, 600.0)
+    ws = omega_seq[np.clip(np.searchsorted(seq_edges, y, side="right") - 1, 0, len(seq_edges) - 2)]
+    wh = omega_grid[np.clip(np.searchsorted(grid[:-1], y, side="right") - 1, 0, len(grid) - 3)].copy()
+    wh[N_SLOT - 1] = omega_grid[-1]  # point class at 600 s
+    mid = np.arange(N_FINE) + 0.5
+    atom = {}
+    for r in range(0, 30, 5):
+        a = np.arange((30 - r) % 30, 600.0 + 1e-9, 30.0)
+        atom[r] = (2 * a[np.abs(mid[:, None] - a[None, :]).argmin(1)]).astype(int)
+    return fine, ws, wh, atom
+
+
+def grid_slots(fine, atom_idx, pi):
+    """(601,) probabilities of the 1 s cells + point class -> (N_SLOT,) masses: (1 - pi) stays continuous,
+    pi moves to the nearest remaining time whose onset is a multiple of 30 s."""
+    S = np.zeros(N_SLOT)
+    S[1::2] = (1.0 - pi) * fine[:N_FINE]
+    S += np.bincount(atom_idx, weights=pi * fine[:N_FINE], minlength=N_SLOT)
+    S[N_SLOT - 1] += fine[N_FINE]
+    return S
+
+
+def slot_median(M):
+    cum = np.cumsum(M)
+    cum = cum / cum[-1]
+    k = min(int((cum < 0.5).sum()), N_SLOT - 1)
+    if k % 2 == 0:  # atom
+        return k / 2.0
+    before = cum[k - 1]
+    return (k - 1) / 2.0 + float(np.clip((0.5 - before) / max(cum[k] - before, 1e-300), 0.0, 1.0))
 
 
 class GRUNet(nn.Module):
@@ -233,6 +285,9 @@ class HGBStreamModel:
             self.alpha = float(bundle["mix_alpha"])
             self.base_n = int(bundle["gru_baseline_n"])
             self.el_clip = float(bundle["gru_elapsed_clip"])
+            if GRID_PI > 0:
+                self.fine, self.slot_ws, self.slot_wh, self.atom = grid_tables(
+                    self.grid, self.gru_edges, self.gru_omega, self.grid_omega)
         self.sfreq = float(sfreq)
         self.stream = None
         self.reset_state()
@@ -242,6 +297,7 @@ class HGBStreamModel:
         if self.stream is not None:
             self.stream.reset()
         self.prev_out = None
+        self.last_win = None
         self.gru_h = None
         self.gru_sum = None
         self.gru_cnt = 0
@@ -256,9 +312,21 @@ class HGBStreamModel:
         q = P * self.gru_omega
         return to_grid(q / q.sum(axis=1, keepdims=True), self.gru_edges, self.grid)
 
-    def _mix3_q(self, f32, x):
-        """f32: (B, 62) window features, x: (B, C, T) raw windows, time order -> mean grid distribution
-        of GRU-uw (10 seeds), TCN (10 seeds) and GRU-emb (3 encoder/GRU seed pairs)."""
+    def _grid_decide(self, Ps, Ph, elapsed):
+        """30 s onset-grid decision for one window. Ps: class probabilities (n_classes,) of the sequence
+        components, Ph: (n_grid,) mean HGB grid probabilities (unweighted), elapsed: time since the
+        recording start at the end of the window (multiple of 5 s)."""
+        idx = self.atom[int(round(elapsed)) % 30]
+        q = np.zeros(N_SLOT)
+        for P in Ps:
+            s = grid_slots(to_grid(P[None], self.gru_edges, self.grid)[0] @ self.fine, idx, GRID_PI) * self.slot_ws
+            q += s / s.sum()
+        h = grid_slots(Ph @ self.fine, idx, GRID_PI) * self.slot_wh
+        return slot_median(self.alpha * q / len(Ps) + (1.0 - self.alpha) * h / h.sum())
+
+    def _mix3_probs(self, f32, x):
+        """f32: (B, 62) window features, x: (B, C, T) raw windows, time order -> seed-mean class
+        probabilities (B, n_classes) of GRU-uw (10 seeds), TCN (10 seeds) and GRU-emb (3 encoder/GRU pairs)."""
         with torch.no_grad():
             xr = torch.clamp(torch.tensor(x, dtype=torch.float32) / self.cnn_scale, -self.cnn_clip, self.cnn_clip)
             embs = [enc(xr)[1].numpy().astype(np.float32) for enc in self.encs]  # (B, EMB) per seed
@@ -292,8 +360,7 @@ class HGBStreamModel:
                 xe = torch.tensor((np.stack(erows[s]) - self.gemb_mu) / self.gemb_sd)[None]
                 logits, self.gemb_h[s] = net(xe, self.gemb_h[s])
                 ps_e.append(torch.softmax(logits[0], -1).numpy().astype(np.float64))
-        return (self._grid_q(np.mean(ps_g, axis=0)) + self._grid_q(np.mean(ps_t, axis=0))
-                + self._grid_q(np.mean(ps_e, axis=0))) / 3.0
+        return np.mean(ps_g, axis=0), np.mean(ps_t, axis=0), np.mean(ps_e, axis=0)
 
     def _gru_probs(self, f32):
         """f32: (B, 62) window features (float32), time order -> (B, n_classes) mean GRU probabilities."""
@@ -326,9 +393,36 @@ class HGBStreamModel:
             out[i] = self.prev_out = s
         return out
 
+    def _clean(self, x):
+        """NaN / inf samples -> finite values before anything else sees the window (features, CNN encoder,
+        recurrent states, baselines). A channel with more than half of its samples invalid is replaced by
+        that channel's last clean window (zeros if there is none yet); otherwise invalid samples take the
+        last valid sample of the channel (carried over from the previous window). Finite input is returned
+        unchanged. Chosen on corrupted public-test recordings (KARAR_KATMANI_RAPORU.md)."""
+        bad = ~np.isfinite(x)
+        if not bad.any():
+            self.last_win = x[-1].copy()
+            return x
+        x = x.copy()
+        for i in range(x.shape[0]):
+            for c in range(x.shape[1]):
+                m = bad[i, c]
+                if not m.any():
+                    continue
+                prev = self.last_win[c] if self.last_win is not None and self.last_win.shape == x[i].shape else None
+                if m.mean() > 0.5:
+                    x[i, c] = prev if prev is not None else 0.0
+                else:
+                    idx = np.where(~m, np.arange(m.size), -1)
+                    np.maximum.accumulate(idx, out=idx)
+                    first = prev[-1] if prev is not None else 0.0
+                    x[i, c] = np.where(idx >= 0, x[i, c][np.maximum(idx, 0)], first)
+            self.last_win = x[i].copy()
+        return x
+
     def predict(self, X):
         # X: (B, C, T) consecutive windows of the current recording, in time order.
-        x = X.detach().float().cpu().numpy()
+        x = self._clean(X.detach().float().cpu().numpy())
         if self.stream is None:
             self.stream = CausalFeatureStream(x.shape[-1] / self.sfreq, self.groups,
                                               core_index(range(x.shape[1])))
@@ -359,11 +453,20 @@ class HGBStreamModel:
             W = self.alpha * q + (1.0 - self.alpha) * Wh
             pred = decide(W, None, np.ones(W.shape[1]), self.grid)
         elif self.kind == "mix3":
-            Wh = np.mean([to_grid(hgb_predict_proba(t, rows), e, self.grid)
-                          for t, e in zip(self.member_trees, self.member_edges)], axis=0) * self.grid_omega
+            Ph = np.mean([to_grid(hgb_predict_proba(t, rows), e, self.grid)
+                          for t, e in zip(self.member_trees, self.member_edges)], axis=0)
+            Ps = self._mix3_probs(f32, x)
+            Wh = Ph * self.grid_omega
             Wh /= Wh.sum(axis=1, keepdims=True)
-            W = self.alpha * self._mix3_q(f32, x) + (1.0 - self.alpha) * Wh
+            W = self.alpha * (self._grid_q(Ps[0]) + self._grid_q(Ps[1]) + self._grid_q(Ps[2])) / 3.0 + (1.0 - self.alpha) * Wh
             pred = decide(W, None, np.ones(W.shape[1]), self.grid)
+            if GRID_PI > 0:
+                step = self.stream.step_s
+                for i in range(len(pred)):
+                    el = (self.stream.n_seen - len(pred) + i + 1) * step
+                    # the grid tables assume window ends on multiples of 5 s; otherwise keep the plain decision
+                    if abs(el - 5.0 * round(el / 5.0)) < 1e-6 and np.isfinite(Ph[i]).all():
+                        pred[i] = self._grid_decide([P[i] for P in Ps], Ph[i], el)
         elif self.trees is not None:
             if self.kind == "dist":
                 pred = decide(hgb_predict_proba(self.trees, rows), self.reps, self.omega, self.class_edges)
@@ -403,6 +506,7 @@ from gru_cv import TCNNet  # noqa: E402
 from cnn_encoder import Encoder  # noqa: E402
 
 wrapper = (WRAPPER.replace("{tree_body}", tree_body).replace("{smooth_a!r}", repr(args.smooth_a))
+           .replace("{grid_pi!r}", repr(args.grid_pi))
            .replace("{calib_x}", literal(bundle.get("calib_x")))
            .replace("{calib_y}", literal(bundle.get("calib_y")))
            .replace("{tcn_src}", inspect.getsource(TCNNet)).replace("{enc_src}", inspect.getsource(Encoder)))
@@ -424,8 +528,11 @@ if not args.sklearn_trees:
     if keep.get("bin_edges") is not None:
         keep["padded_edges"] = pad_bin_edges(keep["bin_edges"])
 joblib.dump(keep, out / "model.joblib")
-zpath = ROOT / "submissions" / f"{name}.zip"
-with zipfile.ZipFile(zpath, "w", zipfile.ZIP_DEFLATED) as z:
-    for f in ("submission.py", "model.joblib"):
-        z.write(out / f, arcname=f)
-print("wrote", out, "and", zpath, f"({zpath.stat().st_size / 1e6:.2f} MB)")
+if args.no_zip:
+    print("wrote", out, "(no zip)")
+else:
+    zpath = args.out_root / f"{name}.zip"
+    with zipfile.ZipFile(zpath, "w", zipfile.ZIP_DEFLATED) as z:
+        for f in ("submission.py", "model.joblib"):
+            z.write(out / f, arcname=f)
+    print("wrote", out, "and", zpath, f"({zpath.stat().st_size / 1e6:.2f} MB)")
