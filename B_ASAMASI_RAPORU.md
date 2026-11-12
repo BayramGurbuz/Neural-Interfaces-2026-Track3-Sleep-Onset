@@ -14,6 +14,9 @@ Hedef: çift CV makroda 38.35'in (ızgaralı mix3, `mix3_540_grid` tarifi) altı
 | B1a | π(D), 2 aralık (step) | 39.65 | 36.89 | 38.27 | −0.08 | 9/10 | – |
 | B1b | düz kanal kuralı | – | – | – | 0 (temiz veride çıktı aynı) | – | builder'a eklendi (varsayılan açık; eşik %50 → %90) |
 | Adım 1 | **mix3_540_gridpi.zip** = B1a bins4 + B1b (%90) | 39.66 | 36.89 | 38.27 | −0.08 | 10/10 | **gönderildi (#3, 12 Kasım), sonuç bekleniyor**; SHA-256 `4ef85c1f…0063`; 5 hakkın 3'ü kullanıldı, kalan 2 |
+| B2a | B üyesi + bip (+432) | 43.85 | 41.28 | 42.56 | −0.64 (ref B 43.20) | 9/10 | **kazandırıyor**; (c) ve dizi modellerine taşıma onay bekliyor |
+| B2b | B üyesi + events (+318) | 45.02 | 41.81 | 43.41 | +0.21 (ref B 43.20) | 4/10 | kazandırmıyor |
+| B2c | B üyesi + epoch (+113) | 43.96 | 40.92 | 42.44 | −0.77 (ref B 43.20) | 10/10 | kazandırıyor; **ayrı tutuluyor** (ızgaraya bağlı) |
 
 ---
 
@@ -171,6 +174,48 @@ NaN / inf senaryoları değişmedi. Hiçbir senaryoda NaN tahmin, tam 0'a kilitl
 - Pencere başına akış süresi (yerel, 40 kayıt) gridpi 25.0 ms. Grid'in aynı oturumda ayrı akış ölçümü yok; 12 Kasım'daki ölçüm 31.5 ms (makine yükü farklı).
 - Oturumlar arası oynama büyük (grid 12 Kasım'da 230 / 218 sn, bugün 168 sn). Kabaca: gridpi, grid'den ≤ %10 yavaş.
 - Mühürlü tahmin: mix3_540 için ≈ 2200–2300 sn × ≤ 1.1 → ≤ ~2500 sn (sınır 3600 sn). Mix3_540'ın mühürlü süresi kaydedilmediği için kaba.
+
+---
+
+## B2 — Yeni öznitelikler, B üyesi ablasyonu (gece zinciri, 12 Kasım 18:20–22:01)
+
+**Kurulum [K]:**
+- Kod: `scripts/features_b2.py` (gruplar), `scripts/b2_extract.py` (pencere öznitelikleri bir kez), `scripts/b2_ablation.py` (B üyesi), `scripts/b2_night.sh` (zincir).
+- B üyesi tek başına; aynı sınıflar (11), parametreler, karar ve LOFO ağaç sayısı; çift CV aynı katlar.
+- Referans: B'nin 817 öznitelikle kayıtlı fold-dışı tahminleri (`ens_dyn_maxmin_spec_eye_B`, çift CV 43.20; betik başında yeniden skorlanarak doğrulandı).
+- Yeni pencere düzeyi gruplar akışa yalnız anlık + EMA 30 sn / 2 dk + bunların ilk-2-dk farkı olarak giriyor (×6).
+- HGB CPU'da, `random_state=0` → deterministik. Log `~/neuralbench/save/cv/dual/b2_night.log`, sayılar `b2_ablation.json`.
+- Kazandıran tanımı: Δ ≤ −0.15 ve ≥ 7/10 kat.
+
+| Grup | Yeni öznitelik | unseen | seen | makro | Δ | İyi kat | Δ [0,40) | Δ [40,90) | Δ [90,300) | Δ [300,600] | Süre | Karar |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| ref B (817) | – | 44.94 | 41.47 | 43.20 | – | – | – | – | – | – | – | – |
+| **a bip** | 432 (72 × 6) | 43.85 | 41.28 | **42.56** | **−0.64** | **9/10** | −0.12 | +0.10 | −0.10 | **−0.52** | 4635 sn | **kazandırıyor** |
+| b events | 318 (53 × 6) | 45.02 | 41.81 | 43.41 | +0.21 | 4/10 | +0.12 | +0.06 | −0.05 | +0.07 | 4882 sn | kazandırmıyor |
+| c epoch (ayrı tutuluyor) | 113 | 43.96 | 40.92 | **42.44** | **−0.77** | **10/10** | −0.24 | +0.27 | −0.51 | −0.28 | 3919 sn | kazandırıyor; taşıma kararı mühürlü skordan sonra |
+
+Kat farkları [Ç]:
+- a: unseen −1.78, −0.72, −1.00, −1.06, −0.88; seen +0.41, −0.02, −0.69, −0.52, −0.10.
+- b: unseen +0.88, −0.44, −0.37, +0.12, +0.22; seen +0.67, −0.42, −0.24, +1.41, +0.27.
+- c: unseen −1.33, −0.57, −1.16, −0.31, −1.53; seen −0.67, −0.81, −0.70, −0.31, −0.27.
+
+**Gözlemler:**
+- a, şimdiye kadar hiçbir şeyin kıpırdatamadığı [300,600] aralığında kazanç veriyor (−0.52). Kazanç unseen'de daha büyük (−1.09 ortalama); seen'de karışık (+0.41 ile −0.69 arası).
+- b kazandırmadı. Olay sıklıkları [Ç]:
+  - iğcik pencerelerin %2.4–2.6'sında;
+  - 75 µV üstü yavaş dalga %12–14'ünde;
+  - kırpma (eşik 6 MAD) pencere başına 0.17, (eşik 4 MAD) 0.33;
+  - yavaş göz hareketi 0.16.
+  - Yorumum: kırpma oranının düşük olması, gözler kapalı yatarken beklenen bir durum; eşiği düşürmek (4 MAD) sayıyı yalnız iki katına çıkarıyor.
+- c'nin kazancı [90,300) ve [0,40)'tan geliyor, [40,90) kötüleşiyor. Kazanç 30 sn ızgarasının mühürlü veride tutmasına bağlı olabilir (faz, kayıt başından hizalı); ayrı tutuldu.
+- a ve b'den yalnız a kazandırdığı için zincir a+b birleşimini koşmadı. a+c birlikte ayrı bilgi olarak ölçülüyor (aşağıda, c yine ayrı).
+
+**Pencere başına çıkarım maliyeti, a grubu [Ç]** (mikro ölçüm, tek iş parçacığı, arka planda ablasyon koşarken):
+- bip pencere öznitelikleri 1.05 ms (yüksüz ölçüm `b2_extract.py`: 0.63 ms);
+- akış güncellemesi 0.013 ms;
+- binleme 817 → 1249 öznitelik: 0.28 → 0.41 ms.
+- Toplam ≈ +1.2 ms/pencere ≈ **+%4–5** (bugünkü 25–32 ms'ye göre). HGB ağaç sayısı değişmiyor; dizi modellerinde yalnız giriş katmanı büyüyor (125 → 269).
+- b grubu (kazandırmadı) 2.72 ms (yüksüz).
 
 ---
 
