@@ -11,7 +11,8 @@ açık test = 40 kayıt (yalnız son kontrol). Docker = lionelyneuro/neural-comp
 Sealed pencere: 10 Kasım'da açıldı (organizatör maili), bitiş 21 Kasım 23:59 CET = 22 Kasım 01:59 TR.
 5 hak takım başına ortak, günde en fazla 1; en iyi geçerli skor sayılır (tekrarlanabilirlik denetimine bağlı).
 Sealed log/tahmin/skorlama çıktıları gizli. Plan: #1 final540 (10 Kasım, yapıldı), #2 mix3_540 (11 Kasım, yapıldı),
-#3–#5 yalnızca kabul kuralını geçen modeller (mix_gru10_hgb plandan çıkarıldı). **5 hakkın 2'si kullanıldı, kalan 3.**
+#3 mix3_540_gridpi (12 Kasım, gönderildi, sonuç bekleniyor), #4–#5 yalnızca kabul kuralını geçen modeller (mix_gru10_hgb
+plandan çıkarıldı). **5 hakkın 3'ü kullanıldı, kalan 2.**
 Son gönderim en geç 20 Kasım, 21 Kasım yedek gün.
 
 | # | Gönderim tarihi | ZIP | Durum | Çift CV | Açık test | Docker süresi | Sealed skor | Sealed süre |
@@ -26,6 +27,7 @@ Son gönderim en geç 20 Kasım, 21 Kasım yedek gün.
 
 | – | (onay bekliyor) | mix3_540_grid.zip | **aday** ⁶ | 38.35 ² | 31.6917 ³ | 230 s / 218 s (×2, aynı skor) | – | – |
 
+| 3 | 2026-11-12 | mix3_540_gridpi.zip | **gönderildi, sonuç bekleniyor** ⁷ | 38.27 ² | 31.3234 ³ | 185 s / 176 s (×2, aynı skor) | – | – |
 ² 500 kayıtlık çift CV (540'ta doğrulama seti yok). ³ Örneklem içi (test eğitimde) → yalnız boru hattı kontrolü.
 ⁴ final540 ile tek fark eğitim kayıt sayısı (submission.py birebir aynı; model.joblib'de α, GRU ayarı, seed, epoch, ızgara
   aynı; yalnız veriye bağlı binleme sınırları ve ağaç yapıları farklı) → ayrı bilgi vermez (2026-11-11).
@@ -169,3 +171,15 @@ Aynı seed'lerle (0,1,2) yeniden eğitim: bit düzeyinde aynı (48.2224). Farkl�
   Log: `~/neuralbench/save/mix3_540_grid_build.log`. v4-sealed testi yapılamadı (imaj yok).
 - Risk: kazanç sealed onset'lerinin 30 s ızgarasında olmasına bağlı; ızgara dışı kayıtlarda çift CV'de +1.11 s.
   Ayrıntı: `KARAR_KATMANI_RAPORU.md`.
+
+### mix3_540_gridpi.zip (gönderim #3, 2026-11-12; sonuç bekleniyor) ⁷
+- Model: mix3_540 ile aynı model.joblib (SHA-256 265bb6b2…55d32). submission.py: ızgara kararı π(D) (kesimler 900 / 1100 /
+  1300 s, değerler 540 kayıttan 1.0 / 0.592 / 0.644 / 0.444; `scripts/b1_grid_pi.py`), girdi temizliği NaN/inf + düz kanal
+  (std < 0.1 µV veya ardışık örneklerin > %90'ı değişmiyor).
+- Çift CV (500 kayıt, B1a bins4): unseen 39.66, seen 36.89 → 38.27; mix3_540_grid tarifine göre −0.08, 10/10 kat;
+  ızgara dışı kayıtlarda zarar +1.11 → +0.58 s. Açık test (500 modeli) 46.61 → 46.39.
+- Komut: `python scripts/build_hgb_submission.py --model ~/neuralbench/save/mix3_all/model.joblib --name mix3_540_gridpi
+  --grid-pi-cuts 900,1100,1300 --grid-pi-values 1.0,0.592,0.644,0.444` (zip 13.23 MB, SHA-256 4ef85c1f…b4b700063).
+- Kontroller: akış ↔ toplu maks |Δ| 0.0002 s, 31.3234 ↔ 31.3234; Docker v3 ×2: 31.323388735064913 (her ikisinde),
+  duration 184.9 / 176.1 s (aynı oturumda mix3_540_grid 168.5 s); temiz veride temizlik kuralının etkisi 0.0.
+  Log `~/neuralbench/save/mix3_540_gridpi_build.log`. v4-sealed testi yapılamadı. Ayrıntı: `B_ASAMASI_RAPORU.md`.

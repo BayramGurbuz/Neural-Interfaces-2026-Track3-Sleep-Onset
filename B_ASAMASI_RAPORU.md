@@ -9,10 +9,11 @@ Hedef: çift CV makroda 38.35'in (ızgaralı mix3, `mix3_540_grid` tarifi) altı
 
 | Adım | Varyant | unseen | seen | makro | Δ | İyi kat | Durum |
 |---|---|---|---|---|---|---|---|
-| ref | mix3 + ızgara π 0.86 | 39.74 | 36.96 | 38.35 | – | – | aday, gönderilmedi (5 hakkın 2'si kullanıldı, kalan 3) |
+| ref | mix3 + ızgara π 0.86 | 39.74 | 36.96 | 38.35 | – | – | aday, gönderilmedi |
 | B1a | π(D), 4 aralık (bins4) | 39.66 | 36.89 | 38.27 | −0.08 | 10/10 | builder'a seçenek olarak eklendi; tek başına ZIP yok (Δ < 0.5) |
 | B1a | π(D), 2 aralık (step) | 39.65 | 36.89 | 38.27 | −0.08 | 9/10 | – |
-| B1b | düz kanal kuralı | – | – | – | 0 (temiz veride çıktı aynı) | – | builder'a eklendi (varsayılan açık) |
+| B1b | düz kanal kuralı | – | – | – | 0 (temiz veride çıktı aynı) | – | builder'a eklendi (varsayılan açık; eşik %50 → %90) |
+| Adım 1 | **mix3_540_gridpi.zip** = B1a bins4 + B1b (%90) | 39.66 | 36.89 | 38.27 | −0.08 | 10/10 | **gönderildi (#3, 12 Kasım), sonuç bekleniyor**; SHA-256 `4ef85c1f…0063`; 5 hakkın 3'ü kullanıldı, kalan 2 |
 
 ---
 
@@ -124,3 +125,86 @@ Hiçbir senaryoda NaN tahmin, tam 0'a kilitlenme veya durumda NaN yok.
 | `scripts/check_stream_grid.py` | π(D) desteği |
 | `scripts/check_determinism.py`, `scripts/repro.py` | yeni: tekrarlanabilirlik testi ve deterministik ayarlar |
 | `scripts/train_mix3_final.py` | `--deterministic` bayrağı |
+
+---
+
+## Adım 1 — Yeni aday: `mix3_540_gridpi.zip` (yeniden eğitim yok; kullanıcı 12 Kasım'da gönderdi, sonuç bekleniyor)
+
+**Tarif:**
+- `mix3_540` ile aynı `model.joblib` (SHA-256 `265bb6b2…55d32`); yalnız `submission.py` farklı.
+- Karar: ızgara π(D), bins4. Kesimler 900 / 1100 / 1300 sn; değerler 540 kaydın tamamından 1.0 / 0.592 / 0.644 / 0.444 [Ç].
+- Girdi temizliği: NaN/inf yolu + düz kanal kuralı (std < 0.1 µV veya ardışık örneklerin **> %90**'ı değişmiyor).
+- İçe aktarmalar `mix3_540` ile aynı (joblib, numpy, torch, scipy.signal) [Ç].
+- Komut: `python scripts/build_hgb_submission.py --model ~/neuralbench/save/mix3_all/model.joblib --name mix3_540_gridpi --grid-pi-cuts 900,1100,1300 --grid-pi-values 1.0,0.592,0.644,0.444` (varsayılanlar: `--flat-sd 0.1 --flat-same 0.9`).
+- **ZIP SHA-256: `4ef85c1feec2e0780b58342c2b8cc7d11a5f70469c8dd15fe0505d0b4b700063`** (13.23 MB).
+
+**Beklenen etki (çift CV, B1a):** 38.35 → 38.27 (Δ −0.08, 10/10 kat); ızgara dışı kayıtlardaki zarar +1.11 → +0.58 sn. Açık test (500-kayıt modeli) 46.61 → 46.39.
+
+**Düz kanal eşiği %90 [Ç]** (500-kayıt modeli, 10 kayıt, temiz 42.48; W-bMAE farkı / ortalama tahmin sapması):
+
+| Senaryo | Kural kapalı | Eşik %50 (önceki) | Eşik %90 (şimdi) |
+|---|---|---|---|
+| Takılı değer: pencerenin 2/3'ü sabit, 1 kanal, 60 pencere | +0.09 / 27.5 | +1.26 / 15.8 | **+0.09 / 27.5** (tetiklenmiyor) |
+| Takılı değer: pencerenin %95'i sabit, 1 kanal, 60 pencere | ölçülmedi | ölçülmedi | +1.26 / 15.8 (tetikleniyor) |
+| 1 kanal düz, 60 pencere | +9.98 / 132.2 | +1.26 / 15.8 | +1.26 / 15.8 |
+| Sıfır µV kanal, 60 pencere | +10.07 / 131.6 | +1.26 / 15.8 | +1.26 / 15.8 |
+| Tüm kanallar düz, 10 pencere | +23.76 / 108.8 | +0.04 / 7.8 | +0.04 / 7.8 |
+
+NaN / inf senaryoları değişmedi. Hiçbir senaryoda NaN tahmin, tam 0'a kilitlenme veya durumda NaN yok.
+
+**Temiz veride sıfır fark [Ç]** (40 kayıt, 5 869 pencere, akış):
+- (1) Gönderilmeyi bekleyen `mix3_540_grid` ↔ aynı tarif + yeni temizlik (%90): maks fark 0.0 sn.
+- (2) `mix3_540_gridpi` ↔ aynı tarif, düz kanal kuralı kapalı: maks fark 0.0 sn.
+
+**Akış ↔ toplu [Ç]:** maks \|Δ\| 0.0002 sn; W-bMAE (örneklem içi, 540 modeli) 31.3234 ↔ 31.3234.
+
+**Docker `v3` [Ç]** (aynı oturumda, sırayla, makine boşken; log `~/neuralbench/save/mix3_540_gridpi_build.log`):
+
+| ZIP | Koşu | wbmae_recording_mean | bMAE | MAE | duration |
+|---|---|---|---|---|---|
+| mix3_540_gridpi | 1 | 31.323388735064913 | 81.12 | 151.61 | 184.9 sn |
+| mix3_540_gridpi | 2 | 31.323388735064913 | 81.12 | 151.61 | 176.1 sn |
+| mix3_540_grid | 1 | 31.691708741918738 | 81.35 | 151.66 | 168.5 sn |
+
+**Süre:**
+- Aynı oturumda gridpi, grid'e göre +%4.5 ile +%9.7 arası (176–185 ↔ 168 sn).
+- Pencere başına akış süresi (yerel, 40 kayıt) gridpi 25.0 ms. Grid'in aynı oturumda ayrı akış ölçümü yok; 12 Kasım'daki ölçüm 31.5 ms (makine yükü farklı).
+- Oturumlar arası oynama büyük (grid 12 Kasım'da 230 / 218 sn, bugün 168 sn). Kabaca: gridpi, grid'den ≤ %10 yavaş.
+- Mühürlü tahmin: mix3_540 için ≈ 2200–2300 sn × ≤ 1.1 → ≤ ~2500 sn (sınır 3600 sn). Mix3_540'ın mühürlü süresi kaydedilmediği için kaba.
+
+---
+
+## B3 — Dış veri: bilgi toplama (indirme YAPILMADI)
+
+Kaynaklar: PhysioNet sayfaları (HMC v1.1, Sleep-EDF Expanded v1.0.0), kurulu `neuralfetch` yükleyicileri ve MNE'nin
+paketle gelen Sleep-EDF kayıt tablosu (`mne/datasets/sleep_physionet/age_records.csv`). [L] = sayfadan / koddan okundu.
+
+| | HMC Sleep Staging | Sleep-EDF Expanded, Sleep Cassette (SC) |
+|---|---|---|
+| Sürüm | 1.1 (18 Mart 2022) | 1.0.0 (sayfadaki sürüm geçmişinde 2018'deki "Version 2" genişlemesi de anılıyor) |
+| İndirme boyutu | ZIP 12.9 GB; açılmış 15.7 GB | Tüm veri kümesi 8.1 GB; SC klasörü ~7.2 GB (153 PSG × ~47 MB; sayfada toplam yok, tahmin) |
+| Lisans | CC BY 4.0 | Open Data Commons Attribution v1.0 (ODC-By) |
+| Kayıt / kişi | 151 tüm gece PSG (85 E / 66 K); v1.1'de 3 kayıt çıkarılmış (sayfada son sayı yok) | 153 kayıt / 78 kişi (yükleyici: SC; 2 gece/kişi, bazı eksik) |
+| Kanallar | EEG F4/M1, C4/M1, O2/M1, C3/M2; EOG E1/M2, E2/M2; çene EMG; EKG | EEG Fpz-Cz, Pz-Oz; yatay EOG; çene EMG (1 Hz RMS zarfı); olay işaretçisi |
+| Örnekleme | 256 Hz | EEG/EOG 100 Hz |
+| Uyku evreleri | AASM (W, N1, N2, N3, R); EDF+ ve metin | R&K (W, R, 1, 2, 3, 4, M, ?); NeuralBench 3+4 → N3 birleştiriyor |
+| Uyku başlangıcı bölümü | **var**: kayıtlar "lights off"–"lights on" işaretleri arasına kırpılmış (ışık kapanışından itibaren) | **var, ama ~20 saatlik kayıt**: gündüz uyanıklığı da içeriyor; ışık kapanma saati MNE tablosunda her kayıt için var (ör. SC4001: 00:38, SC4002: 21:57); yerelde doğrulandı [Ç] |
+| Kapalı klinik veri mi | hayır (PhysioNet açık erişim; retrospektif klinik PSG) | hayır (açık erişim) |
+| NeuralBench desteği | `neuralfetch.studies.Alvarez2022Haaglanden`; `_sleep_onset_stream/datasets/alvarez2022haaglanden.yaml` (`max_pre_n2_s 1200`, val/test'te rastgele başlangıç) | `Kemp2000Analysis` (yalnız sleep-cassette); `kemp2000analysis.yaml` (aynı ayarlar) |
+| Atıf | Alvarez-Estevez & Rijsman (2022), PhysioNet, doi:10.13026/t79q-fr32; ve PLoS ONE 16(8):e0256111 (2021) | Kemp ve ark. (2000), IEEE-BME 47(9):1185–1194; PhysioNet atfı |
+
+**Muse eşlemesi:**
+- HMC'de F4-M1 ve C3-M2 türevleri, önerdiğin eşleme için uygun (F4-M1 ≈ AF8−TP9, C3-M2 ≈ AF7−TP10 yaklaşık).
+- Sleep-EDF'de yalnız Fpz-Cz ve Pz-Oz var; ikisi de Muse türevlerine zayıf benziyor. Fpz-Cz, AF7−AF8 / AF7−TP9'a göre farklı geometride.
+- Yorumum: eşleme açısından HMC daha değerli.
+
+**Uyku başlangıcı odağı:**
+- NeuralBench'in hazır görevleri N2'den önceki en fazla 1200 sn'yi kullanıyor (`AddSleepOnsetTargets`, `max_pre_n2_s`). Muse'da bu süre en fazla 1500 sn.
+- HMC kayıtları ışık kapanışından başladığı için bu bölüm doğrudan var.
+- Sleep-EDF'de ışık kapanma saatiyle kesmek gerekir; NeuralBench yükleyicisi bunu yapmıyor, kendisi N2'den 1200 sn geri gidiyor.
+
+**Risk — disk alanı [Ç]:** WSL diski (`/`, ext4) 922 GB boş gösteriyor, ama `Ubuntu` dağıtımının sanal diski `C:\Users\bayra\AppData\Local\wsl\{856b…}` altında (Windows kayıt defteri, Lxss `BasePath`) ve **C:'de 9.4 GB boş yer var**; G:'de 8.9 GB (PowerShell `Get-PSDrive`). HMC (12.9 GB ZIP + 15.7 GB açılmış) ve Sleep-EDF SC (~7.2 GB) bu alana sığmaz; indirme C:'yi doldurup WSL'i çökertebilir. İndirmeden önce:
+- ya C:'de yer açılmalı,
+- ya da WSL sanal diski başka sürücüye taşınmalı.
+
+İkisi de 30 GB sınırının altında. Alan ölçüldü [Ç]; çökme riski bir çıkarım.

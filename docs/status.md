@@ -49,6 +49,7 @@ yapılamıyor; model kararları yalnızca çift CV ile verilir.
 | final540.zip | **gönderildi (#1, 10 Kasım) → sealed 39.56** | 122 s (v3) |
 | mix3_540.zip | **gönderildi (#2, 11 Kasım) → sealed 38.66** | 225 s / 213 s (v3, ×2 aynı skor) |
 | mix3_540_grid.zip | **aday #3** (mix3_540 ağırlıkları + 30 sn ızgara kararı π 0.86 + NaN düzeltmesi; çift CV 38.35, Δ −1.05, 10/10; gönderim onay bekliyor) | 230 s / 218 s (v3, ×2 aynı skor) |
+| mix3_540_gridpi.zip | **gönderildi (#3, 12 Kasım), sonuç bekleniyor** (mix3_540 ağırlıkları + ızgara π(D) bins4 1.0/0.592/0.644/0.444 + NaN ve düz kanal temizliği; çift CV 38.27, ızgaralıya göre −0.08, 10/10; SHA-256 4ef85c1f…0063) | 185 s / 176 s (v3, ×2 aynı skor; aynı oturumda mix3_540_grid 168 s) |
 | mix_gru10_hgb.zip | gönderilmeyecek (final540 ile aynı tarif, 500 kayıt) | 132 s |
 | hgb_ens_c.zip | hazır aday | 115 s |
 | hgb_v3_np.zip / hgb_v3.zip | yedek | 89 s / 417 s |
@@ -57,7 +58,7 @@ yapılamıyor; model kararları yalnızca çift CV ile verilir.
 Sealed pencere AÇIK: 10 Kasım'da açıldı (organizatör maili + yarışma deposu 79b4453), bitiş 21 Kasım
 23:59 CET = 22 Kasım 01:59 TR. 5 hak, takım başına ortak, günde en fazla 1.
 Gönderim planı: **#1 final540 (10 Kasım, yapıldı → sealed 39.56, 23/60)**, **#2 mix3_540 (11 Kasım, yapıldı →
-sealed 38.66)** → **5 hakkın 2'si kullanıldı, kalan 3 hak** YALNIZCA kabul kuralını geçen yeni modeller için. **Son gönderim en geç 20 Kasım; 21 Kasım yedek gün.** mix_gru10_hgb
+sealed 38.66)**, **#3 mix3_540_gridpi (12 Kasım, gönderildi, sonuç bekleniyor)** → **5 hakkın 3'ü kullanıldı, kalan 2 hak** YALNIZCA kabul kuralını geçen yeni modeller için. **Son gönderim en geç 20 Kasım; 21 Kasım yedek gün.** mix_gru10_hgb
 plandan çıkarıldı (final540 ile tek fark eğitim kayıt sayısı). Final sıralama = takımın en iyi geçerli
 sealed skoru (otomatik, işaretleme yok), tekrarlanabilirlik denetimine bağlı. Sealed log/çıktılar gizli →
 göndermeden önce ZIP Docker'da test edilmeli. Claude gönderim yapmaz.
@@ -79,7 +80,7 @@ model.joblib, yalnız submission.py: ızgara kararı + NaN girdi temizliği); ak
 31.6917 (örneklem içi), süre mix3_540 ile aynı düzeyde. **Gönderilmedi; kullanıcı onayına bağlı.** v4-sealed testi yok.
 NaN düzeltmesi: `build_hgb_submission.py` `_clean` (temiz veride çıktı birebir aynı; senaryolar raporda).
 
-## Kabul kuralı (kalan haklar için, 2026-11-11; 11 Kasım gönderiminden sonra kalan 3 hak)
+## Kabul kuralı (kalan haklar için, 2026-11-11; 12 Kasım gönderiminden (#3) sonra kalan 2 hak)
 Yeni bir model ancak şu dört koşulun hepsini sağlarsa gönderilir:
 1. Çift CV ortalaması mix_gru10_hgb'ye (40.28) göre **en az 0.3 iyi** (≤ 39.98);
 2. **10 katın en az 8'inde** mix_gru10_hgb'den iyi (5 unseen + 5 seen kat, kat bazında eşleştirilmiş);
@@ -306,7 +307,7 @@ Bu turda kabul kuralını geçen model yok. Yedek aday hâlâ (GRU+TCN)/2 + HGB(
 8/10). 18 Kasım'a kadar daha iyisi çıkmazsa 540 kayıtla eğitilip gönderilecek (TCN eğitimi
 `train_mix_final.py`'ye, TCN çıkarımı `build_hgb_submission.py`'ye eklenmeli; yalnız torch).
 mix3 (üçlü karışım, çift CV 39.40) 540 ile eğitildi, mix3_540.zip olarak **11 Kasım'da gönderildi (#2) →
-sealed 38.66**. Kalan 3 hak. Yedek aday (GRU+TCN)/2 + HGB(c) α 0.7 artık ikincil (mix3 ona göre de −0.60, 10/10).
+sealed 38.66**. #3 mix3_540_gridpi 12 Kasım'da gönderildi (sonuç bekleniyor); kalan 2 hak. Yedek aday (GRU+TCN)/2 + HGB(c) α 0.7 artık ikincil (mix3 ona göre de −0.60, 10/10).
 Durum denetimi: `DURUM_RAPORU.md` (2026-11-11); karar katmanı deneyleri: `KARAR_KATMANI_RAPORU.md`.
 
 ## Doküman güncellemesi (2026-11-10, depo 4a8c943 → 79b4453, 5 Kasım PDF'lerine göre)

@@ -23,6 +23,8 @@ ap.add_argument("--grid-pi", type=float, default=0.0,
                 help="mix3 only: weight of the 30 s onset-grid hypothesis in the decision (0 = off)")
 ap.add_argument("--grid-pi-cuts", default="", help="mix3: onset ranges (s) of the grid weight, e.g. 900,1100,1300")
 ap.add_argument("--grid-pi-values", default="", help="mix3: grid weight per range (len(cuts) + 1 values)")
+ap.add_argument("--flat-same", type=float, default=0.9,
+                help="input cleaning: a channel with more than this fraction of consecutive samples unchanged counts as invalid")
 ap.add_argument("--flat-sd", type=float, default=0.1,
                 help="input cleaning: a channel with within-window std below this (uV) counts as invalid (0 = off)")
 ap.add_argument("--out-root", type=Path, default=ROOT / "submissions", help="where <name>/ is written")
@@ -126,7 +128,7 @@ GRID_PI = {grid_pi!r}  # weight of the "onset = multiple of 30 s after the recor
 GRID_PI_CUTS = {grid_pi_cuts!r}
 GRID_PI_VALUES = {grid_pi_values!r}
 GRID_ON = GRID_PI > 0 or len(GRID_PI_CUTS) > 0
-FLAT_SD_UV, FLAT_SAME_FRAC = {flat_sd!r}, 0.5  # flat-channel rule of the input cleaning (0 = off)
+FLAT_SD_UV, FLAT_SAME_FRAC = {flat_sd!r}, {flat_same!r}  # flat-channel rule of the input cleaning (0 = off)
 N_FINE, N_SLOT = 600, 1201  # 1 s cells of remaining time; slots = atoms at 0, 1, ..., 600 s interleaved with them
 
 
@@ -534,7 +536,7 @@ from cnn_encoder import Encoder  # noqa: E402
 
 wrapper = (WRAPPER.replace("{tree_body}", tree_body).replace("{smooth_a!r}", repr(args.smooth_a))
            .replace("{grid_pi!r}", repr(args.grid_pi))
-           .replace("{flat_sd!r}", repr(args.flat_sd))
+           .replace("{flat_sd!r}", repr(args.flat_sd)).replace("{flat_same!r}", repr(args.flat_same))
            .replace("{grid_pi_cuts!r}", repr([float(v) for v in args.grid_pi_cuts.split(",")] if args.grid_pi_cuts else []))
            .replace("{grid_pi_values!r}", repr([float(v) for v in args.grid_pi_values.split(",")] if args.grid_pi_values else []))
            .replace("{calib_x}", literal(bundle.get("calib_x")))

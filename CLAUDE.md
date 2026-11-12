@@ -67,8 +67,8 @@ Track 03 (Sleep Onset) yarışması için model geliştirme deposudur.
   79b4453 "Track 03 is now open!"). Bitiş 21 Kasım 23:59 CET = 22 Kasım 01:59 Türkiye saati (GMT+3).
   Kesin başlangıç saati için Codabench Phases sekmesi geçerli. Kayıtlar kapandı. Diğer track'ler 5–21 Kasım.
 - 5 gönderim hakkı; 10–21 Kasım = 12 gün, günde en fazla 1. Kullanılan: #1 final540 (10 Kasım, sealed 39.56),
-  #2 mix3_540 (11 Kasım, sealed 38.66). 5 hakkın 2'si kullanıldı, KALAN 3. Bekleyen aday (GÖNDERİLMEDİ, karar
-  kullanıcıda): mix3_540_grid.zip (çift CV 38.35).
+  #2 mix3_540 (11 Kasım, sealed 38.66), #3 mix3_540_gridpi (12 Kasım, gönderildi, sonuç bekleniyor; çift CV 38.27).
+  5 hakkın 3'ü kullanıldı, KALAN 2. mix3_540_grid.zip (çift CV 38.35) gönderilmedi.
 - Final sıralama bu aşamadan alınır: takımın en iyi geçerli (eligible) sealed skoru, otomatik;
   ilk 3 takım 22–30 Kasım'da tekrarlanabilirlik denetiminden geçer (eğitim yeniden çalıştırılır,
   skor ±2σ içinde kalmalı).
@@ -85,8 +85,8 @@ Track 03 (Sleep Onset) yarışması için model geliştirme deposudur.
   Görülmemiş kişi CV = train+val üzerinde kişi bazlı 5 katlı GroupKFold. Görülmüş kişi CV = birden
   fazla gecesi olan kişilerin birer gecesi dışarıda, kalan geceleri eğitimde. Açık test setine
   (40 kayıt) sadece son kontrol için bakılır; test'e bakarak seçim/ayar yapılmaz.
-- Gönderim planı: #1 final540 (sealed 39.56), #2 mix3_540 (sealed 38.66); 5 hakkın 2'si kullanıldı, kalan 3.
-  Bekleyen aday: mix3_540_grid.zip (çift CV 38.35, gönderilmedi). Kalan 3 hak YALNIZCA kabul kuralını
+- Gönderim planı: #1 final540 (sealed 39.56), #2 mix3_540 (sealed 38.66), #3 mix3_540_gridpi (gönderildi, sonuç
+  bekleniyor); 5 hakkın 3'ü kullanıldı, kalan 2. Kalan 2 hak YALNIZCA kabul kuralını
   geçen yeni modeller için; son gönderim en geç 20 Kasım, 21 Kasım yedek gün. Ayrıntı: docs/status.md,
   docs/submissions_log.md.
 - KABUL KURALI: çift CV'de mix_gru10_hgb'ye (40.28) göre ≥ 0.3 iyileşme VE 10 katın ≥ 8'inde iyileşme;
