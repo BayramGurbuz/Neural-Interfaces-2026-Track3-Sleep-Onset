@@ -21,11 +21,17 @@ ap.add_argument("--name", default="hgb_v1")
 ap.add_argument("--smooth-a", type=float, default=0.0)
 ap.add_argument("--grid-pi", type=float, default=0.0,
                 help="mix3 only: weight of the 30 s onset-grid hypothesis in the decision (0 = off)")
+ap.add_argument("--grid-pi-cuts", default="", help="mix3: onset ranges (s) of the grid weight, e.g. 900,1100,1300")
+ap.add_argument("--grid-pi-values", default="", help="mix3: grid weight per range (len(cuts) + 1 values)")
+ap.add_argument("--flat-sd", type=float, default=0.1,
+                help="input cleaning: a channel with within-window std below this (uV) counts as invalid (0 = off)")
 ap.add_argument("--out-root", type=Path, default=ROOT / "submissions", help="where <name>/ is written")
 ap.add_argument("--no-zip", action="store_true", help="write the folder only (tests)")
 ap.add_argument("--sklearn-trees", action="store_true",
                 help="ship the sklearn model object instead of numpy tree arrays (old path)")
 args = ap.parse_args()
+if args.grid_pi_cuts:
+    assert len(args.grid_pi_values.split(",")) == len(args.grid_pi_cuts.split(",")) + 1, "need len(cuts) + 1 values"
 src_model, name = args.model, args.name
 out = args.out_root / name
 out.mkdir(parents=True, exist_ok=True)
@@ -115,6 +121,12 @@ def to_grid(P, edges, grid):
 
 # ---- 30 s onset-grid decision (scripts/decision_layer.py, variant "E2 grid"); off when GRID_PI = 0 ----
 GRID_PI = {grid_pi!r}  # weight of the "onset = multiple of 30 s after the recording start" hypothesis
+# Onset-dependent weight (scripts/b1_grid_pi.py): candidate onset D = elapsed + remaining time; the weight of the
+# 1 s cell is GRID_PI_VALUES[k] for D in the k-th range cut by GRID_PI_CUTS (empty = constant GRID_PI).
+GRID_PI_CUTS = {grid_pi_cuts!r}
+GRID_PI_VALUES = {grid_pi_values!r}
+GRID_ON = GRID_PI > 0 or len(GRID_PI_CUTS) > 0
+FLAT_SD_UV, FLAT_SAME_FRAC = {flat_sd!r}, 0.5  # flat-channel rule of the input cleaning (0 = off)
 N_FINE, N_SLOT = 600, 1201  # 1 s cells of remaining time; slots = atoms at 0, 1, ..., 600 s interleaved with them
 
 
@@ -285,7 +297,7 @@ class HGBStreamModel:
             self.alpha = float(bundle["mix_alpha"])
             self.base_n = int(bundle["gru_baseline_n"])
             self.el_clip = float(bundle["gru_elapsed_clip"])
-            if GRID_PI > 0:
+            if GRID_ON:
                 self.fine, self.slot_ws, self.slot_wh, self.atom = grid_tables(
                     self.grid, self.gru_edges, self.gru_omega, self.grid_omega)
         self.sfreq = float(sfreq)
@@ -317,11 +329,16 @@ class HGBStreamModel:
         components, Ph: (n_grid,) mean HGB grid probabilities (unweighted), elapsed: time since the
         recording start at the end of the window (multiple of 5 s)."""
         idx = self.atom[int(round(elapsed)) % 30]
+        if GRID_PI_CUTS:
+            D = elapsed + np.arange(N_FINE) + 0.5
+            pi = np.asarray(GRID_PI_VALUES)[np.searchsorted(np.asarray(GRID_PI_CUTS, dtype=np.float64), D, side="left")]
+        else:
+            pi = GRID_PI
         q = np.zeros(N_SLOT)
         for P in Ps:
-            s = grid_slots(to_grid(P[None], self.gru_edges, self.grid)[0] @ self.fine, idx, GRID_PI) * self.slot_ws
+            s = grid_slots(to_grid(P[None], self.gru_edges, self.grid)[0] @ self.fine, idx, pi) * self.slot_ws
             q += s / s.sum()
-        h = grid_slots(Ph @ self.fine, idx, GRID_PI) * self.slot_wh
+        h = grid_slots(Ph @ self.fine, idx, pi) * self.slot_wh
         return slot_median(self.alpha * q / len(Ps) + (1.0 - self.alpha) * h / h.sum())
 
     def _mix3_probs(self, f32, x):
@@ -394,23 +411,33 @@ class HGBStreamModel:
         return out
 
     def _clean(self, x):
-        """NaN / inf samples -> finite values before anything else sees the window (features, CNN encoder,
-        recurrent states, baselines). A channel with more than half of its samples invalid is replaced by
-        that channel's last clean window (zeros if there is none yet); otherwise invalid samples take the
-        last valid sample of the channel (carried over from the previous window). Finite input is returned
-        unchanged. Chosen on corrupted public-test recordings (KARAR_KATMANI_RAPORU.md)."""
+        """Invalid input -> finite values before anything else sees the window (features, CNN encoder,
+        recurrent states, baselines). Invalid = NaN / inf samples, or a flat channel (finite samples with
+        std < FLAT_SD_UV, or more than FLAT_SAME_FRAC of consecutive samples unchanged; clean public data:
+        min std 1.67 uV, >= 99.8 % of samples change). A flat channel, or one with more than half of its
+        samples NaN / inf, is replaced by that channel's last clean window (zeros if there is none yet);
+        otherwise NaN / inf samples take the last valid sample of the channel (carried over from the previous
+        window). Valid input is returned unchanged. Chosen on corrupted public-test recordings
+        (KARAR_KATMANI_RAPORU.md, B_ASAMASI_RAPORU.md)."""
         bad = ~np.isfinite(x)
-        if not bad.any():
+        n = (~bad).sum(axis=-1)
+        xz = np.where(bad, 0.0, x).astype(np.float64)
+        mean = xz.sum(axis=-1) / np.maximum(n, 1)
+        sd = np.sqrt(np.where(bad, 0.0, (xz - mean[..., None]) ** 2).sum(axis=-1) / np.maximum(n, 1))
+        with np.errstate(invalid="ignore"):
+            same = (np.diff(x, axis=-1) == 0).mean(axis=-1)
+        flat = (FLAT_SD_UV > 0) & (n >= 2) & ((sd < FLAT_SD_UV) | (same > FLAT_SAME_FRAC))
+        if not bad.any() and not flat.any():
             self.last_win = x[-1].copy()
             return x
         x = x.copy()
         for i in range(x.shape[0]):
             for c in range(x.shape[1]):
                 m = bad[i, c]
-                if not m.any():
+                if not m.any() and not flat[i, c]:
                     continue
                 prev = self.last_win[c] if self.last_win is not None and self.last_win.shape == x[i].shape else None
-                if m.mean() > 0.5:
+                if flat[i, c] or m.mean() > 0.5:
                     x[i, c] = prev if prev is not None else 0.0
                 else:
                     idx = np.where(~m, np.arange(m.size), -1)
@@ -460,7 +487,7 @@ class HGBStreamModel:
             Wh /= Wh.sum(axis=1, keepdims=True)
             W = self.alpha * (self._grid_q(Ps[0]) + self._grid_q(Ps[1]) + self._grid_q(Ps[2])) / 3.0 + (1.0 - self.alpha) * Wh
             pred = decide(W, None, np.ones(W.shape[1]), self.grid)
-            if GRID_PI > 0:
+            if GRID_ON:
                 step = self.stream.step_s
                 for i in range(len(pred)):
                     el = (self.stream.n_seen - len(pred) + i + 1) * step
@@ -507,6 +534,9 @@ from cnn_encoder import Encoder  # noqa: E402
 
 wrapper = (WRAPPER.replace("{tree_body}", tree_body).replace("{smooth_a!r}", repr(args.smooth_a))
            .replace("{grid_pi!r}", repr(args.grid_pi))
+           .replace("{flat_sd!r}", repr(args.flat_sd))
+           .replace("{grid_pi_cuts!r}", repr([float(v) for v in args.grid_pi_cuts.split(",")] if args.grid_pi_cuts else []))
+           .replace("{grid_pi_values!r}", repr([float(v) for v in args.grid_pi_values.split(",")] if args.grid_pi_values else []))
            .replace("{calib_x}", literal(bundle.get("calib_x")))
            .replace("{calib_y}", literal(bundle.get("calib_y")))
            .replace("{tcn_src}", inspect.getsource(TCNNet)).replace("{enc_src}", inspect.getsource(Encoder)))

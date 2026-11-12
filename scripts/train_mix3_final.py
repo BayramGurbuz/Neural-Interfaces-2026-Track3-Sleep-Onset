@@ -10,13 +10,19 @@ Sequence models trained on all train+val (or all 540 with --all) with fixed epoc
 HGB part = ens_c (train+val) or ens_c_all<tag> (540). Test is scored once as a pipeline check
 (in-sample with --all).
 
-Usage: python scripts/train_mix3_final.py [--all] [--ens-tag=X] [--tag=T]
+Usage: python scripts/train_mix3_final.py [--all] [--ens-tag=X] [--tag=T] [--deterministic]
   writes ~/neuralbench/save/mix3<T>[_all<X>]/model.joblib + results.json
+  --deterministic: cuDNN deterministic algorithms (repro.set_deterministic); without it the CNN encoder is not
+  bit-reproducible on GPU (scripts/check_determinism.py). mix3 / mix3_all were trained without it.
 """
 import json
 import sys
 import time
 from pathlib import Path
+
+if "--deterministic" in sys.argv:
+    from repro import set_deterministic
+    set_deterministic()
 
 import joblib
 import numpy as np
@@ -163,6 +169,6 @@ bundle.update(kind="mix3", calib_x=None, calib_y=None,
               mix_alpha=ALPHA, gru_baseline_n=24, gru_elapsed_clip=1500.0)
 joblib.dump(bundle, OUT / "model.joblib")
 (OUT / "results.json").write_text(json.dumps(dict(
-    all540=ALL, n_train_windows=len(d), ens_dir=str(ENS_DIR), alpha=ALPHA,
+    all540=ALL, deterministic="--deterministic" in sys.argv, n_train_windows=len(d), ens_dir=str(ENS_DIR), alpha=ALPHA,
     plan={k: dict(v, seeds=list(v["seeds"])) for k, v in PLAN.items()}, timing_s=timing, test=scores), indent=2))
 print("saved", OUT, flush=True)

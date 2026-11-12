@@ -17,7 +17,8 @@ import joblib
 import numpy as np
 import torch
 
-from decision_layer import official_rec_scores, predict, test_fold
+from b1_grid_pi import predict_pi
+from decision_layer import NF, T_MAX, official_rec_scores, predict, test_fold
 from train_hgb import SAVE
 
 sub_dir, model_dir = Path(sys.argv[1]).resolve(), sys.argv[2]
@@ -35,7 +36,12 @@ zb = np.load(SAVE / "features_base.npz")
 mt = zb["split"] == "test"
 assert (zb["timeline"][mt] == d.timeline.to_numpy()).all() and (zb["stop"][mt] == d.stop.to_numpy()).all()
 X = np.asarray(np.load(SAVE / "raw_windows.npy", mmap_mode="r")[mt])
-batched = predict(ft, "old", sub.GRID_PI)
+if getattr(sub, "GRID_PI_CUTS", []):  # onset-dependent weight (B1a)
+    Dg = 5.0 * np.arange(T_MAX)[:, None] + np.arange(NF)[None, :] + 0.5
+    tab = np.asarray(sub.GRID_PI_VALUES)[np.searchsorted(np.asarray(sub.GRID_PI_CUTS), Dg, side="left")]
+    batched = predict_pi(ft, tab)
+else:
+    batched = predict(ft, "old", sub.GRID_PI)
 model = sub.HGBStreamModel(bundle.get("model"), 128.0, bundle.get("bin_edges"), bundle, [str(c) for c in zb["ch_names"]])
 stream = np.empty(len(d))
 t0 = time.perf_counter()
@@ -46,7 +52,7 @@ for _, g in d.groupby("timeline", sort=False):
         stream[i] = float(m.predict(torch.tensor(X[i][None]))[0])
 dt = time.perf_counter() - t0
 diff = np.abs(stream - batched)
-print(f"{sub_dir.name}: GRID_PI {sub.GRID_PI}; {d.timeline.nunique()} recordings, {len(d)} windows in {dt:.1f} s = "
+print(f"{sub_dir.name}: GRID_PI {sub.GRID_PI}, cuts {getattr(sub, 'GRID_PI_CUTS', [])} values {getattr(sub, 'GRID_PI_VALUES', [])}; {d.timeline.nunique()} recordings, {len(d)} windows in {dt:.1f} s = "
       f"{1000 * dt / len(d):.2f} ms/window")
 print(f"stream vs batched: max |Δ| {diff.max():.4f} s, mean {diff.mean():.5f} s, > 0.5 s in {(diff > 0.5).sum()} windows")
 print(f"W-bMAE (official) stream {official_rec_scores(d, stream).mean():.4f}  batched {official_rec_scores(d, batched).mean():.4f}")
