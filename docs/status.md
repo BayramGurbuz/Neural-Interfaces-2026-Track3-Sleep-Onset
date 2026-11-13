@@ -63,6 +63,14 @@ plandan çıkarıldı (final540 ile tek fark eğitim kayıt sayısı). Final sı
 sealed skoru (otomatik, işaretleme yok), tekrarlanabilirlik denetimine bağlı. Sealed log/çıktılar gizli →
 göndermeden önce ZIP Docker'da test edilmeli. Claude gönderim yapmaz.
 
+## B aşaması (2026-11-12/13; ayrıntı `B_ASAMASI_RAPORU.md`)
+- B1: π(D) ızgara ağırlığı (38.27, −0.08, 10/10) + düz kanal temizliği → mix3_540_gridpi (gönderim #3, sonuç bekleniyor).
+- B2 (B üyesi): bipolar −0.64 (9/10), olay dedektörleri +0.21, epoch-hizalı (c) −0.77 (10/10, ızgaraya bağlı, ayrı
+  tutuluyor), a+c −1.08. HGB(c)+bipolar 42.17 (−0.48). **Karışımda kazanç kayboluyor:** en iyi HGB(a) + dizi(eski)
+  38.19 (−0.08, 5/10); c dizi girdisinde zararlı (+0.44). Kabul eşiğini geçen tarif yok, yeni ZIP yok.
+- B3: HMC evreleyici Muse'a taşınmıyor (Spearman −0.10 / AUC 0.67 ↔ en iyi öznitelik 0.42 / 0.83) → durduruldu.
+- Bekleyen karar: mühürlü gridpi sonucuna göre HGB(c) için a+c öznitelik kümesi (~8–9 saat CPU).
+
 ## Karar katmanı deneyleri (2026-11-12, yeniden eğitim yok; ayrıntı `KARAR_KATMANI_RAPORU.md`)
 `scripts/decision_layer.py`, mix3'ün kayıtlı fold-dışı olasılıkları, resmi binned_mae, iç içe LOFO. Referans 39.40.
 | Varyant | unseen | seen | Çift CV | Δ | iyi kat |

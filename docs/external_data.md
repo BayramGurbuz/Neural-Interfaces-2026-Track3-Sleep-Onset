@@ -27,7 +27,9 @@ SN001, SN003, SN006, SN010, SN024, SN035, SN040, SN041, SN059, SN066, SN070, SN0
 SN088, SN090, SN099, SN102, SN106, SN109, SN113, SN117, SN119, SN124, SN129, SN134, SN136, SN143, SN152
 
 Kayıt başına indirme süresi, saklanan boyut, ışık kapanma ve N2 zamanı: `~/neuralbench/data/hmc/fetch_log.json`.
-151 kayda genişletilirse bu bölüm güncellenecek.
+30 kaydın 30'u indirildi ve doğrulandı (12 Kasım 2026); hepsinde "Lights off" işareti var; saklanan toplam 136 MB.
+**Durum (13 Kasım 2026):** akıl sağlığı testi zayıf çıktığı için B3 durduruldu (`B_ASAMASI_RAPORU.md`); HMC verisi
+hiçbir gönderilen modelde kullanılmadı. 151 kayda genişletilmedi.
 
 ## Kullanılmayan (yalnız incelenen)
 

@@ -17,6 +17,13 @@ Hedef: çift CV makroda 38.35'in (ızgaralı mix3, `mix3_540_grid` tarifi) altı
 | B2a | B üyesi + bip (+432) | 43.85 | 41.28 | 42.56 | −0.64 (ref B 43.20) | 9/10 | **kazandırıyor**; (c) ve dizi modellerine taşıma onay bekliyor |
 | B2b | B üyesi + events (+318) | 45.02 | 41.81 | 43.41 | +0.21 (ref B 43.20) | 4/10 | kazandırmıyor |
 | B2c | B üyesi + epoch (+113) | 43.96 | 40.92 | 42.44 | −0.77 (ref B 43.20) | 10/10 | kazandırıyor; **ayrı tutuluyor** (ızgaraya bağlı) |
+| B2a+c | B üyesi + bip + epoch (+545) | 43.29 | 40.95 | 42.12 | −1.08 (ref B 43.20) | 10/10 | c içeriyor; ayrı tutuluyor |
+| B2 (c)+a | HGB(c) 4 üye, 817 + a (1249) | 43.59 | 40.75 | 42.17 | −0.48 (ref HGB(c) 42.65) | 9/10 | tek başına kazandırıyor |
+| **B2 karışım** | HGB(a) + dizi(eski), π(D) | 39.51 | 36.88 | **38.19** | −0.08 | 5/10 | eşik (−0.5, 8/10) **geçilmedi** |
+| B2 karışım | HGB(a) + dizi(a), π(D) | 39.51 | 37.18 | 38.34 | +0.07 | 5/10 | geçilmedi |
+| B2 karışım | HGB(eski) + dizi(a), π(D) | 39.65 | 37.16 | 38.40 | +0.13 | 5/10 | geçilmedi |
+| B2 karışım | HGB(a) + dizi(a+c), π(D) | 39.73 | 37.84 | 38.78 | +0.51 | 3/10 | c içeriyor; kötü |
+| B3 | HMC evreleyici, Muse'a uygulandı | – | – | – | Spearman −0.10 / AUC 0.67 (en iyi öznitelik 0.42 / 0.83) | – | **durduruldu** |
 
 ---
 
@@ -193,11 +200,13 @@ NaN / inf senaryoları değişmedi. Hiçbir senaryoda NaN tahmin, tam 0'a kilitl
 | **a bip** | 432 (72 × 6) | 43.85 | 41.28 | **42.56** | **−0.64** | **9/10** | −0.12 | +0.10 | −0.10 | **−0.52** | 4635 sn | **kazandırıyor** |
 | b events | 318 (53 × 6) | 45.02 | 41.81 | 43.41 | +0.21 | 4/10 | +0.12 | +0.06 | −0.05 | +0.07 | 4882 sn | kazandırmıyor |
 | c epoch (ayrı tutuluyor) | 113 | 43.96 | 40.92 | **42.44** | **−0.77** | **10/10** | −0.24 | +0.27 | −0.51 | −0.28 | 3919 sn | kazandırıyor; taşıma kararı mühürlü skordan sonra |
+| a + c birlikte (c içeriyor, ayrı tutuluyor) | 545 | 43.29 | 40.95 | **42.12** | **−1.08** | **10/10** | −0.32 | +0.19 | −0.53 | −0.42 | 5314 sn | kazandırıyor; etkiler kısmen toplanıyor (−0.64 + −0.77 = −1.41 yerine −1.08) |
 
 Kat farkları [Ç]:
 - a: unseen −1.78, −0.72, −1.00, −1.06, −0.88; seen +0.41, −0.02, −0.69, −0.52, −0.10.
 - b: unseen +0.88, −0.44, −0.37, +0.12, +0.22; seen +0.67, −0.42, −0.24, +1.41, +0.27.
 - c: unseen −1.33, −0.57, −1.16, −0.31, −1.53; seen −0.67, −0.81, −0.70, −0.31, −0.27.
+- a+c: unseen −2.86, −1.22, −1.66, −1.26, −1.22; seen −0.24, −0.76, −0.95, −0.15, −0.48.
 
 **Gözlemler:**
 - a, şimdiye kadar hiçbir şeyin kıpırdatamadığı [300,600] aralığında kazanç veriyor (−0.52). Kazanç unseen'de daha büyük (−1.09 ortalama); seen'de karışık (+0.41 ile −0.69 arası).
@@ -253,3 +262,143 @@ paketle gelen Sleep-EDF kayıt tablosu (`mne/datasets/sleep_physionet/age_record
 - ya da WSL sanal diski başka sürücüye taşınmalı.
 
 İkisi de 30 GB sınırının altında. Alan ölçüldü [Ç]; çökme riski bir çıkarım.
+
+### B3 — HMC, 30 kayıt kayıt kayıt indirildi (12 Kasım 20:16–23:59) [Ç]
+
+**Yöntem:** `scripts/b3_hmc_fetch.py` (`nice 19`, tek iş parçacığı).
+- 151 kayıttan `default_rng(0)` ile 30 kayıt seçildi (liste: `docs/external_data.md`).
+- Her dosya PhysioNet `SHA256SUMS.txt` ile doğrulandı; diskte aynı anda en fazla bir ham kayıt bulundu, kırpmadan hemen sonra silindi.
+- Saklanan: ışık kapanışından ilk N2 + 600 sn'ye kadar; F4-M1, C3-M2, C4-M1, E1-M2, E2-M2; 128 Hz, µV, float32; 30 sn evre etiketleri.
+- Kayıt bazında ayrıntı: `~/neuralbench/data/hmc/fetch_log.json`.
+
+| Ölçü | Değer |
+|---|---|
+| Kayıt | 30 / 30 başarılı, atlanan yok; 30'unda da "Lights off" işareti var; özgün örnekleme 256 Hz |
+| İndirme süresi | toplam 13 618 sn (3.8 saat); kayıt başına medyan 200 sn, en kısa 10 sn, en uzun 1890 sn; ham toplam 3.3 GB → ortalama 0.24 MB/sn |
+| Sunucu hataları | 3 kez 502 Bad Gateway, tekrar denemeyle aşıldı; ilk sürümde bir kez çökme (tekrar deneme yoktu), bir kez boş kontrol listesi (yerel kopyaya geçildi) |
+| Kayıt başına saklanan | medyan 3.48 MB (1.90–10.53 MB); toplam 136 MB |
+| Işık kapanışından ilk N2'ye | medyan 758 sn; %10–90: 254–2625 sn; en kısa 140, en uzun 3510 sn; 9 kayıtta > 1500 sn (Muse'da en fazla 1500 sn) |
+
+Muse'a göre daha uzun uykuya dalma süreleri (klinik popülasyon) evreleyici için sorun değil, çünkü evreleyici kalan süreyi değil evreyi öğreniyor.
+151 kayda genişletme kestirimi (aynı hızla): ~19 saat indirme, ~690 MB saklama.
+
+---
+
+## SABAH RAPORU — 13 Kasım (B2 taşıma, karışım, B3 akıl sağlığı testi)
+
+### 1. HGB(c) + a, çift CV (CPU, 12 Kasım 23:29 → 13 Kasım 06:23, 25 640 sn) [Ç]
+
+- Komut: `scripts/b2_ens.py bip`. B üyesi dünkü ablasyondan aynı ayarlarla yeniden kullanıldı; kalan üç üye `ensemble_dist.member_probas` ile.
+- Önbellek: `ens_dyn_maxmin_spec_eye_bip_*`.
+- Sonuç: 4 üye (c), 1249 öznitelik: unseen 43.59, seen 40.75 → **42.17**. Eski HGB(c) (817) 42.65'e göre **−0.48**, 9/10 kat.
+- Katkı farkları: [0,40) −0.11, [40,90) −0.03, [90,300) −0.07, [300,600] −0.27.
+- Üye süreleri: B_h1 ~11.7k sn, B_h2 5.0k, B2 8.9k.
+
+### 2. Dizi modelleri, a ve a+c girdili (GPU, `--deterministic`, 22:14 → 01:59) [Ç]
+
+`scripts/b2_seq_cv.py`, log `b2_seq.log`, sayılar `b2_seq.json`. Her biri tek başına, B sınıflarında, kendi ω'sıyla:
+
+| Model | Eski (62 → 125 girdi) | a (269) | a+c (495) |
+|---|---|---|---|
+| GRU-uw ×10 | 41.43 | **40.99** (−0.44) | 42.25 (+0.82) |
+| TCN ×10 | 41.51 | 41.41 (−0.10) | 42.01 (+0.50) |
+| GRU-emb ×3 | 44.18 | 44.58 (+0.40) | 43.77 (−0.41) |
+
+- Süreler: GRU 2017 / 4015 sn, TCN 1859 / 3605 sn, GRU-emb 772 / 1355 sn. Deterministik ayar ve paralel HGB yükü nedeniyle kat başına süre öncekinin ~2.5 katı.
+- Seçilen epoch'lar ekiyle aynı aralıkta (GRU 10/15, TCN 10, GRU-emb 5–15).
+
+### 3. Karışım değerlendirmesi (yeniden eğitim yok) [Ç]
+
+**Yöntem:** `scripts/b2_mix.py`, log `b2_mix.log`, sayılar `b2_mix.json`.
+- Karar mix3_540_gridpi ile aynı: π(D) bins4 kat içi, ω, bileşen yapısı. α iç içe LOFO ile {0.5 … 0.9}'dan seçildi.
+- Her satır ızgarasız kararla da skorlandı.
+- Referans (mix3 + π(D), α 0.7) kayıtlı tahminlerden 1.5 × 10⁻⁵ sn farkla yeniden üretildi.
+
+| Satır | α (LOFO) | unseen | seen | makro | Δ | İyi kat | Δ [0,40) | Δ [40,90) | Δ [90,300) | Δ [300,600] | Izgarada | Izgara dışı |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| ref: HGB(eski) + dizi(eski), π(D) | 0.7 | 39.66 | 36.89 | 38.27 | – | – | – | – | – | – | 37.34 | 44.32 |
+| **HGB(a) + dizi(a)**, π(D) | 0.6 | 39.51 | 37.18 | 38.34 | +0.07 | 5/10 | +0.01 | −0.08 | +0.11 | +0.02 | 37.19 | 45.55 |
+| **HGB(a) + dizi(a+c)**, π(D) | 0.6 | 39.73 | 37.84 | 38.78 | +0.51 | 3/10 | −0.37 | +0.08 | +0.56 | +0.25 | 37.70 | 45.61 |
+| **HGB(eski) + dizi(a)**, π(D) | 0.6–0.7 | 39.65 | 37.16 | 38.40 | +0.13 | 5/10 | +0.01 | −0.12 | +0.03 | +0.21 | 37.24 | 45.73 |
+| HGB(a) + dizi(eski), π(D) (ek) | 0.7 | 39.51 | 36.88 | **38.19** | −0.08 | 5/10 | +0.00 | −0.01 | +0.05 | −0.12 | 37.26 | 44.17 |
+| HGB(eski) + dizi(a+c), π(D) (ek) | 0.6 | 39.89 | 37.82 | 38.85 | +0.58 | 2/10 | −0.35 | +0.02 | +0.52 | +0.40 | 37.71 | 46.01 |
+
+Izgarasız kararla tüm satırlar 39.29–40.00 aralığında (ref 39.40); sıralama aynı.
+
+Kat farkları:
+- HGB(a) + dizi(a): unseen −0.45, −0.70, −0.51, +0.18, +0.72; seen +0.96, +0.20, −0.18, −0.06, +0.51.
+- HGB(a) + dizi(eski): unseen −0.56, −0.28, −0.37, +0.31, +0.14; seen +0.21, −0.09, −0.33, +0.10, +0.08.
+
+**Sonuç: hiçbir satır kabul eşiğini (Δ ≤ −0.5, ≥ 8/10) geçmiyor.**
+- En iyisi HGB(a) + dizi(eski): −0.08, 5/10.
+- HGB'nin tek başına −0.48'lik kazancı karışımda neredeyse tamamen kayboluyor.
+- dizi(a), GRU'yu tek başına iyileştirse de (−0.44) karışımı iyileştirmiyor.
+- Yorumum (ayrıca sınanmadı): a'nın taşıdığı bilgi, karışımda dizi modellerinin zaten sağladığı bilgiyle örtüşüyor.
+- Izgara dışı kayıtlarda a'lı satırlar daha kötü (44.32 → 45.5–45.7, dizi(a) içerenlerde).
+
+**c'nin etkisi (dizi girdisi a+c eksi a; makro farklar, pozitif = kötü):**
+
+| HGB | Karar | Tümü | Izgarada | Izgara dışı | c'li daha iyi kat |
+|---|---|---|---|---|---|
+| a | π(D) ızgaralı | +0.44 | +0.50 | +0.06 | 1/10 |
+| a | ızgarasız | +0.40 | +0.43 | +0.19 | 2/10 |
+| eski | π(D) ızgaralı | +0.45 | +0.47 | +0.28 | 1/10 |
+| eski | ızgarasız | +0.47 | +0.50 | +0.31 | 2/10 |
+
+- c dizi modellerine girdi olarak eklendiğinde, ızgara kararı olsun olmasın, hem ızgaradaki hem ızgara dışı kayıtlarda karışımı kötüleştiriyor.
+- Yani "ızgaranın üstüne eklenme" ya da "örtüşme" sorusuna bu deney yanıt vermiyor: c dizi tarafında zaten zararlı.
+- c'nin B üyesindeki −0.77'si yalnız HGB tarafında görüldü. HGB(c) için a+c kümesi, talimat gereği koşulmadı.
+- Bileşen düzeyinde [Ç]: GRU ve TCN'de c zararlı (+0.82 / +0.50 tek başına); GRU-emb'de yararlı (−0.41).
+
+### 4. B3 akıl sağlığı testi — DURDURULDU [Ç]
+
+**Yöntem:** `scripts/b3_stager.py`, log `~/neuralbench/save/b3_stager.log`, sayılar `b3_stager.json`.
+- 30 HMC kaydı (ışık kapanışından N2 + 10 dk'ya), 5 sn pencereler.
+- Türevler F4-M1 (→ AF8−TP9), C3-M2 (→ AF7−TP10), E1−E2 (→ AF7−AF8).
+- 36 ölçekten bağımsız spektral öznitelik × 6 nedensel akış = 216.
+- Küçük HGB (7 yaprak, 150 ağaç, sınıf dengeli), sınıflar W / N1 / N2+ (N2, N3, R).
+
+**HMC'nin kendi içinde:** kayıt bazlı 5 kat CV'de dengeli doğruluk 0.703, N2+ ↔ diğer AUC 0.967. Evreleyici HMC'de çalışıyor.
+
+**Muse train+val'a (500 kayıt, 75 106 pencere) uygulandı; açık test kullanılmadı:**
+
+(1) Kalan süreye göre ortalama olasılıklar:
+
+| Kalan süre (sn) | [0,30) | [30,60) | [60,120) | [120,180) | [180,300) | [300,450) | [450,600] |
+|---|---|---|---|---|---|---|---|
+| Pencere | 3 000 | 3 000 | 5 994 | 5 976 | 11 532 | 12 756 | 32 848 |
+| P(N2+) | 0.071 | 0.049 | 0.035 | 0.029 | 0.035 | 0.046 | 0.057 |
+| P(N1) | 0.303 | 0.268 | 0.221 | 0.187 | 0.159 | 0.148 | 0.158 |
+| P(W) | 0.626 | 0.683 | 0.744 | 0.784 | 0.806 | 0.806 | 0.785 |
+
+P(N2+) onset'e yaklaşırken yükselmiyor: düz ve monoton değil, 450–600 sn önce son 30 sn'dekiyle benzer. P(N1) düzenli yükseliyor.
+
+(2)–(3) Mevcut özniteliklerle karşılaştırma:
+
+| Skor | Spearman (kalan süre) | AUC (son 60 sn ↔ ≥ 300 sn önce; 6 432 / 45 604 pencere) |
+|---|---|---|
+| Evreleyici P(N2+) | −0.103 | 0.669 |
+| Evreleyici P(N1) (ek) | −0.185 | 0.719 |
+| Evreleyici P(N1) + P(N2+) (ek) | −0.142 | 0.699 |
+| En iyi tek mevcut öznitelik | 0.421 (`TP10_maxabs_ema120s_rel`) | 0.829 (`TP10_theta_alpha_ema30s_minus_runmin`) |
+| Geçen süre (karşılaştırma için) | −0.440 | 0.794 |
+
+**Karar:** üç ölçünün üçünde de evreleyici mevcut en iyi tek öznitelikten açıkça kötü, geçen süreden bile kötü. Kural gereği B3 durduruldu; 151 kayda genişletme yapılmadı.
+- Yorumum (sınanmadı): HMC'nin ıslak elektrotlu klinik PSG'si ile Muse'un kuru elektrotlu ev kaydı arasındaki alan farkı ve türev eşlemesinin yaklaşık olması (C3-M2 ≠ AF7−TP10) evreleyiciyi taşınamaz kılıyor.
+- İndirilen 30 kırpılmış kayıt (136 MB) `~/neuralbench/data/hmc/crops/` altında duruyor. Kullanıma girmediği için beyanda "denendi, modelde kullanılmadı" olarak işaretlenmeli.
+
+### 5. Pencere başına çıkarım süresi (güncel) [Ç]
+
+Yerel CPU, makine boşken, 13 Kasım 06:55; tek iş parçacığı mikro ölçümler + tam `predict`.
+
+| Parça | ms/pencere |
+|---|---|
+| Gönderilen mix3_540_gridpi, tam `predict` (300 pencere, tek akış, 6 torch iş parçacığı) | 34.1 |
+| Aynı ZIP, 40 kayıtlık akış kontrolü (12 Kasım) | 25.0 |
+| a grubu ek: bip öznitelikleri | 0.95 |
+| a grubu ek: akış güncellemesi | 0.01 |
+| a grubu ek: binleme 817 → 1249 | +0.34 (0.33 → 0.67) |
+| **a grubu toplam ek** | **≈ 1.3 (+%4–5)** |
+| c grubu ek: epoch akışı | 0.02 |
+
+Ölçümler arası oynama (25 ↔ 34 ms) koşu koşullarından; bileşen ekleri bu oynamanın altında. Kabul eşiğini geçen tarif olmadığı için yeni ZIP hazırlanmadı.
