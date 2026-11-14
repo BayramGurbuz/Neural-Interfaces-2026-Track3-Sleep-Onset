@@ -495,3 +495,22 @@ Gruplar örtüşür (toplam > Δ); kümülatif yamalama tam skora döner. Dizi-o
 49.19, ikisi 46.47; k=24 kesik 51.43 → elapsed 46.46, taban 41.57, ikisi 41.30. Sonuç: HGB'de "kayıt başı" imzası uzun bellekli
 özniteliklerde (koşan ekstremumlar, 10 dk EMA, ilk-2-dk farkı); dizi tarafında ilk-2-dk tabanı + elapsed. Kırpma artırması
 ikisini de hedefliyor; elapsed'i tek başına yamalamak HGB'yi kurtarmıyor.
+
+## 14 Kasım — Dizi kırpma artırması (GPU, deterministik, eski 62 girdi; `b2_seq_cv.py old ARCH --crop`)
+
+Kırpma dağılımı (kullanıcı): %50 yok, %35 k∈[1,12], %15 k∈[13, onset−60 s]; her epoch ve kayıt için yeniden; girdiler yeni
+başlangıçtan kurulur (`gru_cv.run_fold cfg["crop"]`). Çift CV k=0, artırmasız deterministik referansa göre:
+GRU 41.43 → **40.85 (−0.58, 6/10)**, TCN 41.51 → 42.32 (+0.81, 3/10), GRU-emb 44.18 → 44.52 (+0.34, 4/10); hepsinde yakın
+bin'ler iyileşir, [300,600] kötüleşir. LOFO epoch'lar uzadı (GRU 15 → 20, TCN 10 → 15).
+
+Izgarasız karışım (ref 39.40, α LOFO 0.3–0.8; `b2_mix_cropmix.json`):
+
+| Satır | unseen | seen | makro | Δ | iyi kat | Δ katkı | α |
+|---|---|---|---|---|---|---|---|
+| HGB(n2det) + dizi(üçü artırmalı) | 40.24 | 38.34 | 39.29 | −0.11 | 6/10 | −0.06 / +0.15 / −0.51 / +0.31 | 0.5 |
+| **HGB(n2det) + yalnız GRU artırmalı (TCN, GRU-emb eski)** | 39.93 | 37.79 | **38.86** | **−0.54** | **8/10** | −0.11 / +0.10 / −0.53 / +0.01 | 0.6 ×10 |
+| HGB(eski) + dizi(üçü artırmalı) | 40.85 | 38.67 | 39.76 | +0.36 | 2/10 | | 0.7 |
+| HGB(eski) + yalnız GRU artırmalı | 40.47 | 38.08 | 39.27 | −0.13 | 6/10 | | 0.7 |
+
+Kat Δ (kalın satır): unseen [−1.37, −0.28, −0.70, −0.33, −1.33], seen [+0.42, −0.95, −0.26, −0.70, +0.08].
+**KABUL KURALINI GEÇEN İLK TARİF** (Δ ≤ −0.5 ve 8/10). HGB(n2det)+dizi(eski) 38.97 (−0.43) ile fark −0.11.

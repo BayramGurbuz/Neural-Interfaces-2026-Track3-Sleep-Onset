@@ -10,7 +10,9 @@ Sequence models trained on all train+val (or all 540 with --all) with fixed epoc
 HGB part = ens_c (train+val) or ens_c_all<tag> (540). Test is scored once as a pipeline check
 (in-sample with --all).
 
-Usage: python scripts/train_mix3_final.py [--all] [--ens-tag=X] [--tag=T] [--deterministic]
+Usage: python scripts/train_mix3_final.py [--all] [--ens-tag=X] [--tag=T] [--deterministic] [--crop] [--epochs=gru:20,tcn:15,gemb:10]
+  --crop: stream-start crop augmentation of the sequence models (gru_cv.run_fold cfg["crop"] = 50/35/15 %); --epochs overrides
+  the fixed epochs of the plan (from the dual CV LOFO choices of the augmented runs).
   writes ~/neuralbench/save/mix3<T>[_all<X>]/model.joblib + results.json
   --deterministic: cuDNN deterministic algorithms (repro.set_deterministic); without it the CNN encoder is not
   bit-reproducible on GPU (scripts/check_determinism.py). mix3 / mix3_all were trained without it.
@@ -48,6 +50,15 @@ B = VARIANTS["B"]
 ALPHA = 0.7
 PLAN = dict(gru=dict(cfg="uw", seeds=range(10), epochs=15), tcn=dict(cfg="tcn_n10", seeds=range(10), epochs=10),
             cnn=dict(seeds=range(3), epochs=12), gemb=dict(cfg="uw", seeds=range(3), epochs=10))
+CROP = (0.5, 0.35, 0.15) if "--crop" in sys.argv else None
+for a in sys.argv:
+    if a.startswith("--epochs="):
+        for kv in a.split("=", 1)[1].split(","):
+            k, v = kv.split(":")
+            PLAN[k]["epochs"] = int(v)
+def seq_cfg(name):
+    c = CONFIGS[name]
+    return dict(c, crop=CROP) if CROP else c
 
 
 def states_of(model):
@@ -69,7 +80,7 @@ timing = {}
 # ---- GRU-uw and TCN (same 125 inputs)
 seq_states, seq_norm = {}, {}
 for name in ("gru", "tcn"):
-    p, cfg = PLAN[name], CONFIGS[PLAN[name]["cfg"]]
+    p, cfg = PLAN[name], seq_cfg(PLAN[name]["cfg"])
     t0 = time.perf_counter()
     seq_states[name] = []
     for s in p["seeds"]:
@@ -91,7 +102,7 @@ timing["cnn"] = time.perf_counter() - t0
 print(f"cnn: {len(cnn_states)} seeds x {PLAN['cnn']['epochs']} epochs in {timing['cnn']:.0f} s", flush=True)
 t0 = time.perf_counter()
 gemb_states = []
-cfg_g = CONFIGS[PLAN["gemb"]["cfg"]]
+cfg_g = seq_cfg(PLAN["gemb"]["cfg"])
 for s, e in zip(PLAN["gemb"]["seeds"], embs):
     model, mu_e, sd_e = run_fold(d, recs, F, gain, tr, None, cfg_g, s, stop_epoch=PLAN["gemb"]["epochs"], extra=e)
     gemb_states.append(states_of(model))
@@ -169,6 +180,6 @@ bundle.update(kind="mix3", calib_x=None, calib_y=None,
               mix_alpha=ALPHA, gru_baseline_n=24, gru_elapsed_clip=1500.0)
 joblib.dump(bundle, OUT / "model.joblib")
 (OUT / "results.json").write_text(json.dumps(dict(
-    all540=ALL, deterministic="--deterministic" in sys.argv, n_train_windows=len(d), ens_dir=str(ENS_DIR), alpha=ALPHA,
+    all540=ALL, deterministic="--deterministic" in sys.argv, crop=CROP, n_train_windows=len(d), ens_dir=str(ENS_DIR), alpha=ALPHA,
     plan={k: dict(v, seeds=list(v["seeds"])) for k, v in PLAN.items()}, timing_s=timing, test=scores), indent=2))
 print("saved", OUT, flush=True)

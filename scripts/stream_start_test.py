@@ -11,9 +11,12 @@ Scores (official per-recording W-bMAE = bin-weighted mean of per-bin MAEs, mean 
   Δ = (a) - (b) isolates the model's degradation from the change of scored windows.
 Checks: the re-streamed 817 features at k = 0 reproduce the cached table; k = 0 reproduces the saved mix3 test score.
 
-Usage: python scripts/stream_start_test.py   -> OUT/stream_start_test.json
+Usage: python scripts/stream_start_test.py [--bundle=mix3] [--gru-from=DIR] [--tag=T]
+  --bundle: SAVE/<dir>/model.joblib to evaluate (default mix3 = train+val, no augmentation); --gru-from: take only the
+  GRU-uw states (and their mu / sd) from another bundle (e.g. the crop-augmented one); -> OUT/stream_start_test<T>.json
 """
 import json
+import sys
 import time
 
 import joblib
@@ -31,10 +34,15 @@ from ensemble_dist import GRID, to_grid
 from gru_cv import ARCHS, CONFIGS, seq_inputs
 from train_hgb import SAVE
 
-KS = {"k0": 0, "k6_30s": 6, "k24_2min": 24, "k60_5min": 60, "random": None}
+KS = {"k0": 0, "k1_5s": 1, "k3_15s": 3, "k6_30s": 6, "k12_60s": 12, "k24_2min": 24, "k60_5min": 60, "random": None}
+ARG = {a.split("=", 1)[0]: a.split("=", 1)[1] for a in sys.argv[1:] if "=" in a}
+BUNDLE, GRU_FROM, TAG = ARG.get("--bundle", "mix3"), ARG.get("--gru-from"), ARG.get("--tag", "")
 BIN_NAMES = ["[0,40)", "[40,90)", "[90,300)", "[300,600]"]
 
-b = joblib.load(SAVE / "mix3" / "model.joblib")
+b = joblib.load(SAVE / BUNDLE / "model.joblib")
+if GRU_FROM:
+    bg = joblib.load(SAVE / GRU_FROM / "model.joblib")
+    b.update(gru_states=bg["gru_states"], gru_mu=bg["gru_mu"], gru_sd=bg["gru_sd"])
 wg, sg, _ = ABLATIONS["dyn_maxmin_spec_eye"]
 df, X817, _ = build_table_ext(wg, sg)
 mt = (df.split == "test").to_numpy()
@@ -137,7 +145,7 @@ if __name__ == "__main__":
     full = [predict_from(r, 0) for r in recs]
     dev = max(float(np.abs(f["H"] - X817[r]).max()) for f, r in zip(full, recs))
     s0, c0 = score(recs, [f["mix"] for f in full])
-    print(f"k = 0: re-streamed 817 features vs cached table max |Δ| {dev:.2e}; W-bMAE mix {s0:.4f} (saved mix3 train+val "
+    print(f"bundle {BUNDLE}" + (f" + GRU from {GRU_FROM}" if GRU_FROM else "") + f"; k = 0: re-streamed 817 features vs cached table max |Δ| {dev:.2e}; W-bMAE mix {s0:.4f} (saved mix3 train+val "
           f"test score 47.0597), hgb-only {score(recs, [f['hgb'] for f in full])[0]:.2f}, seq-only "
           f"{score(recs, [f['seq'] for f in full])[0]:.2f}; {time.perf_counter() - t0:.0f} s", flush=True)
     res = {"n_recordings": len(recs), "k0_wbmae": s0, "k0_contrib": c0, "feature_check_max_abs": dev, "runs": {}}
@@ -162,5 +170,6 @@ if __name__ == "__main__":
               f"{out['seq']['delta_true_elapsed']:+6.2f}) | Δ contrib " + " ".join(f"{n} {x:+.2f}" for n, x in zip(BIN_NAMES, m["d_contrib"]))
               + (f" | k median {int(np.median(ks))}, max {max(ks)}" if k is None else ""), flush=True)
     res["time_s"] = time.perf_counter() - t0
-    (OUT / "stream_start_test.json").write_text(json.dumps(res, indent=2))
-    print(f"saved {OUT / 'stream_start_test.json'} ({res['time_s']:.0f} s)")
+    res["bundle"], res["gru_from"] = BUNDLE, GRU_FROM
+    (OUT / f"stream_start_test{TAG}.json").write_text(json.dumps(res, indent=2))
+    print(f"saved {OUT / f'stream_start_test{TAG}.json'} ({res['time_s']:.0f} s)")

@@ -29,7 +29,9 @@ HGB_MEMBERS = ["B", "B_h1", "B_h2", "B2"]
 SEQ_OLD = ["uw_n10", "tcn_n10", "cnn3_emb"]
 SEQ = {"old": SEQ_OLD, "a": [f"{s}_bip" for s in SEQ_OLD], "a+c": [f"{s}_bip_epoch" for s in SEQ_OLD],
        "n": [f"{s}_n2det" for s in SEQ_OLD],  # n = CNN N2-detector summaries (Work 2)
-       "nG": ["uw_n10_n2det", "tcn_n10", "cnn3_emb"]}  # only the GRU with n2det, TCN / GRU-emb old
+       "nG": ["uw_n10_n2det", "tcn_n10", "cnn3_emb"],  # only the GRU with n2det, TCN / GRU-emb old
+       "crop": [f"{s}_old_crop" for s in SEQ_OLD],  # stream-start crop augmentation (14 Nov), old inputs
+       "cropG": ["uw_n10_old_crop", "tcn_n10", "cnn3_emb"]}  # only the GRU crop-augmented
 HGB = {"old": "dyn_maxmin_spec_eye", "a": "dyn_maxmin_spec_eye_bip", "a+c": "dyn_maxmin_spec_eye_bip+epoch",
        "n": "dyn_maxmin_spec_eye_n2det", "nB": "dyn_maxmin_spec_eye_n2Bonly"}  # nB: only the B member with n2det (indicator)
 ROWS = [("old", "old"), ("a", "a"), ("a", "a+c"), ("old", "a"), ("a", "old"), ("old", "a+c")]
