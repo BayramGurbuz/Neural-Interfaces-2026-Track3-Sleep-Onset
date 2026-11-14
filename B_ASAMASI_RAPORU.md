@@ -436,3 +436,25 @@ Tarama: gönderilen `submissions/mix3_540_gridpi/submission.py` ve eğitim/özni
 
 Kayıt uzunluğu / kayıt sonu / dosya adı / denek kimliği hiçbir yerde kullanılmıyor (wrapper yalnız `meta["sfreq"]`,
 `meta["ch_names"]` ve batch'leri okuyor).
+
+## 14 Kasım — Akış başlangıcına dayanıklılık (`scripts/stream_start_test.py`, yeniden eğitim yok)
+
+Train+val mix3 paketi (500 kayıtla eğitilmiş GRU/TCN/GRU-emb + HGB(c)), 40 açık test kaydı (örneklem dışı; yalnız görülmüş
+kişiler → unseen/seen ayrımı yok). Çift CV kat modelleri diske yazılmadığı için kat bazlı ölçüm yeniden eğitim gerektirir.
+Her kaydın ilk k penceresi atılıp akış oradan başlatıldı (geçen süre, EMA'lar, taban, GRU/TCN durumu sıfırdan); hedefler aynı.
+Skor: aynı pencereler üzerinde kesik akış ↔ tam geçmiş (resmi W-bMAE, kayıt ortalaması). k=0 kayıtlı 47.06'yı yeniden üretiyor;
+yeniden akıtılan 817 öznitelik önbellekle bire bir.
+
+| k | pencere | tam geçmiş | kesik | Δ (karışım) | Δ, geçen süre gerçek değerle yamalı | HGB-only Δ (yamalı) | dizi-only Δ (yamalı) | Δ katkı [0,40) / [40,90) / [90,300) / [300,600] |
+|---|---|---|---|---|---|---|---|---|
+| 6 (30 s) | 5629 | 47.20 | 51.77 | **+4.57** | +3.20 | +7.41 (+7.50) | +3.45 (+1.33) | −0.98 / +2.92 / +2.48 / +0.15 |
+| 24 (2 dk) | 4922 | 46.87 | 52.95 | **+6.08** | +0.68 | +26.29 (+24.95) | +5.27 (+0.31) | +1.05 / +5.78 / +1.94 / −2.69 |
+| 60 (5 dk) | 3569 | 40.70 | 80.82 | **+40.11** | +3.24 | +123.31 (+115.89) | +31.11 (+2.72) | +19.15 / +15.57 / +7.55 / −2.16 |
+| rastgele [0, onset−60 s], tohum 0 (medyan 55, maks 216) | 3251 | 43.99 | 78.09 | **+34.09** | +8.59 | +83.80 (+73.75) | +26.24 (+7.28) | +12.89 / +16.63 / +5.95 / −1.37 |
+
+Okuma: bozulma eşiğin (+0.5) çok üstünde. Dizi modellerinde bozulmanın kaynağı büyük ölçüde geçen-süre girdisi (gerçek
+değerle yamalanınca +26 → +7). HGB'de ise yamalama işe yaramıyor (+84 → +74): 817 öznitelikteki ilk-2-dk farkları, koşan
+maks/min'e göre göreli öznitelikler ve 5–20 dk eğim/EMA'lar akışın başında "kayıt başı" imzası taşıyor; model bunu zamanın
+göstergesi olarak öğrenmiş. Yakın onset bin'leri ([0,40), [40,90)) en çok zarar görüyor (kesik akışta model uzak tahmin ediyor).
+Bağlam: mix3_540'ın yeni skorlamada 37.79 (yerel 39.40'tan iyi) alması, mühürlü akışların hâlâ kayıt başından başladığını
+düşündürüyor; rastgele başlangıç olsaydı +30 civarı bozulma görünürdü. Karar kullanıcıda (öneri: kayıt başı kırpma artırması).
