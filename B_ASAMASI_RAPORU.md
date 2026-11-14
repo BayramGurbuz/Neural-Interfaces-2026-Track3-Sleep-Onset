@@ -477,3 +477,21 @@ Kat Δ (en iyi satır): unseen [−1.31, −0.21, −0.56, −0.17, −0.46], se
 **Kabul kuralı geçilmedi** (−0.5 & 8/10 ya da −0.3 & 10/10). α 0.7 → 0.6: HGB ağırlığı 0.3 → 0.4 (HGB artık dizi
 modellerine yaklaştı → HGB'nin akış başlangıcı duyarlılığı karışımda daha ağır basar). dizi(n2det) görülmüş kişilerde yine
 zararlı (+0.56). Kazanç [90,300) ve [300,600]'de; [40,90) kötüleşiyor.
+
+**Teşhis (`scripts/stream_start_diag.py`, k=6 ve k=24; kesik akış girdilerinde bir öznitelik grubu tam geçmiş değeriyle
+yamalanıyor; geri kazanım = Δ'nın ne kadarı kapanıyor):**
+
+| HGB-only | k=6 (Δ +7.41) | k=24 (Δ +26.29) |
+|---|---|---|
+| elapsed | −0.09 | +1.34 |
+| ham pencere | 0.00 | 0.00 |
+| ilk-2-dk farkı (`_rel`) | −1.08 | +13.71 |
+| EMA 30 s / 2 dk / 5 dk | +2.31 | +6.74 |
+| EMA − koşan maks/min | **+5.27** | **+19.28** |
+| eğimler / 5 dk var / ac1 | +2.64 | +5.35 |
+| 10 dk EMA | **+5.76** | **+16.06** |
+
+Gruplar örtüşür (toplam > Δ); kümülatif yamalama tam skora döner. Dizi-only: k=6 kesik 51.19 → elapsed yamalı 49.07, taban yamalı
+49.19, ikisi 46.47; k=24 kesik 51.43 → elapsed 46.46, taban 41.57, ikisi 41.30. Sonuç: HGB'de "kayıt başı" imzası uzun bellekli
+özniteliklerde (koşan ekstremumlar, 10 dk EMA, ilk-2-dk farkı); dizi tarafında ilk-2-dk tabanı + elapsed. Kırpma artırması
+ikisini de hedefliyor; elapsed'i tek başına yamalamak HGB'yi kurtarmıyor.

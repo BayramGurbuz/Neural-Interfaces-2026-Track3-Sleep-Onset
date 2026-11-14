@@ -52,15 +52,17 @@ if __name__ == "__main__":
         T.stream.reset()
         full_H[r[0]] = np.stack([T.stream.update(fi.astype(np.float64)) for fi in T.F[r]]).astype(np.float32)
     BASE = slice(T.F.shape[1], 2 * T.F.shape[1])
-    for k in (6, 24):
-        rows_list = [r[k:] for r in T.recs]
+    for k0 in (6, 24):
+        k = k0
+        kk = [min(k0, len(r) - 1) for r in T.recs]  # a test recording shorter than k keeps its last window
+        rows_list = [r[q:] for r, q in zip(T.recs, kk)]
         out = {}
         # HGB: truncated / full / per-group patched / cumulative
         Ht, Hf = [], []
-        for r in T.recs:
+        for r, q in zip(T.recs, kk):
             T.stream.reset()
-            Ht.append(np.stack([T.stream.update(fi.astype(np.float64)) for fi in T.F[r[k:]]]).astype(np.float32))
-            Hf.append(full_H[r[0]][k:])
+            Ht.append(np.stack([T.stream.update(fi.astype(np.float64)) for fi in T.F[r[q:]]]).astype(np.float32))
+            Hf.append(full_H[r[0]][q:])
         s_t = T.score(rows_list, [hgb_pred(H) for H in Ht])[0]
         s_f = T.score(rows_list, [hgb_pred(H) for H in Hf])[0]
         out["hgb"] = dict(truncated=s_t, full=s_f, delta=s_t - s_f, patched={}, cumulative={})
@@ -80,16 +82,16 @@ if __name__ == "__main__":
         # sequence: baseline columns / elapsed / both patched
         def seq_run(patch):
             preds = []
-            for r in T.recs:
-                rows = r[k:]
+            for r, q in zip(T.recs, kk):
+                rows = r[q:]
                 Fw = T.F[rows]
                 xg = seq_inputs(Fw)
-                xg_full = seq_inputs(T.F[r])[k:]
+                xg_full = seq_inputs(T.F[r])[q:]
                 with torch.no_grad():
                     embs = [T.infer(e, torch.tensor(T.raw[rows]), torch.arange(len(rows)))[1].numpy().astype(np.float32) for e in T.encs]
                     embs_full = [T.infer(e, torch.tensor(T.raw[r]), torch.arange(len(r)))[1].numpy().astype(np.float32) for e in T.encs]
                 xe = [seq_inputs(Fw, E) for E in embs]
-                xe_full = [seq_inputs(T.F[r], E)[k:] for E in embs_full]
+                xe_full = [seq_inputs(T.F[r], E)[q:] for E in embs_full]
                 if "base" in patch:
                     xg[:, BASE] = xg_full[:, BASE]
                     for x, xf in zip(xe, xe_full):
@@ -101,10 +103,9 @@ if __name__ == "__main__":
                         x[:, T.EL_S] = xf[:, T.EL_S]
                 preds.append(seq_pred(Fw, rows, xg, xe))
             return T.score(rows_list, preds)[0]
-        s_full = T.score(rows_list, [T.full[i]["seq"][k:] for i in range(len(T.recs))])[0] if hasattr(T, "full") else None
         out["seq"] = {p: seq_run(p) for p in ("none", "elapsed", "base", "base+elapsed")}
-        res[f"k{k}"] = out
-        print(f"k = {k}: HGB-only truncated {s_t:.2f} full {s_f:.2f} Δ {s_t - s_f:+.2f}; recovered by patching one group: "
+        res[f"k{k0}"] = out
+        print(f"k = {k0}: HGB-only truncated {s_t:.2f} full {s_f:.2f} Δ {s_t - s_f:+.2f}; recovered by patching one group: "
               + ", ".join(f"{g} {v['recovered']:+.2f}" for g, v in out["hgb"]["patched"].items()), flush=True)
         print(f"        cumulative (elapsed, +raw, +rel, +ema, +minus_run, +slopes, +ema600): "
               + " ".join(f"{v:.2f}" for v in out["hgb"]["cumulative"].values()), flush=True)
