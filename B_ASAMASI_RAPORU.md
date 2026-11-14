@@ -514,3 +514,21 @@ Izgarasız karışım (ref 39.40, α LOFO 0.3–0.8; `b2_mix_cropmix.json`):
 
 Kat Δ (kalın satır): unseen [−1.37, −0.28, −0.70, −0.33, −1.33], seen [+0.42, −0.95, −0.26, −0.70, +0.08].
 **KABUL KURALINI GEÇEN İLK TARİF** (Δ ≤ −0.5 ve 8/10). HGB(n2det)+dizi(eski) 38.97 (−0.43) ile fark −0.11.
+
+**Dayanıklılık testi, artırmalı diziyle (`stream_start_test.py --bundle=mix3crop` / `--gru-from=mix3crop`; train+val
+modeller, 40 test kaydı; Δ = kesik akış − aynı pencerelerde tam geçmiş, karışım):**
+
+| k | artırmasız (mix3) | üçü artırmalı (mix3crop) | yalnız GRU artırmalı | HGB-only (artırmasız, ortak) |
+|---|---|---|---|---|
+| 1 (5 s) | +0.37 | +0.08 | −0.10 | +1.17 |
+| 3 (15 s) | +2.25 | +0.22 | +0.63 | +3.38 |
+| 6 (30 s) | +4.57 | **+2.82** | +3.53 | +7.41 |
+| 12 (60 s) | +5.36 | +2.91 | +5.64 | +25.65 |
+| 24 (2 dk) | +6.08 | +0.85 | +4.50 | +26.29 |
+| 60 (5 dk) | +40.11 | +5.47 | +15.53 | +123.31 |
+| rastgele | +34.09 | +4.21 | +14.34 | +83.80 |
+
+k=0 test skorları (örneklem dışı, görülmüş kişiler): mix3 47.06, mix3crop 44.27, yalnız-GRU 46.16. Dizi-only kesik Δ (k=6):
+3.45 → 1.65 (üçü) / 2.12 (GRU). **Kullanıcının aday-2 eşiği (k=6 zararı < +1.0) hiçbir bileşimde sağlanmadı**; kalan zararın
+kaynağı artırmasız HGB (k=6'da tek başına +7.4; karışımda ağırlığı 0.3–0.4). HGB artırması B-üyesi ön kontrolü
+(`scripts/hgb_crop_precheck.py`) aday-1 final HGB eğitiminden sonra CPU'da otomatik başlayacak.
