@@ -6,10 +6,12 @@ from ALPHAS, and also without the grid (pi = 0, decision_layer.predict) to see w
 grid decision or overlaps it. Reference = mix3 + pi(D) (38.27, saved b1pi_bins4 preds; reproduced here).
 Scores: official binned_mae; Δ fold-paired vs the reference; contributions; on-grid / off-grid recordings.
 
-Usage: python scripts/b2_mix.py   (writes OUT/b2_mix.json, OUT/b2mix_<row>_{unseen,seen}_preds.npz)
+Usage: python scripts/b2_mix.py [ROWS TAG]   (writes OUT/b2_mix[_TAG].json, OUT/b2mix_<row>_{unseen,seen}_preds.npz)
+  ROWS = comma-separated hgb:seq pairs, e.g. "a+c:old,a+c:a"; the reference row (old, old) is always added.
 """
 import gc
 import json
+import sys
 
 import numpy as np
 
@@ -23,8 +25,10 @@ from range_breakdown import load_preds
 B = VARIANTS["B"]
 HGB_MEMBERS = ["B", "B_h1", "B_h2", "B2"]
 SEQ_OLD = ["uw_n10", "tcn_n10", "cnn3_emb"]
-SEQ = {"old": SEQ_OLD, "a": [f"{s}_bip" for s in SEQ_OLD], "a+c": [f"{s}_bip_epoch" for s in SEQ_OLD]}
-HGB = {"old": "dyn_maxmin_spec_eye", "a": "dyn_maxmin_spec_eye_bip"}
+SEQ = {"old": SEQ_OLD, "a": [f"{s}_bip" for s in SEQ_OLD], "a+c": [f"{s}_bip_epoch" for s in SEQ_OLD],
+       "n": [f"{s}_n2det" for s in SEQ_OLD]}  # n = CNN N2-detector summaries (Work 2)
+HGB = {"old": "dyn_maxmin_spec_eye", "a": "dyn_maxmin_spec_eye_bip", "a+c": "dyn_maxmin_spec_eye_bip+epoch",
+       "n": "dyn_maxmin_spec_eye_n2det", "nB": "dyn_maxmin_spec_eye_n2Bonly"}  # nB: only the B member with n2det (indicator)
 ROWS = [("old", "old"), ("a", "a"), ("a", "a+c"), ("old", "a"), ("a", "old"), ("old", "a+c")]
 ALPHAS = [0.5, 0.6, 0.7, 0.8, 0.9]
 CUTS = [900.0, 1100.0, 1300.0]
@@ -62,6 +66,10 @@ def summarise(e, r0):
 
 
 if __name__ == "__main__":
+    TAG = ""
+    if len(sys.argv) > 1:
+        ROWS = [("old", "old")] + [tuple(x.split(":")) for x in sys.argv[1].split(",")]
+        TAG = "_" + sys.argv[2]
     d, _, _ = load_trainval()
     protocols = {"unseen": unseen_splits(d), "seen": seen_splits(d)}
     res, E = {}, {}
@@ -105,6 +113,8 @@ if __name__ == "__main__":
     c_eff = {}
     for hg in ("a", "old"):
         for tag in ("grid", "nogrid"):
+            if f"HGB({hg}) + seq(a+c) {tag}" not in rows or f"HGB({hg}) + seq(a) {tag}" not in rows:
+                continue
             x, y = rows[f"HGB({hg}) + seq(a+c) {tag}"], rows[f"HGB({hg}) + seq(a) {tag}"]
             c_eff[f"HGB({hg}) {tag}"] = dict(all=x["macro"] - y["macro"], on_grid=x["on_grid"] - y["on_grid"],
                                              off_grid=x["off_grid"] - y["off_grid"],
@@ -114,4 +124,4 @@ if __name__ == "__main__":
             print(f"  HGB({hg}), {tag:6s}: all {v['all']:+.2f}  on-grid {v['on_grid']:+.2f}  off-grid {v['off_grid']:+.2f}"
                   f"  (better in {v['better']}/10 folds)")
     res["c_effect"] = c_eff
-    (OUT / "b2_mix.json").write_text(json.dumps(res, indent=2, default=str))
+    (OUT / f"b2_mix{TAG}.json").write_text(json.dumps(res, indent=2, default=str))

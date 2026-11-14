@@ -11,7 +11,7 @@ açık test = 40 kayıt (yalnız son kontrol). Docker = lionelyneuro/neural-comp
 Sealed pencere: 10 Kasım'da açıldı (organizatör maili), bitiş 21 Kasım 23:59 CET = 22 Kasım 01:59 TR.
 5 hak takım başına ortak, günde en fazla 1; en iyi geçerli skor sayılır (tekrarlanabilirlik denetimine bağlı).
 Sealed log/tahmin/skorlama çıktıları gizli. Plan: #1 final540 (10 Kasım, yapıldı), #2 mix3_540 (11 Kasım, yapıldı),
-#3 mix3_540_gridpi (12 Kasım, gönderildi, sonuç bekleniyor), #4–#5 yalnızca kabul kuralını geçen modeller (mix_gru10_hgb
+#3 mix3_540_gridpi (12 Kasım, yapıldı, sealed 37.49), #4–#5 yalnızca kabul kuralını geçen modeller (mix_gru10_hgb
 plandan çıkarıldı). **5 hakkın 3'ü kullanıldı, kalan 2.**
 Son gönderim en geç 20 Kasım, 21 Kasım yedek gün.
 
@@ -27,7 +27,7 @@ Son gönderim en geç 20 Kasım, 21 Kasım yedek gün.
 
 | – | (onay bekliyor) | mix3_540_grid.zip | **aday** ⁶ | 38.35 ² | 31.6917 ³ | 230 s / 218 s (×2, aynı skor) | – | – |
 
-| 3 | 2026-11-12 | mix3_540_gridpi.zip | **gönderildi, sonuç bekleniyor** ⁷ | 38.27 ² | 31.3234 ³ | 185 s / 176 s (×2, aynı skor) | – | – |
+| 3 | 2026-11-12 | mix3_540_gridpi.zip | **gönderildi** ⁷ | 38.27 ² | 31.3234 ³ | 185 s / 176 s (×2, aynı skor) | **37.49** | 2762.79 s |
 ² 500 kayıtlık çift CV (540'ta doğrulama seti yok). ³ Örneklem içi (test eğitimde) → yalnız boru hattı kontrolü.
 ⁴ final540 ile tek fark eğitim kayıt sayısı (submission.py birebir aynı; model.joblib'de α, GRU ayarı, seed, epoch, ızgara
   aynı; yalnız veriye bağlı binleme sınırları ve ağaç yapıları farklı) → ayrı bilgi vermez (2026-11-11).
@@ -47,6 +47,11 @@ Son gönderim en geç 20 Kasım, 21 Kasım yedek gün.
 |---|---|---|---|---|---|---|---|---|
 | 1 | 2026-11-10 | final540.zip | **39.56** | 39.91 | 101.36 | 198.26 | 1249.51 s | 23 / 60 |
 | 2 | 2026-11-11 | mix3_540.zip | **38.66** | kaydedilmedi | kaydedilmedi | kaydedilmedi | kaydedilmedi | kaydedilmedi |
+| 3 | 2026-11-12 | mix3_540_gridpi.zip | **37.49** | 37.78 | 105.48 | 213.98 | 2762.79 s | kaydedilmedi |
+
+mix3_540_gridpi: yerel çift CV 38.27 → sealed 37.49, fark −0.78 (final540 −0.72, mix3_540 −0.74) → 30 s ızgara
+kararı mühürlü veride tutuyor; mix3_540'a göre sealed −1.17. Süre: gönderim öncesi tahmin ≤ 2500 s, gerçek 2762.79 s
+(sınır 3600 s). Kural (14 Kasım): yeni adaylarda pencere başına çıkarım maliyeti gridpi'ye göre en fazla +%10.
 
 mix3_540: final540'a göre sealed −0.90 (çift CV'de beklenen −0.88); çift CV ↔ sealed farkı −0.74 (final540'ta −0.72).
 İlk 3 eşiği ≈ 33.06 → fark 5.60 s. Kalan hak: 3. Bilinen kusur (gönderilen ZIP'te): NaN içeren bir pencere kaydın
@@ -172,7 +177,7 @@ Aynı seed'lerle (0,1,2) yeniden eğitim: bit düzeyinde aynı (48.2224). Farkl�
 - Risk: kazanç sealed onset'lerinin 30 s ızgarasında olmasına bağlı; ızgara dışı kayıtlarda çift CV'de +1.11 s.
   Ayrıntı: `KARAR_KATMANI_RAPORU.md`.
 
-### mix3_540_gridpi.zip (gönderim #3, 2026-11-12; sonuç bekleniyor) ⁷
+### mix3_540_gridpi.zip (gönderim #3, 2026-11-12; sealed 37.49) ⁷
 - Model: mix3_540 ile aynı model.joblib (SHA-256 265bb6b2…55d32). submission.py: ızgara kararı π(D) (kesimler 900 / 1100 /
   1300 s, değerler 540 kayıttan 1.0 / 0.592 / 0.644 / 0.444; `scripts/b1_grid_pi.py`), girdi temizliği NaN/inf + düz kanal
   (std < 0.1 µV veya ardışık örneklerin > %90'ı değişmiyor).

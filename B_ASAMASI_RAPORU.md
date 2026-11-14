@@ -13,7 +13,7 @@ Hedef: çift CV makroda 38.35'in (ızgaralı mix3, `mix3_540_grid` tarifi) altı
 | B1a | π(D), 4 aralık (bins4) | 39.66 | 36.89 | 38.27 | −0.08 | 10/10 | builder'a seçenek olarak eklendi; tek başına ZIP yok (Δ < 0.5) |
 | B1a | π(D), 2 aralık (step) | 39.65 | 36.89 | 38.27 | −0.08 | 9/10 | – |
 | B1b | düz kanal kuralı | – | – | – | 0 (temiz veride çıktı aynı) | – | builder'a eklendi (varsayılan açık; eşik %50 → %90) |
-| Adım 1 | **mix3_540_gridpi.zip** = B1a bins4 + B1b (%90) | 39.66 | 36.89 | 38.27 | −0.08 | 10/10 | **gönderildi (#3, 12 Kasım), sonuç bekleniyor**; SHA-256 `4ef85c1f…0063`; 5 hakkın 3'ü kullanıldı, kalan 2 |
+| Adım 1 | **mix3_540_gridpi.zip** = B1a bins4 + B1b (%90) | 39.66 | 36.89 | 38.27 | −0.08 | 10/10 | **gönderildi (#3, 12 Kasım), sealed 37.49** (yerel −0.78); SHA-256 `4ef85c1f…0063`; 5 hakkın 3'ü kullanıldı, kalan 2 |
 | B2a | B üyesi + bip (+432) | 43.85 | 41.28 | 42.56 | −0.64 (ref B 43.20) | 9/10 | **kazandırıyor**; (c) ve dizi modellerine taşıma onay bekliyor |
 | B2b | B üyesi + events (+318) | 45.02 | 41.81 | 43.41 | +0.21 (ref B 43.20) | 4/10 | kazandırmıyor |
 | B2c | B üyesi + epoch (+113) | 43.96 | 40.92 | 42.44 | −0.77 (ref B 43.20) | 10/10 | kazandırıyor; **ayrı tutuluyor** (ızgaraya bağlı) |
@@ -138,7 +138,7 @@ Hiçbir senaryoda NaN tahmin, tam 0'a kilitlenme veya durumda NaN yok.
 
 ---
 
-## Adım 1 — Yeni aday: `mix3_540_gridpi.zip` (yeniden eğitim yok; kullanıcı 12 Kasım'da gönderdi, sonuç bekleniyor)
+## Adım 1 — Yeni aday: `mix3_540_gridpi.zip` (yeniden eğitim yok; kullanıcı 12 Kasım'da gönderdi, sealed 37.49)
 
 **Tarif:**
 - `mix3_540` ile aynı `model.joblib` (SHA-256 `265bb6b2…55d32`); yalnız `submission.py` farklı.

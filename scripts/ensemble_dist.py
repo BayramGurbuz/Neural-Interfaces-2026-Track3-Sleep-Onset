@@ -70,9 +70,17 @@ def member_probas(name, feat_set, X, d, protocols):
     edges, params, max_iter = MEMBERS[name]
     probas, n_iter = {}, {}
     for proto, splits in protocols.items():
+        part = OUT / f"ens_{feat_set}_{name}_{proto}.part.npz"  # per-protocol checkpoint (survives a shutdown)
+        if part.exists():
+            z = np.load(part, allow_pickle=True)
+            probas[proto] = [z[f"arr_{i}"] for i in range(len(splits))]
+            n_iter[proto] = z["n_iter"].tolist()
+            print(f"  member {name} {proto}: loaded from {part.name}", flush=True)
+            continue
         t0 = time.perf_counter()
         r = run_clf(X, d, splits, edges, params, max_iter, keep_proba=True)["dist_continuous"]
         probas[proto], n_iter[proto] = r[3], r[1]
+        np.savez(part, *r[3], n_iter=np.array(r[1]))
         print(f"  member {name} {proto}: n_iter {r[1]} ({time.perf_counter() - t0:.0f} s)", flush=True)
     np.savez(path, probas=np.array(probas, dtype=object), n_iter=np.array(n_iter, dtype=object))
     return probas, n_iter

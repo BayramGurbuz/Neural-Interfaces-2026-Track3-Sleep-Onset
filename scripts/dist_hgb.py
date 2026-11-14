@@ -66,12 +66,15 @@ DECISIONS = {"dist_discrete": False, "dist_continuous": True}
 def run_clf(X, d, splits, edges=CLASS_EDGES, params=None, max_iter=MAX_ITER, keep_proba=False):
     """One classifier per fold; both decision rules scored on the same staged probabilities.
     keep_proba: also return, per decision rule, the held-out probability matrices at the selected
-    number of trees (result[k] gets a 4th element: list of (n_te, n_classes) float32)."""
+    number of trees (result[k] gets a 4th element: list of (n_te, n_classes) float32).
+    X may be a callable fold_index -> feature matrix (fold-specific features, e.g. out-of-fold detector outputs)."""
     params = PARAMS if params is None else params
     curves = {k: [] for k in DECISIONS}
     preds = {k: [] for k in DECISIONS}
     probas = []
-    for tr, te in splits:
+    X_of = X if callable(X) else (lambda k, X0=X: X0)
+    for k_fold, (tr, te) in enumerate(splits):
+        X = X_of(k_fold)
         dtr, dte = d[tr].reset_index(drop=True), d[te].reset_index(drop=True)
         reps, omega = class_stats(dtr, edges)
         bins = fit_bin_edges(X[tr])

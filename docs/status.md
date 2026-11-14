@@ -49,7 +49,7 @@ yapılamıyor; model kararları yalnızca çift CV ile verilir.
 | final540.zip | **gönderildi (#1, 10 Kasım) → sealed 39.56** | 122 s (v3) |
 | mix3_540.zip | **gönderildi (#2, 11 Kasım) → sealed 38.66** | 225 s / 213 s (v3, ×2 aynı skor) |
 | mix3_540_grid.zip | **aday #3** (mix3_540 ağırlıkları + 30 sn ızgara kararı π 0.86 + NaN düzeltmesi; çift CV 38.35, Δ −1.05, 10/10; gönderim onay bekliyor) | 230 s / 218 s (v3, ×2 aynı skor) |
-| mix3_540_gridpi.zip | **gönderildi (#3, 12 Kasım), sonuç bekleniyor** (mix3_540 ağırlıkları + ızgara π(D) bins4 1.0/0.592/0.644/0.444 + NaN ve düz kanal temizliği; çift CV 38.27, ızgaralıya göre −0.08, 10/10; SHA-256 4ef85c1f…0063) | 185 s / 176 s (v3, ×2 aynı skor; aynı oturumda mix3_540_grid 168 s) |
+| mix3_540_gridpi.zip | **gönderildi (#3, 12 Kasım), sealed 37.49** (W-bMAE 37.78, bMAE 105.48, MAE 213.98, süre 2762.79 s) (mix3_540 ağırlıkları + ızgara π(D) bins4 1.0/0.592/0.644/0.444 + NaN ve düz kanal temizliği; çift CV 38.27, ızgaralıya göre −0.08, 10/10; SHA-256 4ef85c1f…0063) | 185 s / 176 s (v3, ×2 aynı skor; aynı oturumda mix3_540_grid 168 s) |
 | mix_gru10_hgb.zip | gönderilmeyecek (final540 ile aynı tarif, 500 kayıt) | 132 s |
 | hgb_ens_c.zip | hazır aday | 115 s |
 | hgb_v3_np.zip / hgb_v3.zip | yedek | 89 s / 417 s |
@@ -58,18 +58,31 @@ yapılamıyor; model kararları yalnızca çift CV ile verilir.
 Sealed pencere AÇIK: 10 Kasım'da açıldı (organizatör maili + yarışma deposu 79b4453), bitiş 21 Kasım
 23:59 CET = 22 Kasım 01:59 TR. 5 hak, takım başına ortak, günde en fazla 1.
 Gönderim planı: **#1 final540 (10 Kasım, yapıldı → sealed 39.56, 23/60)**, **#2 mix3_540 (11 Kasım, yapıldı →
-sealed 38.66)**, **#3 mix3_540_gridpi (12 Kasım, gönderildi, sonuç bekleniyor)** → **5 hakkın 3'ü kullanıldı, kalan 2 hak** YALNIZCA kabul kuralını geçen yeni modeller için. **Son gönderim en geç 20 Kasım; 21 Kasım yedek gün.** mix_gru10_hgb
+sealed 38.66)**, **#3 mix3_540_gridpi (12 Kasım, yapıldı → sealed 37.49, en iyi)** → **5 hakkın 3'ü kullanıldı, kalan 2 hak** YALNIZCA kabul kuralını geçen yeni modeller için. **Son gönderim en geç 20 Kasım; 21 Kasım yedek gün.** mix_gru10_hgb
 plandan çıkarıldı (final540 ile tek fark eğitim kayıt sayısı). Final sıralama = takımın en iyi geçerli
 sealed skoru (otomatik, işaretleme yok), tekrarlanabilirlik denetimine bağlı. Sealed log/çıktılar gizli →
 göndermeden önce ZIP Docker'da test edilmeli. Claude gönderim yapmaz.
 
 ## B aşaması (2026-11-12/13; ayrıntı `B_ASAMASI_RAPORU.md`)
-- B1: π(D) ızgara ağırlığı (38.27, −0.08, 10/10) + düz kanal temizliği → mix3_540_gridpi (gönderim #3, sonuç bekleniyor).
+- B1: π(D) ızgara ağırlığı (38.27, −0.08, 10/10) + düz kanal temizliği → mix3_540_gridpi (gönderim #3, sealed 37.49; yerel 38.27 → −0.78, önceki iki gönderimle aynı fark → ızgara mühürlü veride tutuyor).
 - B2 (B üyesi): bipolar −0.64 (9/10), olay dedektörleri +0.21, epoch-hizalı (c) −0.77 (10/10, ızgaraya bağlı, ayrı
   tutuluyor), a+c −1.08. HGB(c)+bipolar 42.17 (−0.48). **Karışımda kazanç kayboluyor:** en iyi HGB(a) + dizi(eski)
   38.19 (−0.08, 5/10); c dizi girdisinde zararlı (+0.44). Kabul eşiğini geçen tarif yok, yeni ZIP yok.
 - B3: HMC evreleyici Muse'a taşınmıyor (Spearman −0.10 / AUC 0.67 ↔ en iyi öznitelik 0.42 / 0.83) → durduruldu.
-- Bekleyen karar: mühürlü gridpi sonucuna göre HGB(c) için a+c öznitelik kümesi (~8–9 saat CPU).
+- 14 Kasım kararı (kullanıcı): ızgara tuttuğu için HGB(c) a+c koşuluyor (İş 1); alan içi N2 dedektörü ucuz testi (İş 2).
+  Yeni aday kuralı: pencere başına çıkarım ≤ gridpi +%10 (gridpi sealed süresi 2762.79 s; tahmin ≤ 2500 idi).
+- İş 2 (alan içi N2 dedektörü, 14 Kasım, ara sonuçlar; betikler `scripts/n2det_*.py`):
+  - Ham dosyalarda onset sonrası tam 300 s veri var (540/540, NaN yok); ham değer × 0.1 = akış penceresi (1e-7).
+    Akış boru hattı kaydı onset'te kesiyor → bu kısım daha önce hiç kullanılmamıştı.
+  - Dedektör: pozitif = onset sonrası 60 pencere, negatif = kalan ≥ 300 s; kat başına yalnız eğitim kayıtları,
+    eğitim satırlarına iç 5 katlı fold-dışı P. Akıl sağlığı (unseen OOF): CNN Spearman −0.48, AUC son60↔300+ 0.945,
+    son30↔60–150 0.815; HGB −0.43 / 0.935 / 0.802; en iyi tek öznitelik 0.42 / 0.83 / 0.73 → GEÇTİ.
+  - Maliyet: HGB dedektörü (+ bip) ≈ 3.2 ms/pencere (> +%10) → adım e yalnız CNN dedektörüyle (≈ 1.5 ms, yük altında).
+    5 nedensel özet: P, EMA 30 s, EMA 2 dk, EMA30 koşan maks, EMA30 30 s artış.
+  - B üyesi + n2det 40.86 (−2.34, 10/10). GRU 40.97 (−0.47, 5/10), TCN 41.04, GRU-emb 43.76.
+    Karışım (ref 38.27): HGB(eski)+dizi(n2det) 38.17 (−0.10, 5/10); HGB(yalnız B n2det)+dizi(eski) 38.07 (−0.21, 10/10).
+  - 14 Kasım sabahı Windows güncellemesiyle makine kapandı: HGB(c) üye koşuları (İş 1 a+c ve İş 2 n2det, B_h1/B_h2/B2)
+    kayboldu; protokol başına ara kayıt eklendi, `scripts/b2_resume.sh` ile sırayla yeniden başlatıldı (önce İş 2).
 
 ## Karar katmanı deneyleri (2026-11-12, yeniden eğitim yok; ayrıntı `KARAR_KATMANI_RAPORU.md`)
 `scripts/decision_layer.py`, mix3'ün kayıtlı fold-dışı olasılıkları, resmi binned_mae, iç içe LOFO. Referans 39.40.
@@ -315,7 +328,7 @@ Bu turda kabul kuralını geçen model yok. Yedek aday hâlâ (GRU+TCN)/2 + HGB(
 8/10). 18 Kasım'a kadar daha iyisi çıkmazsa 540 kayıtla eğitilip gönderilecek (TCN eğitimi
 `train_mix_final.py`'ye, TCN çıkarımı `build_hgb_submission.py`'ye eklenmeli; yalnız torch).
 mix3 (üçlü karışım, çift CV 39.40) 540 ile eğitildi, mix3_540.zip olarak **11 Kasım'da gönderildi (#2) →
-sealed 38.66**. #3 mix3_540_gridpi 12 Kasım'da gönderildi (sonuç bekleniyor); kalan 2 hak. Yedek aday (GRU+TCN)/2 + HGB(c) α 0.7 artık ikincil (mix3 ona göre de −0.60, 10/10).
+sealed 38.66**. #3 mix3_540_gridpi 12 Kasım'da gönderildi (sealed 37.49); kalan 2 hak. Yedek aday (GRU+TCN)/2 + HGB(c) α 0.7 artık ikincil (mix3 ona göre de −0.60, 10/10).
 Durum denetimi: `DURUM_RAPORU.md` (2026-11-11); karar katmanı deneyleri: `KARAR_KATMANI_RAPORU.md`.
 
 ## Doküman güncellemesi (2026-11-10, depo 4a8c943 → 79b4453, 5 Kasım PDF'lerine göre)

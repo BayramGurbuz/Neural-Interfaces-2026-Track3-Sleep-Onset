@@ -10,7 +10,11 @@ GRU-emb reuses the saved per-fold CNN encoder outputs (cnn_cnn3_<proto>_f<k>_s<s
 Training schedules as before: gru = CONFIGS["uw_n10"] (40 epochs), tcn = CONFIGS["tcn_n10"] (30), gemb = uw with
 run_epochs 40, 3 seeds; epoch per fold chosen LOFO on the other folds' mean curve.
 
-Usage: python scripts/b2_seq_cv.py VARIANT ARCH   (VARIANT bip | bip+epoch; ARCH gru | tcn | gemb)
+  n2det      : + the 5 fold-specific CNN N2-detector summaries (n2det_feats.py) as per-window extras (like the CNN
+               embeddings: fold k uses OUT/n2det_<det>_<proto>_f<k>.npy, out-of-fold for every row)
+  old        : no extra group (deterministic rerun of the original inputs)
+Usage: python scripts/b2_seq_cv.py VARIANT ARCH   (VARIANT old | bip | bip+epoch | n2det | bip+n2det ...;
+       ARCH gru | tcn | gemb)
   writes OUT/gru_<name>_{unseen,seen}_{preds,proba}.npz, name = uw_n10_<v> | tcn_n10_<v> | cnn3_emb_<v>
   (<v> = VARIANT with "+" -> "_")
 """
@@ -29,6 +33,7 @@ from b2_ablation import b2_table  # noqa: E402
 from dist_hgb import class_stats, decide  # noqa: E402
 from dual_cv import OUT, seen_splits, unseen_splits  # noqa: E402
 from gru_cv import CONFIGS, EDGES, load_inputs, run_fold  # noqa: E402
+from n2det_feats import fold_features  # noqa: E402
 from stream_utils import summarize  # noqa: E402
 from train_hgb import SAVE  # noqa: E402
 
@@ -67,10 +72,15 @@ if __name__ == "__main__":
         for k, (tr, te) in enumerate(splits):
             t0 = time.perf_counter()
             runs = []
+            if k == 0:
+                n2 = [fold_features(proto, j, recs) for j in range(len(splits))] if "n2det" in variant else None
             for s in range(n_seeds):
-                extra = None
+                ex = []
                 if arch == "gemb":
-                    extra = np.load(OUT / f"cnn_cnn3_{proto}_f{k}_s{s}.npz")["emb"].astype(np.float32)
+                    ex.append(np.load(OUT / f"cnn_cnn3_{proto}_f{k}_s{s}.npz")["emb"].astype(np.float32))
+                if "n2det" in variant.split("+"):
+                    ex.append(n2[k])
+                extra = np.concatenate(ex, axis=1) if ex else None
                 runs.append(run_fold(d, recs, F2, gain, tr, te, cfg, s, extra=extra))
             dte = d[te].reset_index(drop=True)
             _, omega = class_stats(d[tr].reset_index(drop=True), EDGES)
