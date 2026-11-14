@@ -119,6 +119,7 @@ class CNNDet:
                 nn.utils.clip_grad_norm_(model.parameters(), 1.0)
                 opt.step()
             sched.step()
+            self.last_model = model  # for the final training (state dict)
             if self.epoch is None or ep == n_ep - 1:
                 out.append([torch.softmax(infer(model, self.X, torch.as_tensor(e, device=DEV))[0], 1)[:, 1].cpu().numpy()
                             for e in eval_sets])

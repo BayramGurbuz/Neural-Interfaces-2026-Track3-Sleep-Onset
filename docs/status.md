@@ -58,10 +58,20 @@ yapılamıyor; model kararları yalnızca çift CV ile verilir.
 Sealed pencere AÇIK: 10 Kasım'da açıldı (organizatör maili + yarışma deposu 79b4453), bitiş 21 Kasım
 23:59 CET = 22 Kasım 01:59 TR. 5 hak, takım başına ortak, günde en fazla 1.
 Gönderim planı: **#1 final540 (10 Kasım, yapıldı → sealed 39.56, 23/60)**, **#2 mix3_540 (11 Kasım, yapıldı →
-sealed 38.66)**, **#3 mix3_540_gridpi (12 Kasım, yapıldı → sealed 37.49, en iyi)** → **5 hakkın 3'ü kullanıldı, kalan 2 hak** YALNIZCA kabul kuralını geçen yeni modeller için. **Son gönderim en geç 20 Kasım; 21 Kasım yedek gün.** mix_gru10_hgb
+eski skorlama 38.66, 13 Kasım yeniden skorlama 37.79, 17./123)**, **#3 mix3_540_gridpi (12 Kasım, yapıldı → eski skorlama 37.49; ızgara 13 Kasım kuralıyla yasak)** → **7 hakkın 3'ü kullanıldı, kalan 4 hak** (13 Kasım: +2) YALNIZCA kabul kuralını geçen ızgarasız yeni modeller için. **Son gönderim en geç 20 Kasım; 21 Kasım yedek gün.** mix_gru10_hgb
 plandan çıkarıldı (final540 ile tek fark eğitim kayıt sayısı). Final sıralama = takımın en iyi geçerli
 sealed skoru (otomatik, işaretleme yok), tekrarlanabilirlik denetimine bağlı. Sealed log/çıktılar gizli →
 göndermeden önce ZIP Docker'da test edilmeli. Claude gönderim yapmaz.
+
+## 13 Kasım kural değişikliği (organizatörler; `~/projects/2026-competition` ca8f486, scientific_faq_sleep.md, terms.md)
+- Mühürlü değerlendirme teknik güncelleme; tüm Finished gönderimler yeniden skorlandı (aynı ID, hak yemedi). mix3_540 yeni
+  skoru **37.79** (17./123; 3.lük 36.52). Eski 39.56 / 38.66 / 37.49 geçersiz. Hak 5 → 7; 3 kullanıldı, **4 kaldı**.
+- Yeni FAQ: tahminler EEG'den gelmeli; kayıtların etiketlenme/paketlenme düzenliliklerini kullanmak yasak, denetimde kontrol
+  edilir. Geçen süre (akışın ilk penceresinden beri) serbest. "Akış kaydın başından başlar, rastgele başlangıç yok" cümlesi
+  kaldırıldı → akış kaydın ortasından başlayabilir.
+- Sonuçlar: 30 sn ızgarası (π, π(D), c/epoch grubu, t mod 30) bütün yeni adaylardan çıkarıldı; GRID kapalı. İş 1 (HGB a+c)
+  iptal. Referans ızgarasız mix3 (çift CV 39.40 ↔ 37.79); kabul kuralı aynı eşiklerle bu referansa göre. Yeni iş: akış
+  başlangıcına dayanıklılık testi (`scripts/stream_start_test.py`). Kodun düzenlilik taraması `B_ASAMASI_RAPORU.md`'de.
 
 ## B aşaması (2026-11-12/13; ayrıntı `B_ASAMASI_RAPORU.md`)
 - B1: π(D) ızgara ağırlığı (38.27, −0.08, 10/10) + düz kanal temizliği → mix3_540_gridpi (gönderim #3, sealed 37.49; yerel 38.27 → −0.78, önceki iki gönderimle aynı fark → ızgara mühürlü veride tutuyor).

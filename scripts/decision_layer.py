@@ -306,10 +306,32 @@ def test_fold(model_dir="mix3"):
         enc = Encoder()
         enc.load_state_dict({k: torch.tensor(v) for k, v in sdict.items()})
         embs.append(infer(enc.eval(), Xraw, torch.arange(len(d_te)))[1].numpy().astype(np.float32))
-    Pg = seq_probs("gru", b["gru_states"], b["gru_mu"], b["gru_sd"])
-    Pt = seq_probs("tcn", b["tcn_states"], b["tcn_mu"], b["tcn_sd"])
+    Xh = X[mt]
+    ex_g = ex_t = None
+    if b.get("n2det_state") is not None:  # Work 2: N2-detector summaries of the test windows (full detector, as the wrapper)
+        from n2det_stream import N2Summary
+        det = Encoder(2, int(b.get("n2det_emb", 32)))
+        det.load_state_dict({k: torch.tensor(v) for k, v in b["n2det_state"].items()})
+        det.eval()
+        with torch.no_grad():
+            xr = torch.clamp(Xraw.float() / float(b["n2det_scale"]), -float(b["n2det_clip"]), float(b["n2det_clip"]))
+            p = torch.cat([torch.softmax(det(xr[i:i + 2048])[0], -1)[:, 1] for i in range(0, len(xr), 2048)]).numpy()
+        n2 = np.zeros((len(d_te), 5), np.float32)
+        st = N2Summary(5.0)
+        for r in recs:
+            st.reset()
+            for i in r:
+                n2[i] = st.update(np.float64(p[i]))
+        Xh = np.concatenate([Xh, n2], axis=1)
+        into = tuple(b.get("n2det_into", ()))
+        ex_g = [n2] * len(b["gru_states"]) if "gru" in into else None
+        ex_t = [n2] * len(b["tcn_states"]) if "tcn" in into else None
+        if "gemb" in into:
+            embs = [np.concatenate([e, n2], axis=1) for e in embs]
+    Pg = seq_probs("gru", b["gru_states"], b["gru_mu"], b["gru_sd"], extra=ex_g)
+    Pt = seq_probs("tcn", b["tcn_states"], b["tcn_mu"], b["tcn_sd"], extra=ex_t)
     Pe = seq_probs("gru", b["gemb_states"], b["gemb_mu"], b["gemb_sd"], extra=embs)
-    Xb = apply_bin_edges(X[mt], b["bin_edges"])
+    Xb = apply_bin_edges(Xh, b["bin_edges"])
     Ph = np.mean([to_grid(m.predict_proba(Xb), e) for m, e in zip(b["models"], b["member_edges"])], axis=0)
     D_tv = rec_onsets(d_tv).to_numpy()
     onset = rec_onsets(d_te)

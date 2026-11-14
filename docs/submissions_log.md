@@ -11,8 +11,8 @@ açık test = 40 kayıt (yalnız son kontrol). Docker = lionelyneuro/neural-comp
 Sealed pencere: 10 Kasım'da açıldı (organizatör maili), bitiş 21 Kasım 23:59 CET = 22 Kasım 01:59 TR.
 5 hak takım başına ortak, günde en fazla 1; en iyi geçerli skor sayılır (tekrarlanabilirlik denetimine bağlı).
 Sealed log/tahmin/skorlama çıktıları gizli. Plan: #1 final540 (10 Kasım, yapıldı), #2 mix3_540 (11 Kasım, yapıldı),
-#3 mix3_540_gridpi (12 Kasım, yapıldı, sealed 37.49), #4–#5 yalnızca kabul kuralını geçen modeller (mix_gru10_hgb
-plandan çıkarıldı). **5 hakkın 3'ü kullanıldı, kalan 2.**
+#3 mix3_540_gridpi (12 Kasım, yapıldı; eski skorlama 37.49, ızgara 13 Kasım kuralıyla yasak), #4–#7 yalnızca kabul kuralını geçen modeller (mix_gru10_hgb
+plandan çıkarıldı). **7 hakkın 3'ü kullanıldı, kalan 4** (13 Kasım teknik güncellemesi: +2 hak).
 Son gönderim en geç 20 Kasım, 21 Kasım yedek gün.
 
 | # | Gönderim tarihi | ZIP | Durum | Çift CV | Açık test | Docker süresi | Sealed skor | Sealed süre |
@@ -48,6 +48,11 @@ Son gönderim en geç 20 Kasım, 21 Kasım yedek gün.
 | 1 | 2026-11-10 | final540.zip | **39.56** | 39.91 | 101.36 | 198.26 | 1249.51 s | 23 / 60 |
 | 2 | 2026-11-11 | mix3_540.zip | **38.66** | kaydedilmedi | kaydedilmedi | kaydedilmedi | kaydedilmedi | kaydedilmedi |
 | 3 | 2026-11-12 | mix3_540_gridpi.zip | **37.49** | 37.78 | 105.48 | 213.98 | 2762.79 s | kaydedilmedi |
+
+**13 Kasım yeniden skorlama (yukarıdaki skorlar eski skorlamaya ait, GEÇERSİZ):** mühürlü değerlendirme teknik olarak
+güncellendi, bütün Finished gönderimler aynı ID ile yeniden koşuldu. mix3_540: **37.79** (17. / 123; 3.lük 36.52), süre 1722 s.
+final540 ve gridpi'nin yeni skorları bu dosyaya henüz işlenmedi. 30 sn ızgarası yeni FAQ'ya göre yasak; gridpi tarifi
+terk edildi. Hak 5 → 7 (3 kullanıldı, 4 kaldı).
 
 mix3_540_gridpi: yerel çift CV 38.27 → sealed 37.49, fark −0.78 (final540 −0.72, mix3_540 −0.74) → 30 s ızgara
 kararı mühürlü veride tutuyor; mix3_540'a göre sealed −1.17. Süre: gönderim öncesi tahmin ≤ 2500 s, gerçek 2762.79 s

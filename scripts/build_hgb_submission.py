@@ -80,6 +80,10 @@ WRAPPER = '''
 {tree_body}
 # ---- end of tree_numpy.py ----
 
+# ---- verbatim copy of scripts/n2det_stream.py (causal summaries of the N2-detector output) ----
+{n2det_body}
+# ---- end of n2det_stream.py ----
+
 
 SMOOTH_A = {smooth_a!r}  # s_t = a*max(s_(t-1) - dt, 0) + (1-a)*p_t ; 0 = no smoothing
 # Monotone calibration raw pred -> corrected pred (np.interp, flat outside); None = off.
@@ -302,6 +306,15 @@ class HGBStreamModel:
             if GRID_ON:
                 self.fine, self.slot_ws, self.slot_wh, self.atom = grid_tables(
                     self.grid, self.gru_edges, self.gru_omega, self.grid_omega)
+        # In-domain N2 detector (scripts/n2det_cv.py): the CNN encoder architecture with 2 outputs on the cleaned
+        # raw window -> P(N2); N2Summary turns it into 5 causal features appended to the HGB inputs (and, for the
+        # components named in n2det_into, to the sequence inputs as value and difference to the first-2-min mean).
+        self.n2det, self.n2_into = None, ()
+        if bundle.get("n2det_state") is not None:
+            self.n2det = load_net(Encoder(2, int(bundle.get("n2det_emb", 32))), bundle["n2det_state"])
+            self.n2_scale, self.n2_clip = float(bundle["n2det_scale"]), float(bundle["n2det_clip"])
+            self.n2_into = tuple(bundle.get("n2det_into", ()))
+            self.n2_summ = None
         self.sfreq = float(sfreq)
         self.stream = None
         self.reset_state()
@@ -320,6 +333,11 @@ class HGBStreamModel:
             self.gemb_h = [None] * len(self.gembs)
             self.emb_sum = [None] * len(self.encs)
             self.tcns.reset()
+        if self.n2det is not None:
+            if self.n2_summ is not None:
+                self.n2_summ.reset()
+            self.n2_prev = None
+            self.n2_sum = None
 
     def _grid_q(self, P):
         """(B, n_classes) probabilities -> metric-weighted, normalised grid distribution."""
@@ -343,36 +361,61 @@ class HGBStreamModel:
         h = grid_slots(Ph @ self.fine, idx, pi) * self.slot_wh
         return slot_median(self.alpha * q / len(Ps) + (1.0 - self.alpha) * h / h.sum())
 
-    def _mix3_probs(self, f32, x):
+    def _n2det_rows(self, x):
+        """x: (B, C, T) cleaned raw windows, time order -> (B, 5) float32 N2-detector summaries."""
+        with torch.no_grad():
+            xr = torch.clamp(torch.tensor(x, dtype=torch.float32) / self.n2_scale, -self.n2_clip, self.n2_clip)
+            p = torch.softmax(self.n2det(xr)[0], -1)[:, 1].numpy().astype(np.float64)
+        if self.n2_summ is None:
+            self.n2_summ = N2Summary(self.stream.step_s)
+        out = []
+        for pi in p:
+            if not np.isfinite(pi):  # cannot happen after _clean; keep the previous value rather than poison the EMAs
+                pi = self.n2_prev if self.n2_prev is not None else 0.0
+            self.n2_prev = pi
+            out.append(self.n2_summ.update(pi))
+        return np.stack(out).astype(np.float32)
+
+    def _mix3_probs(self, f32, x, n2=None):
         """f32: (B, 62) window features, x: (B, C, T) raw windows, time order -> seed-mean class
-        probabilities (B, n_classes) of GRU-uw (10 seeds), TCN (10 seeds) and GRU-emb (3 encoder/GRU pairs)."""
+        probabilities (B, n_classes) of GRU-uw (10 seeds), TCN (10 seeds) and GRU-emb (3 encoder/GRU pairs).
+        n2: (B, 5) N2-detector summaries; appended as extra inputs (value and difference to the first-2-min
+        mean, like the encoder embeddings) to the components listed in n2det_into."""
         with torch.no_grad():
             xr = torch.clamp(torch.tensor(x, dtype=torch.float32) / self.cnn_scale, -self.cnn_clip, self.cnn_clip)
             embs = [enc(xr)[1].numpy().astype(np.float32) for enc in self.encs]  # (B, EMB) per seed
-        rows, erows = [], [[] for _ in self.encs]
+        if n2 is not None and "gemb" in self.n2_into:
+            embs = [np.concatenate([E, n2], axis=1) for E in embs]
+        use_n2 = n2 is not None and ("gru" in self.n2_into or "tcn" in self.n2_into)
+        rows, nrows, erows = [], [], [[] for _ in self.encs]
         for i, fi in enumerate(f32):
             self.gru_t += 1
             if self.gru_cnt < self.base_n:
                 self.gru_sum = fi.copy() if self.gru_sum is None else self.gru_sum + fi
                 for s, E in enumerate(embs):
                     self.emb_sum[s] = E[i].copy() if self.emb_sum[s] is None else self.emb_sum[s] + E[i]
+                if use_n2:
+                    self.n2_sum = n2[i].copy() if self.n2_sum is None else self.n2_sum + n2[i]
                 self.gru_cnt += 1
             n = np.float32(self.gru_cnt)
             el = np.float32(np.log1p(min(self.gru_t * 5.0, self.el_clip)))
             row = np.concatenate([fi, fi - self.gru_sum / n, [el]]).astype(np.float32)
             rows.append(row)
+            nrows.append(np.concatenate([row, n2[i], n2[i] - self.n2_sum / n]).astype(np.float32) if use_n2 else row)
             for s, E in enumerate(embs):
                 erows[s].append(np.concatenate([row, E[i], E[i] - self.emb_sum[s] / n]).astype(np.float32))
-        rows = np.stack(rows)
+        rows, nrows = np.stack(rows), np.stack(nrows)
+        rows_g = nrows if "gru" in self.n2_into else rows
+        rows_t = nrows if "tcn" in self.n2_into else rows
         ps_g, ps_t, ps_e = [], [], []
         with torch.no_grad():
-            xg = torch.tensor((rows - self.gru_mu) / self.gru_sd)[None]
+            xg = torch.tensor((rows_g - self.gru_mu) / self.gru_sd)[None]
             if self.gru_h is None:
                 self.gru_h = [None] * len(self.grus)
             for i, net in enumerate(self.grus):
                 logits, self.gru_h[i] = net(xg, self.gru_h[i])
                 ps_g.append(torch.softmax(logits[0], -1).numpy().astype(np.float64))
-            xt = torch.tensor((rows - self.tcn_mu) / self.tcn_sd)
+            xt = torch.tensor((rows_t - self.tcn_mu) / self.tcn_sd)
             logits = torch.stack([self.tcns.step(xt[j]) for j in range(len(xt))])  # (B, S, n_out)
             ps_t = list(torch.softmax(logits, -1).permute(1, 0, 2).numpy().astype(np.float64))
             for s, net in enumerate(self.gembs):
@@ -463,6 +506,10 @@ class HGBStreamModel:
         f32 = f
         f = f.astype(np.float64)
         rows = np.stack([self.stream.update(fi) for fi in f]).astype(np.float32)
+        n2 = None
+        if self.n2det is not None:  # P(N2) of the cleaned windows + causal summaries -> extra HGB (and sequence) inputs
+            n2 = self._n2det_rows(x)
+            rows = np.concatenate([rows, n2], axis=1)
         if self.padded is not None:
             rows = apply_padded_edges(rows, *self.padded)
         elif self.bin_edges is not None:
@@ -484,7 +531,7 @@ class HGBStreamModel:
         elif self.kind == "mix3":
             Ph = np.mean([to_grid(hgb_predict_proba(t, rows), e, self.grid)
                           for t, e in zip(self.member_trees, self.member_edges)], axis=0)
-            Ps = self._mix3_probs(f32, x)
+            Ps = self._mix3_probs(f32, x, n2)
             Wh = Ph * self.grid_omega
             Wh /= Wh.sum(axis=1, keepdims=True)
             W = self.alpha * (self._grid_q(Ps[0]) + self._grid_q(Ps[1]) + self._grid_q(Ps[2])) / 3.0 + (1.0 - self.alpha) * Wh
@@ -535,6 +582,7 @@ from gru_cv import TCNNet  # noqa: E402
 from cnn_encoder import Encoder  # noqa: E402
 
 wrapper = (WRAPPER.replace("{tree_body}", tree_body).replace("{smooth_a!r}", repr(args.smooth_a))
+           .replace("{n2det_body}", module_body(ROOT / "scripts" / "n2det_stream.py"))
            .replace("{grid_pi!r}", repr(args.grid_pi))
            .replace("{flat_sd!r}", repr(args.flat_sd)).replace("{flat_same!r}", repr(args.flat_same))
            .replace("{grid_pi_cuts!r}", repr([float(v) for v in args.grid_pi_cuts.split(",")] if args.grid_pi_cuts else []))
@@ -548,7 +596,8 @@ keep = {k: bundle[k] for k in ("model", "feature_names", "bin_edges", "kind", "g
                                "gru_sd", "gru_cfg", "gru_weighted", "gru_omega_b", "gru_edges", "mix_alpha",
                                "gru_baseline_n", "gru_elapsed_clip",
                                "tcn_states", "tcn_mu", "tcn_sd", "tcn_dilations", "cnn_states", "cnn_scale",
-                               "cnn_clip", "cnn_emb", "gemb_states", "gemb_mu", "gemb_sd")
+                               "cnn_clip", "cnn_emb", "gemb_states", "gemb_mu", "gemb_sd",
+                               "n2det_state", "n2det_scale", "n2det_clip", "n2det_emb", "n2det_into")
         if k in bundle}
 if not args.sklearn_trees:
     sys.path.insert(0, str(ROOT / "scripts"))

@@ -66,9 +66,15 @@ Track 03 (Sleep Onset) yarışması için model geliştirme deposudur.
 - Track 03 sealed final AÇIK: 10 Kasım 2026'da açıldı (organizatör maili; yarışma deposu commit
   79b4453 "Track 03 is now open!"). Bitiş 21 Kasım 23:59 CET = 22 Kasım 01:59 Türkiye saati (GMT+3).
   Kesin başlangıç saati için Codabench Phases sekmesi geçerli. Kayıtlar kapandı. Diğer track'ler 5–21 Kasım.
-- 5 gönderim hakkı; 10–21 Kasım = 12 gün, günde en fazla 1. Kullanılan: #1 final540 (10 Kasım, sealed 39.56),
-  #2 mix3_540 (11 Kasım, sealed 38.66), #3 mix3_540_gridpi (12 Kasım, sealed 37.49; çift CV 38.27).
-  5 hakkın 3'ü kullanıldı, KALAN 2. mix3_540_grid.zip (çift CV 38.35) gönderilmedi.
+- Gönderim hakkı: toplam 7 (13 Kasım teknik güncellemesiyle 5'ten 7'ye), günde en fazla 1. Kullanılan: #1 final540
+  (10 Kasım), #2 mix3_540 (11 Kasım; YENİ skorlamada 37.79, 17./123, 3.lük 36.52), #3 mix3_540_gridpi (12 Kasım;
+  eski skorlama 37.49, ızgara artık yasak). 7 hakkın 3'ü kullanıldı, KALAN 4. mix3_540_grid.zip gönderilmedi.
+- 13 KASIM KURAL DEĞİŞİKLİĞİ (2026-competition: codabench/pages/scientific_faq_sleep.md, terms.md): mühürlü değerlendirme
+  güncellendi, bütün gönderimler yeniden skorlandı (eski skorlar 39.56 / 38.66 / 37.49 GEÇERSİZ). Tahminler EEG'den gelmeli;
+  kayıtların etiketlenme/paketlenme düzenliliklerini kullanmak YASAK ve denetimde kontrol ediliyor. Geçen süre (akışın
+  ilk penceresinden beri) serbest. "Akış kaydın başından başlar" ifadesi FAQ'dan kaldırıldı → akış kaydın ortasından
+  başlayabilir; akış başlangıcına dayanıklılık gerekir. SONUÇ: 30 sn onset ızgarası (π, π(D), c/epoch grubu, t mod 30)
+  her yerden çıkarıldı; yeni adaylarda GRID KAPALI; referans ızgarasız mix3 (çift CV 39.40 ↔ mühürlü 37.79).
 - Final sıralama bu aşamadan alınır: takımın en iyi geçerli (eligible) sealed skoru, otomatik;
   ilk 3 takım 22–30 Kasım'da tekrarlanabilirlik denetiminden geçer (eğitim yeniden çalıştırılır,
   skor ±2σ içinde kalmalı).
@@ -85,13 +91,12 @@ Track 03 (Sleep Onset) yarışması için model geliştirme deposudur.
   Görülmemiş kişi CV = train+val üzerinde kişi bazlı 5 katlı GroupKFold. Görülmüş kişi CV = birden
   fazla gecesi olan kişilerin birer gecesi dışarıda, kalan geceleri eğitimde. Açık test setine
   (40 kayıt) sadece son kontrol için bakılır; test'e bakarak seçim/ayar yapılmaz.
-- Gönderim planı: #1 final540 (sealed 39.56), #2 mix3_540 (sealed 38.66), #3 mix3_540_gridpi (sealed 37.49,
-  şu anki en iyi); 5 hakkın 3'ü kullanıldı, kalan 2. Kalan 2 hak YALNIZCA kabul kuralını
-  geçen yeni modeller için; son gönderim en geç 20 Kasım, 21 Kasım yedek gün. Ayrıntı: docs/status.md,
-  docs/submissions_log.md.
-- KABUL KURALI (14 Kasım'dan itibaren): karışım çift CV makro Δ ≤ −0.5 (ref mix3_540_gridpi tarifi 38.27) VE 10 katın
-  ≥ 8'inde iyileşme, YA DA Δ ≤ −0.3 VE 10/10 kat; pencere başına çıkarım maliyeti gridpi'ye göre en fazla +%10 (gridpi sealed süresi 2762.79 s,
-  tahmin ≤ 2500 idi). Eski kural: mix_gru10_hgb'ye (40.28) göre ≥ 0.3 iyileşme VE 10 katın ≥ 8'inde iyileşme;
+- Gönderim planı: #1 final540, #2 mix3_540 (yeni skorlama 37.79, şu anki referans), #3 mix3_540_gridpi (ızgaralı;
+  13 Kasım kuralıyla yasak); 7 hakkın 3'ü kullanıldı, kalan 4. Kalan haklar YALNIZCA kabul kuralını geçen, ızgarasız
+  yeni modeller için; son gönderim en geç 20 Kasım, 21 Kasım yedek gün. Ayrıntı: docs/status.md, docs/submissions_log.md.
+- KABUL KURALI (14 Kasım): karışım çift CV makro Δ ≤ −0.5 (ref IZGARASIZ mix3 tarifi 39.40 ↔ mühürlü 37.79) VE 10 katın
+  ≥ 8'inde iyileşme, YA DA Δ ≤ −0.3 VE 10/10 kat; bütün karışım ölçümleri ızgarasız kararla. Pencere başına çıkarım
+  maliyeti gridpi/mix3'e göre en fazla +%10 (yeni skorlamada mix3_540 1722 s sürdü, sınır 3600). Eski kural: mix_gru10_hgb'ye (40.28) göre ≥ 0.3 iyileşme VE 10 katın ≥ 8'inde iyileşme;
   540 kayıtla eğitilmiş; v4-sealed Docker testini geçmiş.
 - Plan (sırayla, her adım çift CV ile raporlanır):
   A. Çift CV protokolü; v1 ve c5 yeniden ölçülür.
