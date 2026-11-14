@@ -13,8 +13,8 @@ run_epochs 40, 3 seeds; epoch per fold chosen LOFO on the other folds' mean curv
   n2det      : + the 5 fold-specific CNN N2-detector summaries (n2det_feats.py) as per-window extras (like the CNN
                embeddings: fold k uses OUT/n2det_<det>_<proto>_f<k>.npy, out-of-fold for every row)
   old        : no extra group (deterministic rerun of the original inputs)
-Usage: python scripts/b2_seq_cv.py VARIANT ARCH   (VARIANT old | bip | bip+epoch | n2det | bip+n2det ...;
-       ARCH gru | tcn | gemb)
+Usage: python scripts/b2_seq_cv.py VARIANT ARCH [--crop]   (VARIANT old | bip | bip+epoch | n2det | bip+n2det ...;
+       ARCH gru | tcn | gemb; --crop = stream-start augmentation 50 / 35 / 15 % (gru_cv.run_fold cfg["crop"]), name suffix _crop)
   writes OUT/gru_<name>_{unseen,seen}_{preds,proba}.npz, name = uw_n10_<v> | tcn_n10_<v> | cnn3_emb_<v>
   (<v> = VARIANT with "+" -> "_")
 """
@@ -61,6 +61,9 @@ if __name__ == "__main__":
     variant, arch = sys.argv[1], sys.argv[2]
     base, cfg, n_seeds = ARCH[arch]
     name = f"{base}_{variant.replace('+', '_')}"
+    if "--crop" in sys.argv:
+        cfg = dict(cfg, crop=(0.5, 0.35, 0.15))
+        name += "_crop"
     d, recs, F2, gain = extended_inputs(variant)
     protocols = {"unseen": unseen_splits(d), "seen": seen_splits(d)}
     print(f"{name}: window features {F2.shape[1]} -> inputs {2 * F2.shape[1] + 1 + (64 if arch == 'gemb' else 0)}, "

@@ -161,7 +161,11 @@ def run_fold(d, recs, F, gain, tr, te, cfg, seed, stop_epoch=None, extra=None):
     """Train one model; return list over checkpoints of (n_te_windows, 11) probs (rows in d[te] order).
     te=None (final training): same schedule (cosine over cfg["epochs"]), stop after ``stop_epoch``
     epochs, no evaluation; returns (model, mu, sd).
-    extra: optional (len(d), E) per-window inputs appended via seq_inputs (no gain augmentation)."""
+    extra: optional (len(d), E) per-window inputs appended via seq_inputs (no gain augmentation).
+    cfg["crop"] = (p_none, p_small, p_wide) (14 Nov, stream-start augmentation): per epoch and training recording the
+    first k windows are dropped and the inputs rebuilt from the new start (elapsed time and first-2-min baseline restart;
+    targets unchanged): k = 0 with p_none, uniform 1..12 (5-60 s) with p_small, uniform 13..len-12 (up to onset - 60 s)
+    with p_wide (small crop if the recording is too short). Standardisation mu / sd from the uncropped inputs."""
     torch.manual_seed(seed)
     rng = np.random.default_rng(seed)
     tr_recs = [r for r in recs if tr[r[0]]]
@@ -187,6 +191,15 @@ def run_fold(d, recs, F, gain, tr, te, cfg, seed, stop_epoch=None, extra=None):
     Xs = [(x - mu) / sd for x in X_tr]
     Y = [y_all[r] for r in tr_recs]
     W = [w_all[r] for r in tr_recs]
+    crop = cfg.get("crop")
+
+    def crop_k(n):
+        u = rng.random()
+        if u < crop[0]:
+            return 0
+        if u < crop[0] + crop[1] or n - 12 < 13:
+            return int(rng.integers(1, 13))
+        return int(rng.integers(13, n - 12 + 1))
     ce = nn.CrossEntropyLoss(reduction="none")
     te_pos = np.concatenate([np.searchsorted(np.flatnonzero(te), r) for r in te_recs]) if te_recs else None
     out = []
@@ -196,12 +209,17 @@ def run_fold(d, recs, F, gain, tr, te, cfg, seed, stop_epoch=None, extra=None):
         for b in range(0, len(order), BATCH):
             idx = order[b:b + BATCH]
             xb = []
-            for i in idx:  # augmentation: per-recording channel gains (raw part only; rel cancels) + noise
+            yb, wb = [], []
+            for i in idx:  # augmentation: per-recording channel gains (raw part only; rel cancels) + noise [+ start crop]
                 g = rng.normal(0, GAIN_SD, 4).astype(np.float32) @ gain_std
-                xb.append(Xs[i] + g + rng.normal(0, NOISE_SD, Xs[i].shape).astype(np.float32))
+                k = crop_k(len(Xs[i])) if crop else 0
+                xi = Xs[i] if k == 0 else (inputs(tr_recs[i][k:]) - mu) / sd
+                xb.append(xi + g + rng.normal(0, NOISE_SD, xi.shape).astype(np.float32))
+                yb.append(Y[i][k:])
+                wb.append(W[i][k:])
             x = torch.tensor(pad(xb), device=DEV)
-            y = torch.tensor(pad([Y[i][:, None] for i in idx], -1)[..., 0], device=DEV).long()
-            w = torch.tensor(pad([W[i][:, None] for i in idx])[..., 0], device=DEV)
+            y = torch.tensor(pad([v[:, None] for v in yb], -1)[..., 0], device=DEV).long()
+            w = torch.tensor(pad([v[:, None] for v in wb])[..., 0], device=DEV)
             logits, _ = model(x)
             loss = (ce(logits.reshape(-1, logits.shape[-1]), y.clamp(min=0).reshape(-1)) * w.reshape(-1)).sum() / w.sum()
             opt.zero_grad()

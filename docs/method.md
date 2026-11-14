@@ -12,6 +12,12 @@
 - **Çıkarımda yalnız o ana kadarki EEG kullanılır:** her pencere için P(N2) o pencerenin ham örneklerinden hesaplanır;
   nedensel özetler (EMA 30 sn / 2 dk, koşan maksimum, 30 sn artış; `scripts/n2det_stream.py`) yalnız geçmiş pencerelerin
   P'lerinden. Gelecek pencere, kayıt uzunluğu, kayıt sonu, dosya adı veya denek kimliği kullanılmaz.
+- **Eğitim pencereleri, açıkça:** her açık eğitim kaydı için (a) POZİTİF = ilk N2 epoch'unun başlangıcından sonraki
+  60 pencere (onset+0 … onset+300 sn; ham dosyalar bu bölümü içeriyor, akış boru hattı kullanmıyor), (b) NEGATİF = akıştaki,
+  onset'e ≥ 300 sn kalan pencereler, (c) onset'e 0–300 sn kalan pencereler eğitimde KULLANILMAZ (etiket belirsizliği).
+  Dedektör ikili sınıflandırıcıdır; onset zamanı, kayıt uzunluğu veya pencere indeksi girdi değildir.
+- **Çıkarım:** değerlendirici her pencereyi sırayla verir; P(N2) yalnız o pencerenin 640 örneğinden hesaplanır, özetler yalnız
+  önceki pencerelerin P değerlerinden; kaydın sonu/uzunluğu/gelecek pencereler hiçbir hesaba girmez.
 - Sızıntı kuralı: HGB üyeleri eğitilirken eğitim satırlarının P'si fold-dışıdır (kişi bazlı 5 iç kat); CV'de dedektör her katta
   yalnız o katın eğitim kayıtlarıyla eğitildi.
 - Deterministik eğitim: `scripts/repro.set_deterministic` (cuDNN deterministic, `use_deterministic_algorithms`), tohum 0.
