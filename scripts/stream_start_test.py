@@ -80,6 +80,7 @@ def wgrid(P):
 
 
 EL_H = list(build_table_ext(wg, sg)[2]).index("elapsed_s")  # elapsed column of the 817 HGB features
+EMB_N = int(b["cnn_emb"])  # encoder embedding width (GRU-emb extras)
 EL_S = 2 * F.shape[1]  # log1p-elapsed column of the sequence inputs (seq_inputs: [F, F - base, el, extras...])
 
 

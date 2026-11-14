@@ -458,3 +458,22 @@ maks/min'e göre göreli öznitelikler ve 5–20 dk eğim/EMA'lar akışın baş
 göstergesi olarak öğrenmiş. Yakın onset bin'leri ([0,40), [40,90)) en çok zarar görüyor (kesik akışta model uzak tahmin ediyor).
 Bağlam: mix3_540'ın yeni skorlamada 37.79 (yerel 39.40'tan iyi) alması, mühürlü akışların hâlâ kayıt başından başladığını
 düşündürüyor; rastgele başlangıç olsaydı +30 civarı bozulma görünürdü. Karar kullanıcıda (öneri: kayıt başı kırpma artırması).
+
+## 14 Kasım — İş 2 sonucu: HGB(c) + n2det ve ızgarasız karışım (ref ızgarasız mix3 39.40 ↔ mühürlü 37.79)
+
+HGB(c) 4 üye + 5 CNN-dedektör özeti (822 öznitelik, fold-dışı P): **40.76** (unseen 41.61 / seen 39.91), HGB(c) 817'ye
+(42.65) göre **−1.89, 9/10 kat**; Δ katkı −0.31 / +0.51 / −1.60 / −0.49. Süre 4.9 saat (3 üye).
+
+Karışım, ızgarasız karar, α iç içe LOFO ile 0.3–0.8 ızgarasından (`b2_mix.py ... nogrid`, `OUT/b2_mix_n2nogrid.json`):
+
+| Satır | unseen | seen | makro | Δ | iyi kat | Δ katkı [0,40) / [40,90) / [90,300) / [300,600] | α (kat başına) |
+|---|---|---|---|---|---|---|---|
+| ref: HGB(eski)+dizi(eski), α 0.7 | 40.73 | 38.07 | 39.40 | – | – | – | 0.7 ×10 |
+| HGB(n2det)+dizi(eski) | 40.18 | 37.75 | **38.97** | **−0.43** | **8/10** | −0.06 / +0.19 / −0.41 / −0.15 | 0.6 ×10 |
+| HGB(n2det)+dizi(n2det) | 40.06 | 38.63 | 39.34 | −0.06 | 6/10 | +0.04 / +0.51 / −0.56 / −0.04 | 0.6 ×10 |
+| HGB(n2det)+yalnız GRU n2det | 40.04 | 38.03 | 39.03 | −0.37 | 8/10 | 0.00 / +0.35 / −0.50 / −0.22 | 0.6 ×6, 0.7 ×4 |
+
+Kat Δ (en iyi satır): unseen [−1.31, −0.21, −0.56, −0.17, −0.46], seen [+0.22, −0.70, −0.50, −0.78, +0.15].
+**Kabul kuralı geçilmedi** (−0.5 & 8/10 ya da −0.3 & 10/10). α 0.7 → 0.6: HGB ağırlığı 0.3 → 0.4 (HGB artık dizi
+modellerine yaklaştı → HGB'nin akış başlangıcı duyarlılığı karışımda daha ağır basar). dizi(n2det) görülmüş kişilerde yine
+zararlı (+0.56). Kazanç [90,300) ve [300,600]'de; [40,90) kötüleşiyor.

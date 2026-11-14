@@ -79,7 +79,8 @@ göndermeden önce ZIP Docker'da test edilmeli. Claude gönderim yapmaz.
   tutuluyor), a+c −1.08. HGB(c)+bipolar 42.17 (−0.48). **Karışımda kazanç kayboluyor:** en iyi HGB(a) + dizi(eski)
   38.19 (−0.08, 5/10); c dizi girdisinde zararlı (+0.44). Kabul eşiğini geçen tarif yok, yeni ZIP yok.
 - B3: HMC evreleyici Muse'a taşınmıyor (Spearman −0.10 / AUC 0.67 ↔ en iyi öznitelik 0.42 / 0.83) → durduruldu.
-- 14 Kasım kararı (kullanıcı): ızgara tuttuğu için HGB(c) a+c koşuluyor (İş 1); alan içi N2 dedektörü ucuz testi (İş 2).
+- 14 Kasım: İş 1 (HGB a+c) 13 Kasım kuralıyla iptal. İş 2 sonucu: HGB(c)+n2det 40.76 (−1.89, 9/10); ızgarasız karışım en iyi
+  HGB(n2det)+dizi(eski) 38.97 (−0.43, 8/10, α 0.6) → kabul kuralı GEÇİLMEDİ (−0.5&8/10 ya da −0.3&10/10). Kullanıcı kararı bekleniyor.
   Yeni aday kuralı: pencere başına çıkarım ≤ gridpi +%10 (gridpi sealed süresi 2762.79 s; tahmin ≤ 2500 idi).
 - İş 2 (alan içi N2 dedektörü, 14 Kasım, ara sonuçlar; betikler `scripts/n2det_*.py`):
   - Ham dosyalarda onset sonrası tam 300 s veri var (540/540, NaN yok); ham değer × 0.1 = akış penceresi (1e-7).
