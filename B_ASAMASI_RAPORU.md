@@ -402,3 +402,37 @@ Yerel CPU, makine boşken, 13 Kasım 06:55; tek iş parçacığı mikro ölçüm
 | c grubu ek: epoch akışı | 0.02 |
 
 Ölçümler arası oynama (25 ↔ 34 ms) koşu koşullarından; bileşen ekleri bu oynamanın altında. Kabul eşiğini geçen tarif olmadığı için yeni ZIP hazırlanmadı.
+
+## 14 Kasım — Kural değişikliği sonrası "paketleme düzenliliği" taraması (yalnız liste; hiçbir şey kaldırılmadı)
+
+Tarama: gönderilen `submissions/mix3_540_gridpi/submission.py` ve eğitim/öznitelik kodu (`causal_features.py`, `gru_cv.py`,
+`dist_hgb.py`, `ensemble_dist.py`, `stream_utils.py`, `features_b2.py`, `n2det_*.py`, `decision_layer.py`, `b1_grid_pi.py`).
+
+**Yasak kapsamına giren (kaldırılacak / yeni adaylarda yok):**
+1. 30 sn onset ızgarası — wrapper `GRID_PI`, `GRID_PI_CUTS / VALUES`, `grid_tables / grid_slots / slot_median / _grid_decide`
+   (`submission.py` 364–413, 577, 608–613, 767–772): "onset = kayıt başından 30 sn'nin katı" varsayımı + geçen sürenin 5 sn'nin
+   katı olması (`abs(el - 5*round(el/5))`). Gönderilen #3 (gridpi) ve gönderilmeyen mix3_540_grid bunu kullanıyor. mix3_540 (#2)
+   kullanmıyor (GRID kapalı).
+2. π(D) tablosu (`b1_grid_pi.pi_table`, `decision_layer.exact_table / to_slots`): onset'in 30 sn ızgarasında olma oranı, eğitim
+   onset'lerinden; yalnız CV/karar katmanında.
+3. B2 "epoch" (c) grubu (`features_b2.B2Stream(epoch_group=True)`, `b2_ablation.b2_table(("epoch",))`): geçen süre mod 30 fazı
+   ve 30 sn epoch hizalı özetler. Yalnız deneylerde; hiçbir gönderimde yok. İş 1 (HGB a+c) iptal edildi.
+
+**Şüpheli görülebilecek ama bence eğitim-kümesi tanımı / serbest girdi (kaldırılmadı, karar sende):**
+4. N2 dedektörü eğitim kümesi: pozitifler açık eğitim kayıtlarının onset sonrası 300 sn'si (`n2det_extract.py`: her ham dosya
+   onset'ten tam 300 sn sonra bitiyor, `assert x.shape[1] - o == N_POST*WIN`), negatifler kalan ≥ 300 sn (`n2det_cv.NEG_MIN`).
+   Çıkarımda yalnız o pencerenin EEG'si kullanılır; "dosya onset'ten 300 sn sonra biter" bilgisi yalnız etiketli pencere seçimi.
+5. Geçen süre: HGB `elapsed_s` özniteliği (`CausalFeatureStream.n_seen * step_s`), dizi girdisi `log1p(min(t*5, 1500))`
+   (`gru_cv.ELAPSED_CLIP`), wrapper `self.gru_t * 5.0` — akışın ilk penceresinden itibaren sayılıyor; FAQ'ya göre serbest.
+   NOT: `gru_t * 5.0` ve `n_seen * step_s` pencere uzunluğunu 5 sn varsayıyor; `meta`/pencere boyutundan geliyor (step_s), GRU
+   tarafında sabit 5.0 (eğitimle aynı).
+6. İlk-2-dk tabanı (`gru_baseline_n = 24` pencere) ve 30 s / 2 dk / 5 dk EMA'lar, 10/20 dk eğimler (`DYN_EMA_S`,
+   `LONG_WINDOWS_S`): akış başlangıcına göre nedensel; düzenlilik değil ama akış ortadan başlarsa dağılımı kayar →
+   `stream_start_test.py` ile ölçülüyor.
+7. Sınıf sınırları `VARIANTS["B"]` ve hedefin 600'de kırpılması: etiket tanımı (serbest, senin notun).
+8. Dağılım kararı: sınıf içi temsilci = eğitimdeki aralık içi medyan (`class_stats`), ω = metrik ağırlıkları: etiket dağılımından,
+   paketleme düzenliliği değil.
+9. Giriş temizliği eşikleri (std < 0.1 µV, > %90 değişmeyen örnek): sinyal özelliği.
+
+Kayıt uzunluğu / kayıt sonu / dosya adı / denek kimliği hiçbir yerde kullanılmıyor (wrapper yalnız `meta["sfreq"]`,
+`meta["ch_names"]` ve batch'leri okuyor).
