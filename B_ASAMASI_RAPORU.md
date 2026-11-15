@@ -612,3 +612,21 @@ Okuma: tohum ortalaması, bipolar girdi ve ilk-30-sn sınıfı tek başına gür
 sınıflı eğitimin "yakınlık" skorunda: Spearman −0.479 → −0.52 (aradaki pencereleri kalan-süre sınıfıyla kullanmak sıralamayı
 iyileştiriyor), AUC'ler +0.006. Çok sınıflıda P(onset sonrası) tek başına tabandan kötü; yani kazanç ikinci çıktıdan geliyor.
 Sonraki adım (yapılmadı): çok sınıflı dedektörün iki çıktısı (P ve yakınlık) için iç-kat fold-dışı değerler + B üyesi ablasyonu.
+
+## 15 Kasım — İş 3, 2. aşama: çok sınıflı dedektörle B üyesi ablasyonu (`scripts/n2det_v2_ablation.py`, `OUT/n2det_v2_ablation.json`)
+
+Çok sınıflı dedektör (5 sınıf: ≥ 300 / 150–300 / 60–150 / 0–60 / onset sonrası), 3 tohum ortalaması, iç-kat fold-dışı çıktılar
+(`n2det_v2_inner.py`; tohum 0'ın LOFO epoch'ları 1. aşamayla aynı). B üyesi, 817 öznitelik + özetler, çift CV.
+
+| Satır | unseen | seen | çift CV | Δ ref (1) | iyi kat | Δ katkı [0,40) / [40,90) / [90,300) / [300,600] |
+|---|---|---|---|---|---|---|
+| B (817) | 44.94 | 41.47 | 43.20 | | | |
+| (1) B + eski dedektör özetleri (ref) | 41.67 | 40.06 | 40.86 | – | – | – |
+| (2) B + yakınlık + P özetleri (10) | 40.92 | 39.14 | 40.03 | −0.84 | 8/10 | +0.07 / −0.20 / −0.30 / −0.41 |
+| **(3) B + yalnız yakınlık özetleri (5)** | **40.74** | **38.81** | **39.77** | **−1.09** | **9/10** | −0.01 / −0.28 / −0.27 / −0.53 |
+
+Kat Δ (3): unseen [−0.00, +0.40, −2.83, −1.54, −0.70], seen [−1.57, −1.56, −0.79, −1.14, −1.18]. İki satır da kuralı geçiyor
+(Δ ≤ −0.15 ve ≥ 7/10); (3) daha iyi ve daha ucuz (5 öznitelik) → 4 üye genişletmesi **yakınlık özetleriyle** başladı (22:39).
+P'yi eklemek zarar veriyor (−1.09 → −0.84). Kazanç seen'de tutarlı (5/5), unseen'de iki katta sıfır/küçük kayıp.
+Uyarılar: (a) eski dedektörde B üyesindeki −2.34, 4 üyede −1.89'a, karışımda −0.43'e inmişti; buradaki −1.09 karışıma küçülerek
+yansıyacak. (b) Çıkarımda 3 tohum = pencere başına 3 dedektör geçişi (eskisi 1) → +%10 süre kuralı paketlemede ölçülecek.
