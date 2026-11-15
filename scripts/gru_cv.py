@@ -162,6 +162,7 @@ def run_fold(d, recs, F, gain, tr, te, cfg, seed, stop_epoch=None, extra=None):
     te=None (final training): same schedule (cosine over cfg["epochs"]), stop after ``stop_epoch``
     epochs, no evaluation; returns (model, mu, sd).
     extra: optional (len(d), E) per-window inputs appended via seq_inputs (no gain augmentation).
+    or a function rows -> (len(rows), E) (e.g. detector summaries re-streamed from rows[0], so a start crop restarts them).
     cfg["crop"] = (p_none, p_small, p_wide) (14 Nov, stream-start augmentation): per epoch and training recording the
     first k windows are dropped and the inputs rebuilt from the new start (elapsed time and first-2-min baseline restart;
     targets unchanged): k = 0 with p_none, uniform 1..12 (5-60 s) with p_small, uniform 13..len-12 (up to onset - 60 s)
@@ -175,8 +176,8 @@ def run_fold(d, recs, F, gain, tr, te, cfg, seed, stop_epoch=None, extra=None):
     w_all[np.flatnonzero(tr)] = window_weights(dtr.reset_index(drop=True)) if cfg["weighted"] else 1.0
     y_all = to_class(d.target.to_numpy(), EDGES)
 
-    def inputs(r):
-        return seq_inputs(F[r], None if extra is None else extra[r])
+    def inputs(r):  # extra may be a function rows -> extras computed from rows[0] (causal summaries restart at a crop)
+        return seq_inputs(F[r], None if extra is None else (extra(r) if callable(extra) else extra[r]))
 
     X_tr = [inputs(r) for r in tr_recs]
     allx = np.concatenate(X_tr)

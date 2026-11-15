@@ -6,7 +6,7 @@ from ALPHAS, and also without the grid (pi = 0, decision_layer.predict) to see w
 grid decision or overlaps it. Reference = mix3 + pi(D) (38.27, saved b1pi_bins4 preds; reproduced here).
 Scores: official binned_mae; Δ fold-paired vs the reference; contributions; on-grid / off-grid recordings.
 
-Usage: python scripts/b2_mix.py [ROWS TAG [nogrid]]   (writes OUT/b2_mix[_TAG].json, OUT/b2mix_<row>_{unseen,seen}_preds.npz)
+Usage: python scripts/b2_mix.py [ROWS TAG [nogrid]] [--ref2=HGB:SEQ]   (writes OUT/b2_mix[_TAG].json, OUT/b2mix_<row>_{unseen,seen}_preds.npz)
   nogrid (14 Nov rule change: the 30 s onset grid is banned): only the ungridded decision is evaluated and the
   reference is the ungridded mix3 recipe (HGB(old) + seq(old), alpha 0.7 fixed = 39.40, sealed 37.79).
   ROWS = comma-separated hgb:seq pairs, e.g. "a+c:old,a+c:a"; the reference row (old, old) is always added.
@@ -31,9 +31,11 @@ SEQ = {"old": SEQ_OLD, "a": [f"{s}_bip" for s in SEQ_OLD], "a+c": [f"{s}_bip_epo
        "n": [f"{s}_n2det" for s in SEQ_OLD],  # n = CNN N2-detector summaries (Work 2)
        "nG": ["uw_n10_n2det", "tcn_n10", "cnn3_emb"],  # only the GRU with n2det, TCN / GRU-emb old
        "crop": [f"{s}_old_crop" for s in SEQ_OLD],  # stream-start crop augmentation (14 Nov), old inputs
-       "cropG": ["uw_n10_old_crop", "tcn_n10", "cnn3_emb"]}  # only the GRU crop-augmented
+       "cropG": ["uw_n10_old_crop", "tcn_n10", "cnn3_emb"],  # only the GRU crop-augmented
+       "cropGc": ["uw_n10_n2c_crop", "tcn_n10", "cnn3_emb"]}  # GRU crop-augmented + multi-class closeness inputs (15 Nov)
 HGB = {"old": "dyn_maxmin_spec_eye", "a": "dyn_maxmin_spec_eye_bip", "a+c": "dyn_maxmin_spec_eye_bip+epoch",
-       "n": "dyn_maxmin_spec_eye_n2det", "nB": "dyn_maxmin_spec_eye_n2Bonly"}  # nB: only the B member with n2det (indicator)
+       "n": "dyn_maxmin_spec_eye_n2det", "nB": "dyn_maxmin_spec_eye_n2Bonly",
+       "n2c": "dyn_maxmin_spec_eye_n2c_crop"}  # 15 Nov: 4 members + multi-class closeness + crop-augmented table (ens_crop_cv.py c)  # nB: only the B member with n2det (indicator)
 ROWS = [("old", "old"), ("a", "a"), ("a", "a+c"), ("old", "a"), ("a", "old"), ("old", "a+c")]
 ALPHAS = [0.3, 0.4, 0.5, 0.6, 0.7, 0.8]  # nested-LOFO grid (14 Nov: 0.3-0.8, HGB may now beat the sequence models)
 CUTS = [900.0, 1100.0, 1300.0]
@@ -117,16 +119,32 @@ if __name__ == "__main__":
         gc.collect()
     r0 = E["ref"]
     rows = {k: summarise(e, r0) for k, e in E.items()}
+    REF2 = next((a.split("=", 1)[1] for a in sys.argv if a.startswith("--ref2=")), None)  # e.g. n:cropG (candidate 1, 38.86)
+    rows2 = {}
+    if REF2:
+        hg2, sq2 = REF2.split(":")
+        r2 = E[f"HGB({hg2}) + seq({sq2}) nogrid"]
+        rows2 = {k: summarise(e, r2) for k, e in E.items() if k != "ref"}
+        res["ref2"] = dict(row=REF2, macro=r2["macro"]["mean"])
     for k, v in rows.items():
         base = k.rsplit(" ", 1)[0]
         if base in res:
             res[base][k.rsplit(" ", 1)[1]] = v
     res["ref"] = rows["ref"]
+    for k, v in rows2.items():
+        base = k.rsplit(" ", 1)[0]
+        if base in res:
+            res[base][k.rsplit(" ", 1)[1] + "_vs_ref2"] = v
     print(f"\n{'row':34s} unseen   seen  macro      Δ better | Δ contrib [0,40) [40,90) [90,300) [300,600] | on-grid  off-grid")
     for k, v in rows.items():
         print(f"{k:34s} {v['unseen']:6.2f} {v['seen']:6.2f} {v['macro']:6.2f} {v['delta']:+6.2f} {v['better']:2d}/10 | "
               + " ".join(f"{x:+8.2f}" for x in v["d_contrib"]) + f" | {v['on_grid']:6.2f}  {v['off_grid']:6.2f}")
         print(f"{'':34s} folds Δ unseen {np.round(v['d_unseen'], 2).tolist()} seen {np.round(v['d_seen'], 2).tolist()}")
+    if rows2:
+        print(f"\nΔ vs ref2 = HGB({hg2}) + seq({sq2}) nogrid ({res['ref2']['macro']:.2f}):")
+        for k, v in rows2.items():
+            print(f"{k:34s} {v['macro']:6.2f} {v['delta']:+6.2f} {v['better']:2d}/10 | " + " ".join(f"{x:+8.2f}" for x in v["d_contrib"])
+                  + f" | folds Δ unseen {np.round(v['d_unseen'], 2).tolist()} seen {np.round(v['d_seen'], 2).tolist()}")
     # c effect: (a + c) minus (a), with and without the grid decision, on-grid / off-grid recordings
     print("\nc-group effect (sequence inputs a+c minus a), macro W-bMAE differences:")
     c_eff = {}

@@ -37,7 +37,7 @@ spec = importlib.util.spec_from_file_location("submission", sub_dir / "submissio
 sub = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(sub)
 bundle = joblib.load(sub_dir / "model.joblib")
-assert bundle.get("n2det_state") is not None, "bundle has no N2 detector"
+assert bundle.get("n2det_state") is not None or bundle.get("n2det_states") is not None, "bundle has no N2 detector"
 wg, sg, _ = ABLATIONS["dyn_maxmin_spec_eye"]
 df, _, _ = build_table_ext(wg, sg)
 zb = np.load(SAVE / "features_base.npz")
@@ -74,7 +74,10 @@ for r in recs:
     # batched reference of the summaries: detector P on the clean windows -> N2Summary
     with torch.no_grad():
         xr = torch.clamp(torch.tensor(x) / model.n2_scale, -model.n2_clip, model.n2_clip)
-        p = torch.softmax(model.n2det(xr)[0], -1)[:, 1].numpy().astype(np.float64)
+        if isinstance(model.n2det, list):  # multi-class detector: seed-mean closeness
+            p = torch.stack([torch.softmax(n(xr)[0], -1) @ model.n2_w for n in model.n2det]).mean(0).numpy().astype(np.float64)
+        else:
+            p = torch.softmax(model.n2det(xr)[0], -1)[:, 1].numpy().astype(np.float64)
     st = sub.N2Summary(5.0)
     ref = np.stack([st.update(v) for v in p]).astype(np.float32)
     same = bool(np.abs(ref - s0).max() < 1e-5)

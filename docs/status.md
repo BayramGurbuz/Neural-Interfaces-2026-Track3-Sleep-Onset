@@ -23,6 +23,14 @@
   çift CV) → `OUT/gru_uw_n10_n2c_crop_*`; (2) `train_n2det_final.py detmc` (çok sınıflı dedektör 540, 3 tohum, fold-dışı yakınlık)
   → `SAVE/n2det_final/detmc.joblib`, `close_oof.npy`; (3) `train_mix3_final.py --all --deterministic --tag=det` → `SAVE/mix3det_all`
   (TCN / kodlayıcı / GRU-emb deterministik, artırmasız). Kırpmalı deterministik üçlü: `SAVE/mix3crop_all`. Log `OUT/cand2_gpu_chain.log`.
+- **15 Kasım 23:07 düzeltme:** ilk GPU zinciri durduruldu; GRU kırpma artırmasında yakınlık özetleri tam kayıttan hesaplanmıştı
+  (kırpma başı geçmişi sızıyordu). `gru_cv.run_fold` artık ek girdiyi fonksiyon olarak alıyor, özetler kırpılan başlangıçtan yeniden
+  akıtılıyor; zincir 2b (train+val dedektör) eklenerek yeniden başlatıldı.
+- **Seçim zinciri `scripts/cand2_select_chain.sh`** (genişletme + GPU zinciri bitince otomatik): karışım satırları
+  `b2_mix.py "n:cropG,n2c:cropG,n2c:crop,n2c:cropGc" cand2 nogrid --ref2=n:cropG` → `OUT/b2_mix_cand2.{json,log}`; GRU+yakınlık final
+  (`train_gru_n2c.py` [--trainval] → `SAVE/gru_n2c_{all,tv}`); HGB final (`train_n2det_final.py hgbmc` [--trainval] →
+  `SAVE/ens_c_{all,tv}_n2c_crop`); dayanıklılık `stream_start_test.py ... --tag=_cand2_<satır>` → `OUT/stream_start_test_cand2_*.json`.
+  Log `OUT/cand2_select_chain.log`. Sonra: seçim (kural yukarıda), `train_n2det_final.py mix --ens=ens_c_all_n2c_crop ...`, paketleme.
 - **Sonra (aday 2 seçimi, yeniden eğitim yok; ref 39.40 ve 38.86):** karışım satırları HGB(yeni 4 üye) × dizi {yalnız GRU artırmalı + TCN/GRU-emb
   eski; üçü artırmalı}, α iç içe LOFO 0.3–0.8; her satır için çift CV k=0 ve dayanıklılık (k = 1, 3, 6, 12, 24, 60, rastgele; karışım,
   dizi-only, HGB-only). Aday 2 = k=0'da en iyi ve k=6 karışım zararı < +1.0; çelişirse iki satır raporlanır, karar kullanıcıda.

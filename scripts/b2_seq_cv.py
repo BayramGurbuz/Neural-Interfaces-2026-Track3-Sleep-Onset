@@ -12,7 +12,8 @@ run_epochs 40, 3 seeds; epoch per fold chosen LOFO on the other folds' mean curv
 
   n2det      : + the 5 fold-specific CNN N2-detector summaries (n2det_feats.py) as per-window extras (like the CNN
                embeddings: fold k uses OUT/n2det_<det>_<proto>_f<k>.npy, out-of-fold for every row)
-  n2c        : + the 5 summaries of the multi-class detector's closeness (3-seed mean, n2det_feats.fold_features_mc; Work 3)
+  n2c        : + the 5 summaries of the multi-class detector's closeness (3-seed mean; Work 3), re-streamed from the first
+               window the model sees (a start crop restarts them, as at inference)
   old        : no extra group (deterministic rerun of the original inputs)
 Usage: python scripts/b2_seq_cv.py VARIANT ARCH [--crop]   (VARIANT old | bip | bip+epoch | n2det | bip+n2det ...;
        ARCH gru | tcn | gemb; --crop = stream-start augmentation 50 / 35 / 15 % (gru_cv.run_fold cfg["crop"]), name suffix _crop)
@@ -34,7 +35,7 @@ from b2_ablation import b2_table  # noqa: E402
 from dist_hgb import class_stats, decide  # noqa: E402
 from dual_cv import OUT, seen_splits, unseen_splits  # noqa: E402
 from gru_cv import CONFIGS, EDGES, load_inputs, run_fold  # noqa: E402
-from n2det_feats import fold_features, fold_features_mc  # noqa: E402
+from n2det_feats import MC_SEEDS, fold_features, summaries  # noqa: E402
 from stream_utils import summarize  # noqa: E402
 from train_hgb import SAVE  # noqa: E402
 
@@ -78,16 +79,19 @@ if __name__ == "__main__":
             runs = []
             if k == 0:
                 n2 = [fold_features(proto, j, recs) for j in range(len(splits))] if "n2det" in variant else None
-                n2c = [fold_features_mc(proto, j, recs) for j in range(len(splits))] if "n2c" in variant.split("+") else None
+                n2c = ([np.mean([np.load(OUT / f"n2det_multi_s{s_}_{proto}_f{j}.npz")["close"] for s_ in MC_SEEDS], axis=0)
+                        for j in range(len(splits))] if "n2c" in variant.split("+") else None)  # per-window closeness, 3-seed mean
             for s in range(n_seeds):
                 ex = []
                 if arch == "gemb":
                     ex.append(np.load(OUT / f"cnn_cnn3_{proto}_f{k}_s{s}.npz")["emb"].astype(np.float32))
                 if "n2det" in variant.split("+"):
                     ex.append(n2[k])
-                if "n2c" in variant.split("+"):
-                    ex.append(n2c[k])
                 extra = np.concatenate(ex, axis=1) if ex else None
+                if "n2c" in variant.split("+"):  # summaries re-streamed from the first row given (start crop restarts them)
+                    def extra(r, st=extra, v=n2c[k]):
+                        sm = summaries(v[r], [np.arange(len(r))])
+                        return sm if st is None else np.concatenate([st[r], sm], axis=1)
                 runs.append(run_fold(d, recs, F2, gain, tr, te, cfg, s, extra=extra))
             dte = d[te].reset_index(drop=True)
             _, omega = class_stats(d[tr].reset_index(drop=True), EDGES)

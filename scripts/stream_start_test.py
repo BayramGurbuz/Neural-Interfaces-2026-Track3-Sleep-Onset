@@ -11,7 +11,10 @@ Scores (official per-recording W-bMAE = bin-weighted mean of per-bin MAEs, mean 
   Δ = (a) - (b) isolates the model's degradation from the change of scored windows.
 Checks: the re-streamed 817 features at k = 0 reproduce the cached table; k = 0 reproduces the saved mix3 test score.
 
-Usage: python scripts/stream_start_test.py [--bundle=mix3] [--gru-from=DIR] [--tag=T]
+Usage: python scripts/stream_start_test.py [--bundle=mix3] [--gru-from=DIR] [--hgb-from=DIR --n2-from=DIR] [--alpha=A] [--tag=T]
+  --hgb-from / --n2-from (15 Nov): HGB(c) members with detector summaries (e.g. ens_c_tv_n2c_crop) and the detector outputs of the
+  test windows (e.g. n2det_final_tv: close_full.npy); summaries re-streamed from the truncation point; a GRU trained with them
+  (gru_n2c, train_gru_n2c.py) gets them as inputs too.
   --bundle: SAVE/<dir>/model.joblib to evaluate (default mix3 = train+val, no augmentation); --gru-from: take only the
   GRU-uw states (and their mu / sd) from another bundle (e.g. the crop-augmented one); -> OUT/stream_start_test<T>.json
 """
@@ -32,17 +35,25 @@ from decision_layer import RANGE_NAMES, WEIGHTS, official_rec_scores, per_record
 from dual_cv import OUT
 from ensemble_dist import GRID, to_grid
 from gru_cv import ARCHS, CONFIGS, seq_inputs
+from n2det_feats import summaries
 from train_hgb import SAVE
 
 KS = {"k0": 0, "k1_5s": 1, "k3_15s": 3, "k6_30s": 6, "k12_60s": 12, "k24_2min": 24, "k60_5min": 60, "random": None}
 ARG = {a.split("=", 1)[0]: a.split("=", 1)[1] for a in sys.argv[1:] if "=" in a}
 BUNDLE, GRU_FROM, TAG = ARG.get("--bundle", "mix3"), ARG.get("--gru-from"), ARG.get("--tag", "")
+HGB_FROM, N2_DIR = ARG.get("--hgb-from"), ARG.get("--n2-from")  # 15 Nov: HGB(c) with detector summaries; detector outputs dir
 BIN_NAMES = ["[0,40)", "[40,90)", "[90,300)", "[300,600]"]
 
 b = joblib.load(SAVE / BUNDLE / "model.joblib")
 if GRU_FROM:
     bg = joblib.load(SAVE / GRU_FROM / "model.joblib")
-    b.update(gru_states=bg["gru_states"], gru_mu=bg["gru_mu"], gru_sd=bg["gru_sd"])
+    b.update(gru_states=bg["gru_states"], gru_mu=bg["gru_mu"], gru_sd=bg["gru_sd"], gru_n2c=bool(bg.get("gru_n2c")))
+if HGB_FROM:  # HGB(c) part (members, bins, grid weights) from another bundle; its detector summaries need --n2-from
+    bh = joblib.load(SAVE / HGB_FROM / "model.joblib")
+    b.update({k: bh[k] for k in ("models", "member_edges", "bin_edges", "grid_omega")})
+    b["hgb_n2"] = bh.get("n2det_states") is not None or bh.get("n2det_state") is not None
+if "--alpha" in ARG:
+    b["mix_alpha"] = float(ARG["--alpha"])
 wg, sg, _ = ABLATIONS["dyn_maxmin_spec_eye"]
 df, X817, _ = build_table_ext(wg, sg)
 mt = (df.split == "test").to_numpy()
@@ -56,6 +67,11 @@ target = d.target.to_numpy().astype(np.float64)
 onset = {i: float(d.stop[r[-1]] + target[r[-1]]) for i, r in enumerate(recs)}
 B, omega_b, alpha = np.asarray(b["gru_edges"], np.float64), np.asarray(b["gru_omega_b"], np.float64), float(b["mix_alpha"])
 cfg = CONFIGS["uw"]
+# detector output per test window (full train+val model, out-of-sample): closeness (multi-class) or P (binary), from N2_DIR
+N2V = None
+if N2_DIR:
+    N2V = np.load(SAVE / N2_DIR / ("close_full.npy" if (SAVE / N2_DIR / "close_full.npy").exists() else "p_full.npy"))[mt].astype(np.float64)
+assert not (b.get("hgb_n2") or b.get("gru_n2c")) or N2V is not None, "bundle uses detector summaries: give --n2-from"
 stream = CausalFeatureStream(5.0, tuple(b["groups"]), core_index(range(4)))
 
 
@@ -101,22 +117,25 @@ def predict_from(r, k, true_elapsed=False):
     Fw = F[rows]
     stream.reset()
     H = np.stack([stream.update(fi.astype(np.float64)) for fi in Fw]).astype(np.float32)
-    xg = seq_inputs(Fw)
+    S2 = summaries(N2V[rows], [np.arange(len(rows))]) if N2V is not None else None  # re-streamed from window k
+    xg = seq_inputs(Fw, S2 if b.get("gru_n2c") else None)
+    xt = seq_inputs(Fw) if b.get("gru_n2c") else xg  # TCN never takes the detector inputs
     if true_elapsed:
         H[:, EL_H] = (k + np.arange(1, len(rows) + 1)) * 5.0
-        xg[:, EL_S] = np.log1p(np.minimum((k + np.arange(1, len(rows) + 1)) * 5.0, 1500.0))
-    Xb = apply_bin_edges(H, b["bin_edges"])
+        for x in {id(xg): xg, id(xt): xt}.values():
+            x[:, EL_S] = np.log1p(np.minimum((k + np.arange(1, len(rows) + 1)) * 5.0, 1500.0))
+    Xb = apply_bin_edges(np.concatenate([H, S2], axis=1) if b.get("hgb_n2") else H, b["bin_edges"])
     Ph = np.mean([to_grid(m.predict_proba(Xb), e) for m, e in zip(b["models"], b["member_edges"])], axis=0)
     Wh = Ph * np.asarray(b["grid_omega"])
     Wh /= Wh.sum(1, keepdims=True)
     with torch.no_grad():
         embs = [infer(e, torch.tensor(raw[rows]), torch.arange(len(rows)))[1].numpy().astype(np.float32) for e in encs]
     qg = wgrid(seq_mean(grus, (xg - b["gru_mu"]) / b["gru_sd"]))
-    qt = wgrid(seq_mean(tcns, (xg - b["tcn_mu"]) / b["tcn_sd"]))
+    qt = wgrid(seq_mean(tcns, (xt - b["tcn_mu"]) / b["tcn_sd"]))
     xe = [seq_inputs(Fw, E) for E in embs]
     if true_elapsed:
         for x in xe:
-            x[:, EL_S] = xg[:, EL_S]
+            x[:, EL_S] = xt[:, EL_S]
     qe = wgrid(np.mean([seq_mean([g], (x - b["gemb_mu"]) / b["gemb_sd"]) for g, x in zip(gembs, xe)], axis=0))
     qs = (qg + qt + qe) / 3
     ones = np.ones(Wh.shape[1])

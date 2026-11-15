@@ -310,7 +310,11 @@ class HGBStreamModel:
         # raw window -> P(N2); N2Summary turns it into 5 causal features appended to the HGB inputs (and, for the
         # components named in n2det_into, to the sequence inputs as value and difference to the first-2-min mean).
         self.n2det, self.n2_into = None, ()
-        if bundle.get("n2det_state") is not None:
+        if bundle.get("n2det_states") is not None:  # Work 3: multi-class detector, several seeds; output = mean closeness
+            ncls, first = int(bundle["n2det_ncls"]), int(bundle["n2det_first_pos"])
+            self.n2det = [load_net(Encoder(ncls, int(bundle.get("n2det_emb", 32))), st) for st in bundle["n2det_states"]]
+            self.n2_w = torch.tensor(np.minimum(np.arange(ncls), first) / first, dtype=torch.float32)
+        elif bundle.get("n2det_state") is not None:
             self.n2det = load_net(Encoder(2, int(bundle.get("n2det_emb", 32))), bundle["n2det_state"])
             self.n2_scale, self.n2_clip = float(bundle["n2det_scale"]), float(bundle["n2det_clip"])
             self.n2_into = tuple(bundle.get("n2det_into", ()))
@@ -362,10 +366,14 @@ class HGBStreamModel:
         return slot_median(self.alpha * q / len(Ps) + (1.0 - self.alpha) * h / h.sum())
 
     def _n2det_rows(self, x):
-        """x: (B, C, T) cleaned raw windows, time order -> (B, 5) float32 N2-detector summaries."""
+        """x: (B, C, T) cleaned raw windows, time order -> (B, 5) float32 N2-detector summaries (of P(N2) for the binary
+        detector, of the seed-mean closeness = expected class index / (number of pre-onset classes) for the multi-class one)."""
         with torch.no_grad():
             xr = torch.clamp(torch.tensor(x, dtype=torch.float32) / self.n2_scale, -self.n2_clip, self.n2_clip)
-            p = torch.softmax(self.n2det(xr)[0], -1)[:, 1].numpy().astype(np.float64)
+            if isinstance(self.n2det, list):
+                p = torch.stack([torch.softmax(net(xr)[0], -1) @ self.n2_w for net in self.n2det]).mean(0).numpy().astype(np.float64)
+            else:
+                p = torch.softmax(self.n2det(xr)[0], -1)[:, 1].numpy().astype(np.float64)
         if self.n2_summ is None:
             self.n2_summ = N2Summary(self.stream.step_s)
         out = []
@@ -597,7 +605,8 @@ keep = {k: bundle[k] for k in ("model", "feature_names", "bin_edges", "kind", "g
                                "gru_baseline_n", "gru_elapsed_clip",
                                "tcn_states", "tcn_mu", "tcn_sd", "tcn_dilations", "cnn_states", "cnn_scale",
                                "cnn_clip", "cnn_emb", "gemb_states", "gemb_mu", "gemb_sd",
-                               "n2det_state", "n2det_scale", "n2det_clip", "n2det_emb", "n2det_into")
+                               "n2det_state", "n2det_scale", "n2det_clip", "n2det_emb", "n2det_into",
+                               "n2det_states", "n2det_ncls", "n2det_first_pos")
         if k in bundle}
 if not args.sklearn_trees:
     sys.path.insert(0, str(ROOT / "scripts"))
