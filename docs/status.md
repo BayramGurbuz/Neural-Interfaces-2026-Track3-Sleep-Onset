@@ -1,4 +1,18 @@
-# Proje durumu (son güncelleme: 2026-11-11)
+# Proje durumu (son güncelleme: 2026-11-15)
+
+## ŞU AN (15 Kasım akşamı)
+- **Aday 1 HAZIR, kullanıcı gönderecek:** `submissions/mix3_n2det_cropg_540.zip`, SHA-256
+  aed6a9a61ca0003282eb123570f74e4ca718a575abdaee60dde63371899802f9. Tarif (A): HGB(n2det) + GRU kırpma artırmalı/deterministik +
+  TCN ve GRU-emb mix3_all'dan, α 0.6, GRID kapalı. Çift CV 38.86 (−0.54, 8/10) → beklenen mühürlü ≈ 37.25. Bütün yerel testler
+  geçti (akış ↔ toplu, NaN / düz kanal, Docker v3 ×2 aynı skor 31.8833, süre mix3_540'ın 0.96–1.08 katı). Ayrıntı:
+  `docs/submissions_log.md` son bölüm, `docs/method.md` "Aday 1".
+- Gönderimden sonra: mühürlü skoru ve üç eski gönderimin yeni skorlarını submissions_log.md'ye yaz; CLAUDE.md'de hak sayısını güncelle.
+- **Aday 2 hazırlığı:** HGB B üyesi kırpma artırması ön kontrolü bitti (çift CV k=0 Δ −0.18, 6/10; HGB-only rastgele başlangıç zararı
+  +93 → +4.3; `B_ASAMASI_RAPORU.md` 15 Kasım). Karışım dayanıklılığı (üç dizi artırmalı + B artırmalı): `scripts/hgb_crop_mix_robust.py`
+  → `OUT/hgb_crop_mix_robust.json`. 4 üyeye genişletme (n2det + artırmalı tablo) kullanıcı onayı bekliyor (tahmin ≈ 10–15 saat CPU).
+- **İş 3 (dedektörü geliştirme):** 15 Kasım'da başladı; 1. aşama = varyant taraması (`scripts/n2det_v2.py`: 3 tohum, bipolar girdi,
+  ilk-30-sn sınıfı, çok sınıflı, hepsi) dedektör akıl sağlığı ölçütleriyle → `OUT/n2det_v2.json`. Kazanan varyant B-üyesi ablasyonuna girer.
+- 15 Kasım 17:44'te makine yeniden başladı (çalışan iş kaybı yok; hepsi 14 Kasım'da bitmişti).
 
 Yeni oturumda buradan devam et. Ayrıntılı gönderim kayıtları: `docs/submissions_log.md`.
 Final planı: `docs/final_plan.md`. GRU tasarımı: `docs/gru_design.md`. Kurallar: `CLAUDE.md`, `docs/*.pdf`.

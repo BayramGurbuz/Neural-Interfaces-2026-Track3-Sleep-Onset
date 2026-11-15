@@ -532,3 +532,83 @@ k=0 test skorları (örneklem dışı, görülmüş kişiler): mix3 47.06, mix3c
 3.45 → 1.65 (üçü) / 2.12 (GRU). **Kullanıcının aday-2 eşiği (k=6 zararı < +1.0) hiçbir bileşimde sağlanmadı**; kalan zararın
 kaynağı artırmasız HGB (k=6'da tek başına +7.4; karışımda ağırlığı 0.3–0.4). HGB artırması B-üyesi ön kontrolü
 (`scripts/hgb_crop_precheck.py`) aday-1 final HGB eğitiminden sonra CPU'da otomatik başlayacak.
+
+## 15 Kasım — HGB B üyesi kırpma artırması ön kontrolü (`scripts/hgb_crop_precheck.py`, 14 Kasım 17:35'te bitti, 6215 s)
+
+Eğitim tablosu = özgün satırlar + her eğitim kaydının bir başlangıç-kırpılmış kopyası (60 183 pencere / 500 kayıt; k medyan 10,
+343 küçük [1–12], 157 geniş [13 … onset − 60 sn]); 817 öznitelik kırpılan başlangıçtan yeniden akıtılır. Kopyalar yalnız katın
+eğitim satırlarına eklenir, dışarıda tutulan satırlar özgün akış (k = 0).
+
+**Çift CV, k = 0 (B üyesi, ref B(817) 43.20):** 43.02 (unseen 44.47, seen 41.57), **Δ −0.18, 6/10 kat**; Δ katkı +0.29 / +0.06 /
+−1.08 / +0.55; kat Δ unseen [−1.36, +0.16, −0.45, −0.18, −0.49], seen [+1.01, −0.28, +0.05, +0.05, −0.31]. LOFO iterasyon
+uzadı (unseen 275–300, seen 400 = üst sınır). Yani artırma k = 0'da zarar vermiyor (hafif kazanç, gürültü düzeyinde); kazanç
+[90,300)'den, kayıp [300,600] ve [0,40)'tan.
+
+**Dayanıklılık, HGB-only (train+val B üyesi, n_iter 350, 40 test kaydı; Δ = kesik akış − aynı pencerelerde tam geçmiş):**
+
+| k | B artırmasız (k0 53.28) | B artırmalı (k0 51.69) |
+|---|---|---|
+| 1 (5 s) | +2.72 | +0.07 |
+| 3 (15 s) | +4.42 | −0.98 |
+| 6 (30 s) | +8.75 | **−1.76** |
+| 12 (60 s) | +26.42 | **+4.84** |
+| 24 (2 dk) | +32.64 | +7.45 |
+| 60 (5 dk) | +135.97 | +4.62 |
+| rastgele | +93.26 | +4.33 |
+
+Artırma HGB'nin akış-başlangıcı duyarlılığının büyük kısmını kapatıyor (rastgele +93 → +4.3, k = 6'da zarar kalmıyor); kalan
+zarar k = 12–24'te (+5 … +7.5; [0,40) katkısı +3.9 / +4.7 → yakın onset'te model hâlâ "uzak" diyor). Test k0 skoru da iyileşti
+(53.28 → 51.69, 40 kayıt, gürültülü).
+
+**k = 6–12'de kalan zararın kaynağı (üç dizi artırmalı `mix3crop` + artırmasız HGB(c); `stream_start_test_crop.json`):**
+
+| k | karışım Δ | dizi-only Δ | HGB-only Δ (artırmasız 4 üye) |
+|---|---|---|---|
+| 6 (30 s) | +2.82 | +1.65 | +7.41 |
+| 12 (60 s) | +2.91 | +0.37 | +25.65 |
+| 24 (2 dk) | +0.85 | −0.36 | +26.29 |
+| 60 (5 dk) | +5.47 | +3.73 | +123.31 |
+| rastgele | +4.21 | +2.24 | +83.80 |
+
+k = 12'de kalan zararın neredeyse tamamı HGB'den (dizi +0.37); k = 6'da ikisi de katkı veriyor (dizi +1.65, HGB +7.41, HGB
+karışım ağırlığı 0.3). k = 6'daki dizi zararı kısa kırpmalarda ilk-2-dk tabanının 30 sn kaymasından (gerçek geçen süreyle
+yamalanınca +1.05'e iniyor, yani geçen süre girdisi küçük pay).
+
+**Karışımda dayanıklılık: üç dizi artırmalı (`mix3crop`) + TEK B üyesi (artırmasız / artırmalı), `scripts/hgb_crop_mix_robust.py`
+(train+val, 40 test kaydı, n_iter 350; HGB tarafı 4 üye değil yalnız B, bu yüzden k0 düzeyleri 4 üyeli karışımdan farklı):**
+
+| k | B artırmasız, α 0.7 | **B artırmalı, α 0.7** | B artırmasız, α 0.6 | **B artırmalı, α 0.6** | dizi-only | B-only artırmasız → artırmalı |
+|---|---|---|---|---|---|---|
+| 1 (5 s) | +0.01 | +0.03 | +0.10 | +0.12 | −0.05 | +2.84 → +0.02 |
+| 3 (15 s) | +0.36 | −0.44 | +1.10 | −0.41 | −0.49 | +5.57 → −1.00 |
+| 6 (30 s) | +2.93 | **+1.01** | +3.18 | **+0.58** | +1.65 | +10.25 → −1.97 |
+| 12 (60 s) | +3.59 | **+0.93** | +6.89 | **+1.24** | +0.37 | +27.38 → +5.07 |
+| 24 (2 dk) | +1.57 | +0.88 | +4.71 | +1.44 | −0.36 | +36.62 → +7.84 |
+| 60 (5 dk) | +6.94 | +3.35 | +12.56 | +3.51 | +3.73 | +144.20 → +5.24 |
+| rastgele | +5.17 | +2.54 | +8.02 | +2.71 | +2.24 | +101.40 → +5.54 |
+
+k0 (tam akış) karışım skoru bozulmuyor: α 0.7 44.76 → 44.72, α 0.6 45.74 → 45.50. B artırması k = 6 zararını +2.9 → +1.0 (α 0.7) /
++0.6 (α 0.6), k = 12 zararını +3.6 → +0.9 / +1.2'ye indiriyor; kullanıcının aday-2 eşiği (k = 6 zararı < +1.0) α 0.6'da sağlanıyor,
+α 0.7'de sınırda. Kalan zarar artık iki tarafa yayılmış: k = 6'da dizi (+1.65), k = 12–24'te HGB (+5 … +8), k = 60 / rastgelede
+ikisi de (+3.7 / +5.2).
+
+## 15 Kasım — İş 3, 1. aşama: dedektör varyant taraması (`scripts/n2det_v2.py`, GPU, ≈ 40 dk; `OUT/n2det_v2.json`)
+
+Görülmemiş kişi OOF (500 kayıt), n2det_cv ile aynı protokol (kat başına yalnız eğitim kayıtları, LOFO epoch, deterministik).
+Yalnız dedektör akıl sağlığı ölçütleri; çift CV'ye etkisi henüz ölçülmedi.
+
+| Varyant | Spearman(P, kalan) | AUC son 60 ↔ ≥ 300 | AUC son 30 ↔ 60–150 |
+|---|---|---|---|
+| taban (gönderilen dedektörü birebir yeniden üretir) | −0.479 | 0.945 | 0.815 |
+| 3 tohum ortalaması | −0.485 | 0.949 | 0.819 |
+| bipolar girdi (8 kanal) | −0.493 | 0.947 | 0.815 |
+| ilk-30-sn sınıfı (3 sınıf) | −0.482 | 0.943 | 0.807 |
+| çok sınıflı (5 sınıf), P(onset sonrası) | −0.441 | 0.929 | 0.817 |
+| çok sınıflı, "yakınlık" skoru (beklenen sınıf) | **−0.521** | **0.951** | **0.821** |
+| hepsi (6 sınıf, 8 kanal), P(onset sonrası) | −0.466 | 0.938 | 0.818 |
+| hepsi, "yakınlık" skoru | **−0.528** | **0.952** | 0.818 |
+
+Okuma: tohum ortalaması, bipolar girdi ve ilk-30-sn sınıfı tek başına gürültü düzeyinde (±0.005 AUC). Tek belirgin fark çok
+sınıflı eğitimin "yakınlık" skorunda: Spearman −0.479 → −0.52 (aradaki pencereleri kalan-süre sınıfıyla kullanmak sıralamayı
+iyileştiriyor), AUC'ler +0.006. Çok sınıflıda P(onset sonrası) tek başına tabandan kötü; yani kazanç ikinci çıktıdan geliyor.
+Sonraki adım (yapılmadı): çok sınıflı dedektörün iki çıktısı (P ve yakınlık) için iç-kat fold-dışı değerler + B üyesi ablasyonu.

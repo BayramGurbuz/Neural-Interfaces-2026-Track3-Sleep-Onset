@@ -10,11 +10,12 @@ recordings. Always deterministic (n2det_cv imports repro.set_deterministic). Sta
        (per recording in time order), n_iter per member = median of the dual-CV LOFO choices with n2det
        (OUT/ens_dyn_maxmin_spec_eye_n2det_<member>.npz, rounded to 25), bin edges over all 822 columns.
        -> SAVE/ens_c_all_n2det/model.joblib (kind ens_grid + n2det_* keys)
-  mix  --alpha=A [--seq=mix3_all]: mix3 bundle = the sequence components of SAVE/<seq>/model.joblib (GRU-uw, TCN,
-       CNN encoders, GRU-emb; unchanged, recipe "seq(old)") + the n2det ensemble, mix_alpha A, n2det_into ()
+  mix  --alpha=A [--seq=mix3_all] [--gru-from=DIR]: mix3 bundle = the sequence components of SAVE/<seq>/model.joblib
+       (GRU-uw, TCN, CNN encoders, GRU-emb; recipe "seq(old)") + the n2det ensemble, mix_alpha A, n2det_into ();
+       --gru-from replaces the GRU-uw states / mu / sd by those of SAVE/<DIR> (e.g. mix3crop_all, crop-augmented GRU)
        -> SAVE/mix3_n2det_all/model.joblib; then build the ZIP with scripts/build_hgb_submission.py.
 
-Usage: python scripts/train_n2det_final.py det|hgb|mix [--alpha=0.7] [--seq=mix3_all]
+Usage: python scripts/train_n2det_final.py det|hgb|mix [--alpha=0.7] [--seq=mix3_all] [--gru-from=DIR] [--out=mix3_n2det_all]
 """
 import json
 import sys
@@ -148,13 +149,19 @@ def stage_mix():
             "gru_baseline_n", "gru_elapsed_clip")
     bundle = dict(ens)
     bundle.update({k: old[k] for k in keys}, kind="mix3", mix_alpha=alpha, calib_x=None, calib_y=None)
+    gru_from = next((a.split("=", 1)[1] for a in sys.argv if a.startswith("--gru-from=")), None)
+    if gru_from:
+        g = joblib.load(SAVE / gru_from / "model.joblib")
+        bundle.update(gru_states=g["gru_states"], gru_mu=g["gru_mu"], gru_sd=g["gru_sd"])
+        assert np.allclose(g["gru_omega_b"], old["gru_omega_b"])
     assert np.allclose(bundle["grid_omega"], old["grid_omega"]) and np.allclose(bundle["grid"], old["grid"])
-    out = SAVE / "mix3_n2det_all"
+    out = SAVE / next((a.split("=", 1)[1] for a in sys.argv if a.startswith("--out=")), "mix3_n2det_all")
     out.mkdir(exist_ok=True)
     joblib.dump(bundle, out / "model.joblib")
-    (out / "results.json").write_text(json.dumps(dict(alpha=alpha, sequence_from=seq, ens="ens_c_all_n2det",
+    (out / "results.json").write_text(json.dumps(dict(alpha=alpha, sequence_from=seq, gru_from=gru_from, ens="ens_c_all_n2det",
                                                       n2det_into=list(bundle["n2det_into"])), indent=2))
-    print(f"saved {out}: alpha {alpha}, sequence components from {seq}, HGB(c)+n2det from ens_c_all_n2det")
+    print(f"saved {out}: alpha {alpha}, sequence components from {seq}" + (f", GRU from {gru_from}" if gru_from else "")
+          + ", HGB(c)+n2det from ens_c_all_n2det")
 
 
 if __name__ == "__main__":

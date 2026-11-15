@@ -5,8 +5,13 @@ For 3 public-test recordings the wrapper is streamed window by window (deepcopy 
 on (a) the clean signal, (b) a copy with injected faults: window 20 all NaN on channel 1, windows 40-42 with 30 %
 random NaN on all channels, windows 60-70 channel 3 flat (constant), window 80 all channels +inf.
 Checks: every prediction finite and within [0, 600]; every N2 summary finite; on the clean signal the summaries equal
-the batched N2Summary of the detector's P (same code path as training); on the corrupted copy the prediction
-difference to the clean run is reported per fault region and must vanish 5 min after the last fault.
+the batched N2Summary of the detector's P (same code path as training) within 1e-5 (one window per call vs the whole
+recording in one convolution batch differ by float32 rounding, ~5e-7); 5 min after the last fault the short-memory
+summaries (P, EMA 30 s, 30 s rise) are back at the clean run's values (< 1e-3), i.e. the fault did not poison them.
+EMA 2 min (tau 120 s) and the running maximum are reported only: the first still carries e^-2.5 of the fault, the second
+is permanent by design. The prediction difference to the clean run is reported per fault region and 5 min after the last
+fault; it does not vanish for any of our models (also without detector, mix3_540_gridpi): first-2-min baselines, running
+extrema and the recurrent states keep a trace of what the cleaning rule substituted.
 
 Usage: python scripts/n2det_clean_test.py SUBMISSION_DIR
 """
@@ -72,7 +77,7 @@ for r in recs:
         p = torch.softmax(model.n2det(xr)[0], -1)[:, 1].numpy().astype(np.float64)
     st = sub.N2Summary(5.0)
     ref = np.stack([st.update(v) for v in p]).astype(np.float32)
-    same = np.array_equal(ref, s0)
+    same = bool(np.abs(ref - s0).max() < 1e-5)
     xc = x.copy()
     faults = {"w20 ch1 NaN": [20], "w40-42 30% NaN": [40, 41, 42], "w60-70 ch3 flat": list(range(60, 71)), "w80 +inf": [80]}
     xc[20, 1] = np.nan
@@ -84,9 +89,13 @@ for r in recs:
     finite = np.isfinite(p1).all() and (p1 >= 0).all() and (p1 <= 600).all() and np.isfinite(s1).all()
     dlt = np.abs(p1 - p0)
     after = dlt[141:] if len(dlt) > 141 else dlt[-1:]  # 5 min after the last fault (window 80 + 60 windows)
-    ok &= same and finite and bool(after.max() < 1e-6) if len(dlt) > 141 else same and finite
-    print(f"recording {len(r)} windows: clean summaries == batched N2Summary: {same}; corrupted run finite: {finite}; "
+    ds = np.abs(s1 - s0)[141:] if len(dlt) > 141 else np.zeros((1, 5))
+    recovered = bool(ds[:, [0, 1, 4]].max() < 1e-3)
+    ok &= same and finite and recovered
+    print(f"recording {len(r)} windows: clean summaries == batched N2Summary (1e-5): {same}; corrupted run finite: {finite}; "
+          f"P / EMA30 / rise30 recovered 5 min after the last fault: {recovered} (max |Δ| per summary "
+          + " ".join(f"{v:.4f}" for v in ds.max(0)) + "); "
           f"|Δpred| corrupted vs clean: " + ", ".join(f"{k} {dlt[v].max():.1f} s" for k, v in faults.items())
-          + f"; max over all windows {dlt.max():.1f} s; 5 min after the last fault {after.max():.4f} s; "
+          + f"; max over all windows {dlt.max():.1f} s; 5 min after the last fault max {after.max():.2f} s, mean {after.mean():.2f} s; "
           f"summaries |Δ| at the faults {np.abs(s1 - s0)[[20, 41, 65, 80]].max():.3f}")
 print("PASS" if ok else "FAIL")

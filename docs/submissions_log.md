@@ -28,6 +28,7 @@ Son gönderim en geç 20 Kasım, 21 Kasım yedek gün.
 | – | (onay bekliyor) | mix3_540_grid.zip | **aday** ⁶ | 38.35 ² | 31.6917 ³ | 230 s / 218 s (×2, aynı skor) | – | – |
 
 | 3 | 2026-11-12 | mix3_540_gridpi.zip | **gönderildi** ⁷ | 38.27 ² | 31.3234 ³ | 185 s / 176 s (×2, aynı skor) | **37.49** | 2762.79 s |
+| – | (hazır, kullanıcı gönderecek) | mix3_n2det_cropg_540.zip | **aday 1** ⁸ | 38.86 ² | 31.8833 ³ | 248 s / 220 s (×2, aynı skor; aynı oturumda mix3_540 229 s) | _beklenen ≈ 37.25_ | _tahmin ≈ 1650–1900 s_ |
 ² 500 kayıtlık çift CV (540'ta doğrulama seti yok). ³ Örneklem içi (test eğitimde) → yalnız boru hattı kontrolü.
 ⁴ final540 ile tek fark eğitim kayıt sayısı (submission.py birebir aynı; model.joblib'de α, GRU ayarı, seed, epoch, ızgara
   aynı; yalnız veriye bağlı binleme sınırları ve ağaç yapıları farklı) → ayrı bilgi vermez (2026-11-11).
@@ -193,3 +194,43 @@ Aynı seed'lerle (0,1,2) yeniden eğitim: bit düzeyinde aynı (48.2224). Farkl�
 - Kontroller: akış ↔ toplu maks |Δ| 0.0002 s, 31.3234 ↔ 31.3234; Docker v3 ×2: 31.323388735064913 (her ikisinde),
   duration 184.9 / 176.1 s (aynı oturumda mix3_540_grid 168.5 s); temiz veride temizlik kuralının etkisi 0.0.
   Log `~/neuralbench/save/mix3_540_gridpi_build.log`. v4-sealed testi yapılamadı. Ayrıntı: `B_ASAMASI_RAPORU.md`.
+
+### mix3_n2det_cropg_540.zip (aday 1, 2026-11-15; hazır, gönderilmedi) ⁸
+- **ZIP SHA-256: aed6a9a61ca0003282eb123570f74e4ca718a575abdaee60dde63371899802f9** (12.01 MB; submission.py 42 446 B,
+  model.joblib 18 461 341 B, SHA-256 a85f9691…b9863340).
+- Model: HGB(c) 4 üye + 5 N2-dedektör özeti (822 öznitelik; `ens_c_all_n2det`, iterasyon 150 / 150 / 250 / 150) + GRU-uw 10 tohum
+  **başlangıç kırpma artırmalı, deterministik, 20 epoch** (`mix3crop_all`'dan yalnız GRU) + TCN 10 tohum ve GRU-emb 3 tohum
+  (`mix3_all`, mix3_540 ile aynı ağırlıklar); **α 0.6**, ızgara / kalibrasyon / yumuşatma kapalı; girdi temizliği NaN/inf + düz kanal
+  (gridpi ile aynı kural; dedektör temizlenmiş pencereyi görür). Dedektör özetleri yalnız HGB girdisinde (`n2det_into = ()`).
+- Çift CV (500 kayıt, ızgarasız, `b2_mix_cropmix.json` "HGB(n) + seq(cropG)"): unseen 39.93, seen 37.79 → **38.86**; referans
+  ızgarasız mix3 (39.40) göre **−0.54, 8/10 kat** → kabul kuralı (Δ ≤ −0.5 ve ≥ 8/10) geçildi. α iç içe LOFO 10/10 katta 0.6.
+- **Paket tarifi ↔ 38.86 veren çift CV tarifi:** bileşenler, α (0.6), sınıf ağırlıkları ω (ızgara ω ve GRU ω_B; 540'tan yeniden
+  hesaplanan değerler iki kaynak pakette de aynı, assert), 5 dedektör özeti (tek kaynak `n2det_stream.py`), dedektörün yalnız HGB'ye
+  girmesi, GRU 20 epoch / TCN 10 / kodlayıcı 12 / GRU-emb 10, tohumlar: **aynı**. Farklar yalnız 540'a geçişin olağan sonuçları:
+  (1) eğitim 500 → 540 kayıt; (2) kat başına LOFO seçimleri yerine medyanları (GRU epoch 20; dedektör epoch 13; HGB iterasyon
+  150/150/250/150, 25'e yuvarlı); (3) HGB eğitim satırlarının fold-dışı dedektör P'si için iç katlar kişi bazlı (CV'de görülmüş kişi
+  protokolünde kayıt bazlıydı). TCN / kodlayıcı / GRU-emb: CV'deki "eski" OOF'lar da deterministik olmayan özgün koşulardı, paket de öyle.
+- Komutlar: `docs/method.md` "Aday 1" bölümü (det → hgb → `train_mix3_final.py --all --deterministic --crop
+  --epochs=gru:20,tcn:15,gemb:10 --tag=crop` → `train_n2det_final.py mix --alpha=0.6 --seq=mix3_all --gru-from=mix3crop_all
+  --out=mix3_n2det_cropg_all` → `build_hgb_submission.py --model …/mix3_n2det_cropg_all/model.joblib --name mix3_n2det_cropg_540`).
+- Kontroller (15 Kasım, log `~/neuralbench/save/mix3_n2det_cropg_540_build.log`):
+  - Bileşen kimliği (`scripts/check_stream_n2mix.py`, toplu yol, açık test, örneklem içi): GRU 37.4522, TCN 40.3806, GRU-emb 49.5618,
+    HGB+n2det 26.7506 — dördü de ilgili eğitim logundaki değerle aynı.
+  - Akış ↔ toplu: maks |Δ| 0.0357 s, ortalama 0.003 s, > 0.5 s olan pencere yok; W-bMAE 31.8833 ↔ 31.8835.
+  - Girdi temizliği (`scripts/n2det_clean_test.py`, 3 en uzun test kaydı; NaN kanal, %30 NaN, 11 pencere düz kanal, +inf): tahminler
+    ve dedektör özetleri sonlu; temiz sinyalde özetler toplu N2Summary ile aynı (1e-5); P / EMA30 / artış arızadan 5 dk sonra temiz
+    koşuya dönüyor → PASS. Ek 9 senaryo (ilk 5 pencere NaN, ilk pencere +inf, baştan düz kanal, tüm kayıt NaN, tüm kayıt düz, bir kanal
+    hep NaN, her 2. örnek NaN, 1e30, 10 pencere −inf): bütün tahminler sonlu ve [0, 600] içinde; GRU / GRU-emb / TCN durumları, tabanlar,
+    dedektör EMA'ları ve öznitelik akışı durumunda NaN/inf yok.
+    Not: arızadan 5 dk sonra tahmin farkı sıfıra inmiyor (ort. 0.9–1.6 s, maks 7–12 s); dedektörsüz mix3_540_gridpi'de de aynı
+    (ort. 0.4–1.5 s) → uzun bellekli özniteliklerin (ilk-2-dk tabanı, koşan ekstremumlar) doğal sonucu, dedektöre özgü değil.
+  - Docker v3 ×2: wbmae 31.883341811607796 her ikisinde (bit düzeyinde aynı), bMAE 76.98, MAE 143.14; duration **248.2 / 220.2 s**;
+    aynı oturumda mix3_540: 229.3 s (32.74462474110901, 11 Kasım'la aynı). Oran 0.96 (ikinci koşu) – 1.08 (ilk koşu, başlangıçta yerel
+    testlerin yükü vardı; üst sınır) → kural (≤ +%10) sağlanıyor. Mühürlü süre tahmini ≈ 1722 × 0.96–1.08 ≈ **1650–1860 s** (sınır 3600).
+    Dedektör pencere başına maliyet ekliyor ama HGB ağaç sayısı azaldı (1175 → 700 iterasyon).
+  - Import satırları final540 / mix3_540 ile birebir aynı (joblib, numpy, torch, benchmark_utils, scipy.signal find_peaks + welch).
+  - v4-sealed testi yapılamadı (imaj herkese açık değil; yerelde yalnız v3).
+- **Beklenen mühürlü skor ≈ 37.25** (yerel 38.86; ref 39.40 ↔ 37.79). Okuma: ≈ 37.25 → dedektör kazancı taşınıyor, mühürlü akışlarda
+  kayma yok; belirgin daha iyi → kayma var ya da dedektör beklenenden iyi (sonraki adım aynı: tam artırmalı aday 2); ≈ 37.8 veya kötü →
+  dedektör yeni mühürlü sete taşınmıyor, aday 2 yeniden düşünülür.
+- Gönderirken yapılacak: My Submissions'taki üç eski gönderimin yeni (13 Kasım) skorlarını bu dosyaya yaz (final540 ve gridpi eksik).

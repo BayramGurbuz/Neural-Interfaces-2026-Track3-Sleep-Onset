@@ -26,7 +26,34 @@
 - 13 Kasım FAQ güncellemesine göre 30 sn onset ızgarası (π / π(D)) ve epoch-hizalı öznitelikler yeni adaylardan çıkarıldı.
   Karar = sınıf dağılımı × metrik ağırlıkları ile sürekli ağırlıklı medyan (ızgarasız).
 
-## Tamamlanacak (final aday ile)
-- Eğitim komutları, tohumlar, epoch sayıları, ortam (paket sürümleri), ZIP SHA-256, Docker koşuları, pencere başına süre.
-- Not: mix3_540 (#2) CNN kodlayıcısı deterministik ayar olmadan eğitildi; bit düzeyinde tekrar üretilemez (ölçülen etki
-  ≈ 0.2 s). Yeni adaylar `--deterministic` ile.
+## Aday 1 (15 Kasım): mix3_n2det_cropg_540 — HGB(n2det) + GRU (kırpma artırmalı) + TCN + GRU-emb, α 0.6, ızgarasız
+- **Bileşenler:** (1) HGB(c): 4 dağılım sınıflandırıcısı (B, B_h1, B_h2, B2), 817 nedensel öznitelik + 5 dedektör özeti = 822;
+  (2) GRU-uw 10 tohum; (3) TCN 10 tohum; (4) GRU-emb 3 tohum (3 CNN kodlayıcı). Dizi bileşenlerinin metrik-ağırlıklı ızgara
+  dağılımları eşit ağırlıkla ortalanır, HGB dağılımıyla α = 0.6 (dizi) / 0.4 (HGB) karıştırılır; karar = sürekli ağırlıklı
+  medyan. Izgara (30 sn), kalibrasyon ve yumuşatma kapalı. Dedektör özetleri yalnız HGB girdisinde (dizi girdilerinde yok).
+- **GRU başlangıç kırpma artırmasıyla eğitildi:** her epoch ve her eğitim kaydı için %50 kırpma yok, %35 ilk 1–12 pencere
+  (5–60 sn) atılır, %15 ilk 13 … (onset − 60 sn) pencere atılır; girdiler (geçen süre, ilk-2-dk tabanı) kırpılan
+  başlangıçtan yeniden kurulur, hedefler değişmez (`scripts/gru_cv.py run_fold cfg["crop"]`). Amaç: akışın kaydın başından
+  başlamadığı duruma dayanıklılık (13 Kasım FAQ). TCN ve GRU-emb artırmasız (çift CV'de artırma bu ikisinde zararlıydı).
+  Artırma yalnız eğitim kayıtlarının kendi pencerelerini kullanır; etiket/kayıt düzenliliği kullanmaz.
+- **Seçim (çift CV, 500 kayıt, ızgarasız karar):** 38.86 (unseen 39.93, seen 37.79); referans ızgarasız mix3 39.40'a göre −0.54,
+  10 katın 8'inde iyi; α iç içe LOFO ile 10 katta da 0.6 (`scripts/b2_mix.py`, `OUT/b2_mix_cropmix.json`).
+- **Eğitim (540 kayıt), sırayla** (hepsi `scripts/` içinden, `.venv/bin/python`):
+  1. `train_n2det_final.py det` — dedektör, tohum 0, 13 epoch (çift CV LOFO medyanı), deterministik; eğitim satırları için
+     kişi bazlı 5 iç katlı fold-dışı P (`n2det_final/p_oof.npy`).
+  2. `train_n2det_final.py hgb` — 4 HGB üyesi, random_state 0, iterasyon 150 / 150 / 250 / 150 (çift CV LOFO medyanı, 25'e
+     yuvarlı), eğitim satırlarında fold-dışı P'nin özetleri → `ens_c_all_n2det/`.
+  3. `train_mix3_final.py --all --deterministic --crop --epochs=gru:20,tcn:15,gemb:10 --tag=crop` → `mix3crop_all/`;
+     buradan YALNIZ GRU-uw alınır (10 tohum 0–9, 20 epoch = artırmalı çift CV LOFO medyanı).
+  4. TCN (10 tohum × 10 epoch), CNN kodlayıcı (3 × 12 epoch), GRU-emb (3 × 10 epoch): `mix3_all/` (11 Kasım,
+     `train_mix3_final.py --all`; gönderim #2 mix3_540 ile aynı ağırlıklar).
+  5. `train_n2det_final.py mix --alpha=0.6 --seq=mix3_all --gru-from=mix3crop_all --out=mix3_n2det_cropg_all`
+  6. `build_hgb_submission.py --model ~/neuralbench/save/mix3_n2det_cropg_all/model.joblib --name mix3_n2det_cropg_540 --smooth-a 0`
+- **Tekrarlanabilirlik:** 1–3 deterministik (cuDNN deterministic, sabit tohumlar). 4. adımdaki TCN / kodlayıcı / GRU-emb
+  deterministik ayar olmadan eğitildi; yeniden eğitimde bit düzeyinde aynı olmaz (ölçülen etki ≈ 0.2 s, denetim toleransı
+  ±2σ içinde).
+- **Ortam:** Python 3.12.3, torch 2.11.0+cu128, scikit-learn 1.9.1, numpy 2.5.4, scipy 1.18.1, joblib 1.6.0; RTX 3050 Laptop
+  (4 GB). Eğitim süresi: dedektör ≈ 6 dk, HGB 4 üye ≈ 16 dk (CPU), dizi modelleri ≈ 6 dk (GPU).
+- **Çıkarım:** yalnız numpy / torch / joblib / scipy (find_peaks, welch); import satırları final540 ve mix3_540 ile aynı.
+  ZIP SHA-256, Docker koşuları ve süreler: `docs/submissions_log.md`.
+- **Beklenen mühürlü skor ≈ 37.25** (yerel 38.86; referans 39.40 ↔ mühürlü 37.79, fark −1.61).

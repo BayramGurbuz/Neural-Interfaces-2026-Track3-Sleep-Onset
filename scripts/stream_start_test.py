@@ -94,7 +94,7 @@ EL_S = 2 * F.shape[1]  # log1p-elapsed column of the sequence inputs (seq_inputs
 
 def predict_from(r, k, true_elapsed=False):
     """Predictions for the windows r[k:] of one recording with the stream restarted at window k -> dict of
-    mix / hgb-only / seq-only decisions and the re-streamed HGB features. true_elapsed: the elapsed-time inputs
+    mix / hgb-only / seq-only decisions, the re-streamed HGB features H and the two grid distributions (qs, Wh). true_elapsed: the elapsed-time inputs
     (HGB elapsed_s, sequence log1p elapsed) are replaced by the elapsed time since the recording start (diagnostic:
     isolates the elapsed input from the loss of EMAs / baselines / recurrent states)."""
     rows = r[k:]
@@ -121,7 +121,7 @@ def predict_from(r, k, true_elapsed=False):
     qs = (qg + qt + qe) / 3
     ones = np.ones(Wh.shape[1])
     return dict(mix=decide(alpha * qs + (1 - alpha) * Wh, None, ones, True, GRID), hgb=decide(Wh, None, ones, True, GRID),
-                seq=decide(qs, None, ones, True, GRID), H=H)
+                seq=decide(qs, None, ones, True, GRID), H=H, qs=qs, Wh=Wh)
 
 
 def score(rows_list, preds_list):
