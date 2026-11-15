@@ -15,7 +15,8 @@ recordings. Always deterministic (n2det_cv imports repro.set_deterministic). Sta
        --gru-from replaces the GRU-uw states / mu / sd by those of SAVE/<DIR> (e.g. mix3crop_all, crop-augmented GRU)
        -> SAVE/mix3_n2det_all/model.joblib; then build the ZIP with scripts/build_hgb_submission.py.
 
-Usage: python scripts/train_n2det_final.py det|hgb|mix [--alpha=0.7] [--seq=mix3_all] [--gru-from=DIR] [--out=mix3_n2det_all]
+  detmc: Work 3 multi-class detector, 3 seeds (see stage_detmc).
+Usage: python scripts/train_n2det_final.py det|detmc|hgb|mix [--alpha=0.7] [--seq=mix3_all] [--gru-from=DIR] [--out=mix3_n2det_all]
 """
 import json
 import sys
@@ -164,5 +165,55 @@ def stage_mix():
           + ", HGB(c)+n2det from ens_c_all_n2det")
 
 
+
+MC_SEEDS = (0, 1, 2)
+
+
+def stage_detmc():
+    """Work 3 multi-class detector (n2det_v2 variant "multi") on all 540 recordings, seeds 0, 1, 2. Epoch per seed = median of
+    that seed's dual-CV LOFO choices (OUT/n2det_multi_s<seed>.json, unseen + seen). Per seed: full model (state for the
+    wrapper) and out-of-fold outputs for all 540 stream rows from 5 subject-grouped inner folds at the same epoch (features of
+    the downstream training rows). Closeness = expected class index / 4; the wrapper averages it over the seeds.
+    -> SAVE/n2det_final/detmc.joblib (states, epochs), close_oof.npy / close_full.npy (3-seed means), detmc.json"""
+    from n2det_v2 import VARIANTS, Det
+    d, _, _, _ = load_inputs(include_test=True)
+    zp = np.load(SAVE / "n2det_post.npz")
+    post = dict(tl=zp["timeline"], k=zp["k"], F=None)
+    assert set(post["tl"]) == set(d.timeline) and len(d) == 80975
+    det = Det(d, post, np.ones(len(d), bool), np.ones(len(zp["k"]), bool), **VARIANTS["multi"])
+    allm = np.ones(len(d), bool)
+    groups = d.subject.to_numpy()
+    states, epochs, oof, full = [], [], [], []
+    t_all = time.perf_counter()
+    for seed in MC_SEEDS:
+        cv = json.loads((OUT / f"n2det_multi_s{seed}.json").read_text())
+        ep = int(np.median(cv["unseen"]["epochs"] + cv["seen"]["epochs"]))
+        t0 = time.perf_counter()
+        r = det.fit(allm, allm, seed, stop_epoch=ep)[0][-1]
+        states.append({k: v.detach().cpu().numpy() for k, v in det.last_model.state_dict().items()})
+        full.append(r[1])
+        o = np.full(len(d), np.nan)
+        for itr, ite in GroupKFold(5).split(np.arange(len(d)), groups=groups):
+            mtr, mte = np.zeros(len(d), bool), np.zeros(len(d), bool)
+            mtr[itr], mte[ite] = True, True
+            o[mte] = det.fit(mtr, mte, seed, stop_epoch=ep)[0][-1][1]
+        assert not np.isnan(o).any()
+        oof.append(o)
+        epochs.append(ep)
+        print(f"seed {seed}: epoch {ep}, full + 5 inner folds in {time.perf_counter() - t0:.0f} s", flush=True)
+    c_oof, c_full = np.mean(oof, axis=0), np.mean(full, axis=0)
+    rem = d.target.to_numpy().astype(np.float64)
+    res = dict(seeds=list(MC_SEEDS), epochs=epochs, n_cls=det.n_cls, first_pos=det.first_pos, deterministic=True,
+               oof_sanity=sanity(c_oof, rem), full_insample_sanity=sanity(c_full, rem), time_s=time.perf_counter() - t_all)
+    joblib.dump(dict(states=states, epochs=epochs, seeds=list(MC_SEEDS), n_cls=det.n_cls, first_pos=det.first_pos,
+                     scale=SCALE, clip=CLIP, emb=EMB, bip=False), FINAL / "detmc.joblib")
+    np.save(FINAL / "close_oof.npy", c_oof.astype(np.float32))
+    np.save(FINAL / "close_full.npy", c_full.astype(np.float32))
+    (FINAL / "detmc.json").write_text(json.dumps(res, indent=2, default=float))
+    s = res["oof_sanity"]
+    print(f"closeness OOF (540, subject-grouped, 3-seed mean): Spearman {s['spearman']:+.3f}, AUC60 {s['auc_last60_vs_300plus']:.3f}, "
+          f"AUC30 {s['auc_last30_vs_60_150']:.3f}; in-sample Spearman {res['full_insample_sanity']['spearman']:+.3f} ({res['time_s']:.0f} s)")
+
+
 if __name__ == "__main__":
-    {"det": stage_det, "hgb": stage_hgb, "mix": stage_mix}[sys.argv[1]]()
+    {"det": stage_det, "hgb": stage_hgb, "mix": stage_mix, "detmc": stage_detmc}[sys.argv[1]]()

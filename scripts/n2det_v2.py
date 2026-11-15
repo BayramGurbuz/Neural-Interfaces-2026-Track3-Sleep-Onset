@@ -116,6 +116,7 @@ class Det:
                 nn.utils.clip_grad_norm_(model.parameters(), 1.0)
                 opt.step()
             sched.step()
+            self.last_model = model
             if stop_epoch is not None and ep < n_ep - 1:
                 continue
             P = self.probs(model, te_rows)

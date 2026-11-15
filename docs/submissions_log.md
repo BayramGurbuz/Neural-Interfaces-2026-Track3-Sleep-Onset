@@ -28,7 +28,7 @@ Son gönderim en geç 20 Kasım, 21 Kasım yedek gün.
 | – | (onay bekliyor) | mix3_540_grid.zip | **aday** ⁶ | 38.35 ² | 31.6917 ³ | 230 s / 218 s (×2, aynı skor) | – | – |
 
 | 3 | 2026-11-12 | mix3_540_gridpi.zip | **gönderildi** ⁷ | 38.27 ² | 31.3234 ³ | 185 s / 176 s (×2, aynı skor) | **37.49** | 2762.79 s |
-| 4 | 2026-11-15 | mix3_n2det_cropg_540.zip | **gönderildi** (ID 1053877) ⁸ | 38.86 ² | 31.8833 ³ | 248 s / 220 s (×2, aynı skor; aynı oturumda mix3_540 229 s) | **37.09** (27.) | kaydedilmedi |
+| 4 | 2026-11-15 | mix3_n2det_cropg_540.zip | **gönderildi** (ID 1053877) ⁸ | 38.86 ² | 31.8833 ³ | 248 s / 220 s (×2, aynı skor; aynı oturumda mix3_540 229 s) | **37.09** (27.) | 1526.6 s |
 ² 500 kayıtlık çift CV (540'ta doğrulama seti yok). ³ Örneklem içi (test eğitimde) → yalnız boru hattı kontrolü.
 ⁴ final540 ile tek fark eğitim kayıt sayısı (submission.py birebir aynı; model.joblib'de α, GRU ayarı, seed, epoch, ızgara
   aynı; yalnız veriye bağlı binleme sınırları ve ağaç yapıları farklı) → ayrı bilgi vermez (2026-11-11).
@@ -49,6 +49,7 @@ Son gönderim en geç 20 Kasım, 21 Kasım yedek gün.
 | 1 | 2026-11-10 | final540.zip | **39.56** | 39.91 | 101.36 | 198.26 | 1249.51 s | 23 / 60 |
 | 2 | 2026-11-11 | mix3_540.zip | **38.66** | kaydedilmedi | kaydedilmedi | kaydedilmedi | kaydedilmedi | kaydedilmedi |
 | 3 | 2026-11-12 | mix3_540_gridpi.zip | **37.49** | 37.78 | 105.48 | 213.98 | 2762.79 s | kaydedilmedi |
+| 4 | 2026-11-15 | mix3_n2det_cropg_540.zip | **37.09** (güncel skorlama) | 37.33 | 92.96 | 181.64 | 1526.6 s | 27. |
 
 **Güncel mühürlü skorlar (My Submissions, 15 Kasım; 13 Kasım yeniden skorlamasından sonra):**
 
@@ -256,4 +257,6 @@ Aynı seed'lerle (0,1,2) yeniden eğitim: bit düzeyinde aynı (48.2224). Farkl�
 - **Beklenen mühürlü skor ≈ 37.25** (yerel 38.86; ref 39.40 ↔ 37.79). Okuma: ≈ 37.25 → dedektör kazancı taşınıyor, mühürlü akışlarda
   kayma yok; belirgin daha iyi → kayma var ya da dedektör beklenenden iyi (sonraki adım aynı: tam artırmalı aday 2); ≈ 37.8 veya kötü →
   dedektör yeni mühürlü sete taşınmıyor, aday 2 yeniden düşünülür.
-- Mühürlü: **37.09** (yerel 38.86 → −1.77; beklenen ≈ 37.25). Eski gönderimlerin güncel skorları yukarıda "Güncel mühürlü skorlar".
+- Mühürlü: **W-bMAE makro 37.09**, W-bMAE 37.33, bMAE 92.96, MAE 181.64, süre **1526.6 s** (sınır 3600; mix3_540 1722 s → oran 0.89,
+  yerel Docker oranı 0.96–1.08 ile tutarlı). Yerel 38.86 → −1.77 (mix3_540 −1.61); beklenen ≈ 37.25. Eski gönderimlerin güncel skorları
+  yukarıda "Güncel mühürlü skorlar".

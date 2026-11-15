@@ -94,9 +94,12 @@ Track 03 (Sleep Onset) yarışması için model geliştirme deposudur.
 - Gönderim planı: #4 mix3_n2det_cropg_540 (37.09) şu anki en iyi; 7 hakkın 4'ü kullanıldı, kalan 3 (aday 2: 17–18 Kasım;
   İş 3 iyileştirmeli aday: 19–20 Kasım; 21 Kasım yedek). Kalan haklar YALNIZCA kabul kuralını geçen, ızgarasız
   yeni modeller için; son gönderim en geç 20 Kasım, 21 Kasım yedek gün. Ayrıntı: docs/status.md, docs/submissions_log.md.
+- ADAY 2 KABULÜ (15 Kasım): referans aday 1 (çift CV 38.86, HGB(n2det) + yalnız GRU artırmalı, α 0.6; Δ'lar hem 39.40'a hem
+  38.86'ya göre verilir); 38.86'ya göre Δ ≤ −0.15 ve ≥ 7/10 kat VE k=6 karışım zararı < +1.0. Tüm bileşenler --deterministic.
 - KABUL KURALI (14 Kasım): karışım çift CV makro Δ ≤ −0.5 (ref IZGARASIZ mix3 tarifi 39.40 ↔ mühürlü 37.79) VE 10 katın
-  ≥ 8'inde iyileşme, YA DA Δ ≤ −0.3 VE 10/10 kat; bütün karışım ölçümleri ızgarasız kararla. Pencere başına çıkarım
-  maliyeti gridpi/mix3'e göre en fazla +%10 (yeni skorlamada mix3_540 1722 s sürdü, sınır 3600). Eski kural: mix_gru10_hgb'ye (40.28) göre ≥ 0.3 iyileşme VE 10 katın ≥ 8'inde iyileşme;
+  ≥ 8'inde iyileşme, YA DA Δ ≤ −0.3 VE 10/10 kat; bütün karışım ölçümleri ızgarasız kararla. Süre kuralı (15 Kasım,
+  kullanıcı): yerel pencere başına süre aday 1'e (mix3_n2det_cropg_540, mühürlü 1526.6 s, sınır 3600) göre en fazla +%50; 3 tohumlu
+  dedektör korunur, tek tohuma inilmez. (Eski: mix3/gridpi'ye göre +%10.) Eski kural: mix_gru10_hgb'ye (40.28) göre ≥ 0.3 iyileşme VE 10 katın ≥ 8'inde iyileşme;
   540 kayıtla eğitilmiş; v4-sealed Docker testini geçmiş.
 - Plan (sırayla, her adım çift CV ile raporlanır):
   A. Çift CV protokolü; v1 ve c5 yeniden ölçülür.

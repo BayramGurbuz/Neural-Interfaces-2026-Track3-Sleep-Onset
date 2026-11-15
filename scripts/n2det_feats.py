@@ -28,3 +28,13 @@ def summaries(p, recs):
 
 def fold_features(proto, k, recs, dets=DETS):
     return np.concatenate([summaries(np.load(OUT / f"n2det_{det}_{proto}_f{k}.npy"), recs) for det in dets], axis=1)
+
+
+MC_SEEDS = (0, 1, 2)
+
+
+def fold_features_mc(proto, k, recs, keys=("close",), seeds=MC_SEEDS):
+    """Work 3: N2Summary of the multi-class detector's outputs (mean over seeds) for outer fold k (n2det_v2_inner.py files,
+    out-of-fold for every row) -> (N, 5 * len(keys)) float32."""
+    zs = [np.load(OUT / f"n2det_multi_s{s}_{proto}_f{k}.npz") for s in seeds]
+    return np.concatenate([summaries(np.mean([z[key] for z in zs], axis=0), recs) for key in keys], axis=1)

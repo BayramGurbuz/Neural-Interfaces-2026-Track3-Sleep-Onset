@@ -14,7 +14,16 @@
   2. `scripts/cand2_chain.sh` — ablasyonu bekler, dedektörü seçer (kazanan satır, yoksa eski), `ens_crop_cv.py <det>` çalıştırır:
      HGB(c) 4 üye + dedektör özetleri + kırpma artırmalı eğitim tablosu, çift CV k=0, fold-dışı olasılıklar
      `OUT/ens_dyn_maxmin_spec_eye_n2<det>_crop_<üye>.npz` → `OUT/ens_crop_<det>.{json,log}`, `OUT/cand2_chain.log`. Tahmin 12–18 saat.
-- **Sonra (aday 2 seçimi, yeniden eğitim yok; ref 39.40):** karışım satırları HGB(yeni 4 üye) × dizi {yalnız GRU artırmalı + TCN/GRU-emb
+- **15 Kasım gece kararları (kullanıcı):** mühürlü süre 1526.6 s → yeni süre kuralı: aday 2'nin yerel pencere başına süresi aday 1'e
+  göre en fazla +%50; 3 tohumlu dedektör korunur. Aday 2 kabulü: aday 1'e (çift CV 38.86) göre Δ ≤ −0.15 ve ≥ 7/10 kat VE k=6
+  karışım zararı < +1.0 (Δ'lar hem 39.40'a hem 38.86'ya göre). Ek karışım satırı: "yalnız GRU artırmalı + GRU girdisine yakınlık
+  özetleri". Takvim: aday 2 ZIP 17 Kasım; kalan iki hak 18–21 Kasım.
+- **İş 3 sonucu:** B üyesi + çok sınıflı dedektörün yakınlık özetleri 39.77 (eski dedektöre göre −1.09, 9/10) → genişletme bununla.
+- **GPU zinciri `scripts/cand2_gpu_chain.sh`** (15 Kasım 23:xx): (1) `b2_seq_cv.py n2c gru --crop` (GRU artırmalı + yakınlık girdisi,
+  çift CV) → `OUT/gru_uw_n10_n2c_crop_*`; (2) `train_n2det_final.py detmc` (çok sınıflı dedektör 540, 3 tohum, fold-dışı yakınlık)
+  → `SAVE/n2det_final/detmc.joblib`, `close_oof.npy`; (3) `train_mix3_final.py --all --deterministic --tag=det` → `SAVE/mix3det_all`
+  (TCN / kodlayıcı / GRU-emb deterministik, artırmasız). Kırpmalı deterministik üçlü: `SAVE/mix3crop_all`. Log `OUT/cand2_gpu_chain.log`.
+- **Sonra (aday 2 seçimi, yeniden eğitim yok; ref 39.40 ve 38.86):** karışım satırları HGB(yeni 4 üye) × dizi {yalnız GRU artırmalı + TCN/GRU-emb
   eski; üçü artırmalı}, α iç içe LOFO 0.3–0.8; her satır için çift CV k=0 ve dayanıklılık (k = 1, 3, 6, 12, 24, 60, rastgele; karışım,
   dizi-only, HGB-only). Aday 2 = k=0'da en iyi ve k=6 karışım zararı < +1.0; çelişirse iki satır raporlanır, karar kullanıcıda.
   Final 540 eğitiminde TÜM bileşenler `--deterministic` (CNN kodlayıcı dahil). ZIP + testler + 2 Docker; gönderme, SHA-256 bildir.
