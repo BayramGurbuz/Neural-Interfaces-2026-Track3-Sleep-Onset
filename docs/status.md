@@ -7,11 +7,22 @@
   geçti (akış ↔ toplu, NaN / düz kanal, Docker v3 ×2 aynı skor 31.8833, süre mix3_540'ın 0.96–1.08 katı). Ayrıntı:
   `docs/submissions_log.md` son bölüm, `docs/method.md` "Aday 1".
 - Gönderimden sonra: mühürlü skoru ve üç eski gönderimin yeni skorlarını submissions_log.md'ye yaz; CLAUDE.md'de hak sayısını güncelle.
-- **Aday 2 hazırlığı:** HGB B üyesi kırpma artırması ön kontrolü bitti (çift CV k=0 Δ −0.18, 6/10; HGB-only rastgele başlangıç zararı
-  +93 → +4.3; `B_ASAMASI_RAPORU.md` 15 Kasım). Karışım dayanıklılığı (üç dizi artırmalı + B artırmalı): `scripts/hgb_crop_mix_robust.py`
-  → `OUT/hgb_crop_mix_robust.json`. 4 üyeye genişletme (n2det + artırmalı tablo) kullanıcı onayı bekliyor (tahmin ≈ 10–15 saat CPU).
-- **İş 3 (dedektörü geliştirme):** 15 Kasım'da başladı; 1. aşama = varyant taraması (`scripts/n2det_v2.py`: 3 tohum, bipolar girdi,
-  ilk-30-sn sınıfı, çok sınıflı, hepsi) dedektör akıl sağlığı ölçütleriyle → `OUT/n2det_v2.json`. Kazanan varyant B-üyesi ablasyonuna girer.
+- **Kullanıcı kararları (15 Kasım akşamı):** aday 1'i kullanıcı gönderiyor (sonuç okuması: ≤ 37.3 taşınıyor; 37.4–37.7 kısmen;
+  **≥ 37.8 → genişletme ve İş 3 DURAKLATILIR, kullanıcıya sorulur**). CPU sırası: önce İş 3 B ablasyonu, sonra 4 üye genişletmesi.
+- **ÇALIŞAN ZİNCİRLER (yeniden başlatma olursa aynı komutlarla sürdür; hepsi kaldığı yerden devam eder):**
+  1. `scripts/n2det_v2_chain.sh` — GPU: çok sınıflı dedektörün iç-kat fold-dışı çıktıları (P + yakınlık), tohum 0, 1, 2
+     (`OUT/n2det_multi_s<seed>_<proto>_f<k>.npz`); sonra CPU: `n2det_v2_ablation.py cp c` (B üyesi; satır cp = yakınlık + P özetleri,
+     c = yalnız yakınlık; ref B + eski dedektör 40.86) → `OUT/n2det_v2_ablation.{json,log}`. Kazanma kuralı: ref'e göre Δ ≤ −0.15 ve ≥ 7/10.
+  2. `scripts/cand2_chain.sh` — ablasyonu bekler, dedektörü seçer (kazanan satır, yoksa eski), `ens_crop_cv.py <det>` çalıştırır:
+     HGB(c) 4 üye + dedektör özetleri + kırpma artırmalı eğitim tablosu, çift CV k=0, fold-dışı olasılıklar
+     `OUT/ens_dyn_maxmin_spec_eye_n2<det>_crop_<üye>.npz` → `OUT/ens_crop_<det>.{json,log}`, `OUT/cand2_chain.log`. Tahmin 12–18 saat.
+- **Sonra (aday 2 seçimi, yeniden eğitim yok; ref 39.40):** karışım satırları HGB(yeni 4 üye) × dizi {yalnız GRU artırmalı + TCN/GRU-emb
+  eski; üçü artırmalı}, α iç içe LOFO 0.3–0.8; her satır için çift CV k=0 ve dayanıklılık (k = 1, 3, 6, 12, 24, 60, rastgele; karışım,
+  dizi-only, HGB-only). Aday 2 = k=0'da en iyi ve k=6 karışım zararı < +1.0; çelişirse iki satır raporlanır, karar kullanıcıda.
+  Final 540 eğitiminde TÜM bileşenler `--deterministic` (CNN kodlayıcı dahil). ZIP + testler + 2 Docker; gönderme, SHA-256 bildir.
+  Hedef: aday 2 ZIP 17 Kasım. Ön kontrol sonuçları: `B_ASAMASI_RAPORU.md` 15 Kasım bölümleri.
+- **İş 3, 1. aşama sonucu:** çok sınıflı dedektörün "yakınlık" skoru Spearman −0.479 → −0.52, AUC60 0.945 → 0.951; 3 tohum, bipolar,
+  ilk-30-sn sınıfı gürültü düzeyinde (`scripts/n2det_v2.py`, `OUT/n2det_v2.json`).
 - 15 Kasım 17:44'te makine yeniden başladı (çalışan iş kaybı yok; hepsi 14 Kasım'da bitmişti).
 
 Yeni oturumda buradan devam et. Ayrıntılı gönderim kayıtları: `docs/submissions_log.md`.

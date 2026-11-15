@@ -77,8 +77,9 @@ class Det:
                for b in range(0, len(idx), bs)]
         return torch.cat(out).cpu().numpy().astype(np.float64)
 
-    def fit(self, tr, te, seed):
-        """-> per epoch: (P(N2), closeness) on the held-out stream rows, binary CE on the held-out labelled windows."""
+    def fit(self, tr, te, seed, stop_epoch=None):
+        """-> per epoch: (P(N2), closeness) on the held-out stream rows, binary CE on the held-out labelled windows.
+        stop_epoch (inner folds / final): same cosine schedule, stopped after that many epochs, evaluated once at the end."""
         idx_tr, y_tr = self.labelled(tr)
         idx_ev, y_ev = self.labelled(te)
         keep = (y_ev == 0) | (y_ev >= self.first_pos)  # binary CE on negative / post-onset windows only (comparable across variants)
@@ -100,7 +101,8 @@ class Det:
         n_in = 4 + (len(self.pairs) if self.bip else 0)
         w_close = np.minimum(np.arange(self.n_cls), self.first_pos) / self.first_pos
         out = []
-        for ep in range(CNN_EPOCHS):
+        n_ep = CNN_EPOCHS if stop_epoch is None else stop_epoch
+        for ep in range(n_ep):
             model.train()
             perm = torch.randperm(len(idx_t), generator=g, device=DEV)
             for b in range(0, len(perm), BATCH):
@@ -114,6 +116,8 @@ class Det:
                 nn.utils.clip_grad_norm_(model.parameters(), 1.0)
                 opt.step()
             sched.step()
+            if stop_epoch is not None and ep < n_ep - 1:
+                continue
             P = self.probs(model, te_rows)
             pe = self.probs(model, idx_ev)[:, self.first_pos:].sum(1)
             out.append((P[:, self.first_pos:].sum(1), P @ w_close,
