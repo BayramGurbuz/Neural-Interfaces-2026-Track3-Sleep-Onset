@@ -66,9 +66,9 @@ Track 03 (Sleep Onset) yarışması için model geliştirme deposudur.
 - Track 03 sealed final AÇIK: 10 Kasım 2026'da açıldı (organizatör maili; yarışma deposu commit
   79b4453 "Track 03 is now open!"). Bitiş 21 Kasım 23:59 CET = 22 Kasım 01:59 Türkiye saati (GMT+3).
   Kesin başlangıç saati için Codabench Phases sekmesi geçerli. Kayıtlar kapandı. Diğer track'ler 5–21 Kasım.
-- Gönderim hakkı: toplam 7 (13 Kasım teknik güncellemesiyle 5'ten 7'ye), günde en fazla 1. Kullanılan: #1 final540
-  (10 Kasım), #2 mix3_540 (11 Kasım; YENİ skorlamada 37.79, 17./123, 3.lük 36.52), #3 mix3_540_gridpi (12 Kasım;
-  eski skorlama 37.49, ızgara artık yasak). 7 hakkın 3'ü kullanıldı, KALAN 4. mix3_540_grid.zip gönderilmedi.
+- Gönderim hakkı: toplam 7 (13 Kasım teknik güncellemesiyle 5'ten 7'ye), günde en fazla 1. Güncel mühürlü skorlar:
+  #1 final540 38.74, #2 mix3_540 37.79, #3 mix3_540_gridpi 39.20 (ızgara mühürlüde zararlı ve yasak), #4 mix3_n2det_cropg_540
+  37.09 (15 Kasım, EN İYİ, 27. sıra; ilk 3: 34.63 / 35.05 / 35.37). 7 hakkın 4'ü kullanıldı, KALAN 3.
 - 13 KASIM KURAL DEĞİŞİKLİĞİ (2026-competition: codabench/pages/scientific_faq_sleep.md, terms.md): mühürlü değerlendirme
   güncellendi, bütün gönderimler yeniden skorlandı (eski skorlar 39.56 / 38.66 / 37.49 GEÇERSİZ). Tahminler EEG'den gelmeli;
   kayıtların etiketlenme/paketlenme düzenliliklerini kullanmak YASAK ve denetimde kontrol ediliyor. Geçen süre (akışın
@@ -91,8 +91,8 @@ Track 03 (Sleep Onset) yarışması için model geliştirme deposudur.
   Görülmemiş kişi CV = train+val üzerinde kişi bazlı 5 katlı GroupKFold. Görülmüş kişi CV = birden
   fazla gecesi olan kişilerin birer gecesi dışarıda, kalan geceleri eğitimde. Açık test setine
   (40 kayıt) sadece son kontrol için bakılır; test'e bakarak seçim/ayar yapılmaz.
-- Gönderim planı: #1 final540, #2 mix3_540 (yeni skorlama 37.79, şu anki referans), #3 mix3_540_gridpi (ızgaralı;
-  13 Kasım kuralıyla yasak); 7 hakkın 3'ü kullanıldı, kalan 4. Kalan haklar YALNIZCA kabul kuralını geçen, ızgarasız
+- Gönderim planı: #4 mix3_n2det_cropg_540 (37.09) şu anki en iyi; 7 hakkın 4'ü kullanıldı, kalan 3 (aday 2: 17–18 Kasım;
+  İş 3 iyileştirmeli aday: 19–20 Kasım; 21 Kasım yedek). Kalan haklar YALNIZCA kabul kuralını geçen, ızgarasız
   yeni modeller için; son gönderim en geç 20 Kasım, 21 Kasım yedek gün. Ayrıntı: docs/status.md, docs/submissions_log.md.
 - KABUL KURALI (14 Kasım): karışım çift CV makro Δ ≤ −0.5 (ref IZGARASIZ mix3 tarifi 39.40 ↔ mühürlü 37.79) VE 10 katın
   ≥ 8'inde iyileşme, YA DA Δ ≤ −0.3 VE 10/10 kat; bütün karışım ölçümleri ızgarasız kararla. Pencere başına çıkarım

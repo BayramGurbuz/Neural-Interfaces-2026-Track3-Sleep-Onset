@@ -28,7 +28,7 @@ Son gönderim en geç 20 Kasım, 21 Kasım yedek gün.
 | – | (onay bekliyor) | mix3_540_grid.zip | **aday** ⁶ | 38.35 ² | 31.6917 ³ | 230 s / 218 s (×2, aynı skor) | – | – |
 
 | 3 | 2026-11-12 | mix3_540_gridpi.zip | **gönderildi** ⁷ | 38.27 ² | 31.3234 ³ | 185 s / 176 s (×2, aynı skor) | **37.49** | 2762.79 s |
-| – | (hazır, kullanıcı gönderecek) | mix3_n2det_cropg_540.zip | **aday 1** ⁸ | 38.86 ² | 31.8833 ³ | 248 s / 220 s (×2, aynı skor; aynı oturumda mix3_540 229 s) | _beklenen ≈ 37.25_ | _tahmin ≈ 1650–1900 s_ |
+| 4 | 2026-11-15 | mix3_n2det_cropg_540.zip | **gönderildi** (ID 1053877) ⁸ | 38.86 ² | 31.8833 ³ | 248 s / 220 s (×2, aynı skor; aynı oturumda mix3_540 229 s) | **37.09** (27.) | kaydedilmedi |
 ² 500 kayıtlık çift CV (540'ta doğrulama seti yok). ³ Örneklem içi (test eğitimde) → yalnız boru hattı kontrolü.
 ⁴ final540 ile tek fark eğitim kayıt sayısı (submission.py birebir aynı; model.joblib'de α, GRU ayarı, seed, epoch, ızgara
   aynı; yalnız veriye bağlı binleme sınırları ve ağaç yapıları farklı) → ayrı bilgi vermez (2026-11-11).
@@ -49,6 +49,29 @@ Son gönderim en geç 20 Kasım, 21 Kasım yedek gün.
 | 1 | 2026-11-10 | final540.zip | **39.56** | 39.91 | 101.36 | 198.26 | 1249.51 s | 23 / 60 |
 | 2 | 2026-11-11 | mix3_540.zip | **38.66** | kaydedilmedi | kaydedilmedi | kaydedilmedi | kaydedilmedi | kaydedilmedi |
 | 3 | 2026-11-12 | mix3_540_gridpi.zip | **37.49** | 37.78 | 105.48 | 213.98 | 2762.79 s | kaydedilmedi |
+
+**Güncel mühürlü skorlar (My Submissions, 15 Kasım; 13 Kasım yeniden skorlamasından sonra):**
+
+| # | ID | ZIP | Yerel çift CV | Mühürlü (eski skorlama) | **Mühürlü (güncel)** | Yerel → güncel mühürlü |
+|---|---|---|---|---|---|---|
+| 1 | 1046190 | final540.zip | 40.28 | 39.56 | **38.74** | −1.54 |
+| 2 | 1047946 | mix3_540.zip | 39.40 | 38.66 | **37.79** | −1.61 |
+| 3 | 1050107 | mix3_540_gridpi.zip | 38.27 | 37.49 | **39.20** | +0.93 |
+| 4 | 1053877 | mix3_n2det_cropg_540.zip | 38.86 | – | **37.09** | −1.77 |
+
+Hak: 7'nin 4'ü kullanıldı, **3 kaldı** (15 Kasım'ın hakkı kullanıldı). Sıralama 15 Kasım: **27.** (37.09); ilk 3 = 34.63 / 35.05 / 35.37
+(3.lüğe fark 1.72 s). mix3_540 13 Kasım'da 37.79 ile 17./123 idi → leaderboard iki günde belirgin ilerledi.
+
+Okuma:
+- **Aday 1 = 37.09**, beklenen ≈ 37.25 → kullanıcının ölçütüyle "≤ 37.3: dedektör + kırpma taşınıyor, aday 2 aynı yolda". Yerel–mühürlü
+  farkı −1.77 (öncekiler −1.54 / −1.61); fazladan −0.16 s gürültü sınırında, ama yön olumlu.
+- **gridpi 37.49 → 39.20:** yeniden skorlamada ızgarasız modeller ~0.85 s iyileşti (final540 −0.82, mix3_540 −0.87), ızgaralı model 1.71 s
+  kötüleşti ve artık mix3_540'tan 1.41 s kötü. Çift CV'de ızgara dışı kayıtlarda gridpi'nin zararı ≈ +0.58 s idi; mühürlüdeki +1.41 daha
+  büyük → mühürlü akışlarda 30 sn hizası artık YOK (onset'ler ızgara dışı ve/veya akış başlangıcı kaydın başına hizalı değil). Izgara
+  yasağı ampirik olarak da doğrulandı.
+- Büyük akış-başlangıcı kayması işareti yok: artırmasız mix3_540'ın yerel–mühürlü farkı final540 ile aynı (−1.61 ↔ −1.54); rastgele
+  başlangıç olsaydı artırmasız modeller +30 s mertebesinde bozulurdu. Kırpma artırması bu yüzden şimdilik sigorta; küçük kaymalar
+  (birkaç pencere) gridpi'deki fazladan zararla tutarlı ama ayırt edilemiyor.
 
 **13 Kasım yeniden skorlama (yukarıdaki skorlar eski skorlamaya ait, GEÇERSİZ):** mühürlü değerlendirme teknik olarak
 güncellendi, bütün Finished gönderimler aynı ID ile yeniden koşuldu. mix3_540: **37.79** (17. / 123; 3.lük 36.52), süre 1722 s.
@@ -195,7 +218,7 @@ Aynı seed'lerle (0,1,2) yeniden eğitim: bit düzeyinde aynı (48.2224). Farkl�
   duration 184.9 / 176.1 s (aynı oturumda mix3_540_grid 168.5 s); temiz veride temizlik kuralının etkisi 0.0.
   Log `~/neuralbench/save/mix3_540_gridpi_build.log`. v4-sealed testi yapılamadı. Ayrıntı: `B_ASAMASI_RAPORU.md`.
 
-### mix3_n2det_cropg_540.zip (aday 1, 2026-11-15; hazır, gönderilmedi) ⁸
+### mix3_n2det_cropg_540.zip (gönderim #4, 2026-11-15 19:46, ID 1053877; mühürlü 37.09, 27.) ⁸
 - **ZIP SHA-256: aed6a9a61ca0003282eb123570f74e4ca718a575abdaee60dde63371899802f9** (12.01 MB; submission.py 42 446 B,
   model.joblib 18 461 341 B, SHA-256 a85f9691…b9863340).
 - Model: HGB(c) 4 üye + 5 N2-dedektör özeti (822 öznitelik; `ens_c_all_n2det`, iterasyon 150 / 150 / 250 / 150) + GRU-uw 10 tohum
@@ -233,4 +256,4 @@ Aynı seed'lerle (0,1,2) yeniden eğitim: bit düzeyinde aynı (48.2224). Farkl�
 - **Beklenen mühürlü skor ≈ 37.25** (yerel 38.86; ref 39.40 ↔ 37.79). Okuma: ≈ 37.25 → dedektör kazancı taşınıyor, mühürlü akışlarda
   kayma yok; belirgin daha iyi → kayma var ya da dedektör beklenenden iyi (sonraki adım aynı: tam artırmalı aday 2); ≈ 37.8 veya kötü →
   dedektör yeni mühürlü sete taşınmıyor, aday 2 yeniden düşünülür.
-- Gönderirken yapılacak: My Submissions'taki üç eski gönderimin yeni (13 Kasım) skorlarını bu dosyaya yaz (final540 ve gridpi eksik).
+- Mühürlü: **37.09** (yerel 38.86 → −1.77; beklenen ≈ 37.25). Eski gönderimlerin güncel skorları yukarıda "Güncel mühürlü skorlar".

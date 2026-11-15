@@ -1,12 +1,10 @@
 # Proje durumu (son güncelleme: 2026-11-15)
 
 ## ŞU AN (15 Kasım akşamı)
-- **Aday 1 HAZIR, kullanıcı gönderecek:** `submissions/mix3_n2det_cropg_540.zip`, SHA-256
-  aed6a9a61ca0003282eb123570f74e4ca718a575abdaee60dde63371899802f9. Tarif (A): HGB(n2det) + GRU kırpma artırmalı/deterministik +
-  TCN ve GRU-emb mix3_all'dan, α 0.6, GRID kapalı. Çift CV 38.86 (−0.54, 8/10) → beklenen mühürlü ≈ 37.25. Bütün yerel testler
-  geçti (akış ↔ toplu, NaN / düz kanal, Docker v3 ×2 aynı skor 31.8833, süre mix3_540'ın 0.96–1.08 katı). Ayrıntı:
-  `docs/submissions_log.md` son bölüm, `docs/method.md` "Aday 1".
-- Gönderimden sonra: mühürlü skoru ve üç eski gönderimin yeni skorlarını submissions_log.md'ye yaz; CLAUDE.md'de hak sayısını güncelle.
+- **Aday 1 gönderildi (#4, 15 Kasım 19:46): mühürlü 37.09, 27. sıra** (yerel 38.86; beklenen 37.25). En iyi gönderimimiz. Güncel
+  skorlar: final540 38.74, mix3_540 37.79, gridpi 39.20. 7 hakkın 4'ü kullanıldı, **3 kaldı**. İlk 3: 34.63 / 35.05 / 35.37.
+  Kullanıcı ölçütüne göre (≤ 37.3) dedektör + kırpma taşınıyor → aday 2 planlandığı gibi sürüyor; duraklatma koşulu (≥ 37.8) oluşmadı.
+  gridpi'nin 39.20'si: mühürlü akışlarda 30 sn hizası yok (ayrıntı `docs/submissions_log.md` "Güncel mühürlü skorlar").
 - **Kullanıcı kararları (15 Kasım akşamı):** aday 1'i kullanıcı gönderiyor (sonuç okuması: ≤ 37.3 taşınıyor; 37.4–37.7 kısmen;
   **≥ 37.8 → genişletme ve İş 3 DURAKLATILIR, kullanıcıya sorulur**). CPU sırası: önce İş 3 B ablasyonu, sonra 4 üye genişletmesi.
 - **ÇALIŞAN ZİNCİRLER (yeniden başlatma olursa aynı komutlarla sürdür; hepsi kaldığı yerden devam eder):**
