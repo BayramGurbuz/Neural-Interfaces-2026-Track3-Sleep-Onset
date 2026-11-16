@@ -32,7 +32,12 @@ SEQ = {"old": SEQ_OLD, "a": [f"{s}_bip" for s in SEQ_OLD], "a+c": [f"{s}_bip_epo
        "nG": ["uw_n10_n2det", "tcn_n10", "cnn3_emb"],  # only the GRU with n2det, TCN / GRU-emb old
        "crop": [f"{s}_old_crop" for s in SEQ_OLD],  # stream-start crop augmentation (14 Nov), old inputs
        "cropG": ["uw_n10_old_crop", "tcn_n10", "cnn3_emb"],  # only the GRU crop-augmented
-       "cropGc": ["uw_n10_n2c_crop", "tcn_n10", "cnn3_emb"]}  # GRU crop-augmented + multi-class closeness inputs (15 Nov)
+       "cropGc": ["uw_n10_n2c_crop", "tcn_n10", "cnn3_emb"],  # GRU crop-augmented + multi-class closeness inputs (15 Nov)
+       # Work B (16 Nov): TCN crop + closeness; GRU-emb old / crop; 2- and 1-component sequence sides
+       "wb2": ["uw_n10_n2c_crop", "tcn_n10_n2c_crop", "cnn3_emb"],
+       "wb3": ["uw_n10_n2c_crop", "tcn_n10_n2c_crop", "cnn3_emb_old_crop"],
+       "wb4": ["uw_n10_n2c_crop", "tcn_n10_n2c_crop"],
+       "wb5": ["uw_n10_n2c_crop"]}
 HGB = {"old": "dyn_maxmin_spec_eye", "a": "dyn_maxmin_spec_eye_bip", "a+c": "dyn_maxmin_spec_eye_bip+epoch",
        "n": "dyn_maxmin_spec_eye_n2det", "nB": "dyn_maxmin_spec_eye_n2Bonly",
        "n2c": "dyn_maxmin_spec_eye_n2c_crop"}  # 15 Nov: 4 members + multi-class closeness + crop-augmented table (ens_crop_cv.py c)  # nB: only the B member with n2det (indicator)

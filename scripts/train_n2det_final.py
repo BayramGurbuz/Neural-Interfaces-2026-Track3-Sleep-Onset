@@ -63,6 +63,11 @@ def n2_table(p, recs):
 
 
 def stage_det():
+    """--trainval (16 Nov, shift calibration): trained on the 500 train+val recordings only -> SAVE/n2det_final_tv/det.joblib,
+    p_full (all 540 rows; test rows out-of-sample), p_oof (inner-fold for train+val rows, full model for test rows)."""
+    tv = "--trainval" in sys.argv
+    final = SAVE / ("n2det_final_tv" if tv else "n2det_final")
+    final.mkdir(parents=True, exist_ok=True)
     d, recs, _, _ = load_inputs(include_test=True)
     zp = np.load(SAVE / "n2det_post.npz")
     post = dict(tl=zp["timeline"], k=zp["k"], F=None)
@@ -72,43 +77,51 @@ def stage_det():
     det = CNNDet(d, post, np.ones(len(d), bool), np.ones(len(zp["k"]), bool))
     det.seed, det.epoch = SEED, epochs
     all_rows = np.arange(len(d))
-    print(f"540 recordings, {len(d)} stream + {len(zp['k'])} post-onset windows; detector epochs {epochs}, seed {SEED}", flush=True)
+    trm = (d.split != "test").to_numpy() if tv else np.ones(len(d), bool)
+    print(f"{'train+val' if tv else '540'} recordings, {len(d)} stream + {len(zp['k'])} post-onset windows; detector epochs {epochs}, seed {SEED}", flush=True)
     t0 = time.perf_counter()
-    p_full, info = det.fit_predict(np.ones(len(d), bool), all_rows)
+    p_full, info = det.fit_predict(trm, all_rows)
     state = {k: v.detach().cpu().numpy() for k, v in det.last_model.state_dict().items()}
     print(f"full detector: {info} ({time.perf_counter() - t0:.0f} s)", flush=True)
     p_oof = np.full(len(d), np.nan, np.float32)
+    p_oof[~trm] = p_full[~trm]
     rec_tl = d.timeline.to_numpy()
-    for k, (itr, ite) in enumerate(GroupKFold(5).split(all_rows, groups=d.subject.to_numpy())):
+    rows = np.flatnonzero(trm)
+    for k, (itr, ite) in enumerate(GroupKFold(5).split(rows, groups=d.subject.to_numpy()[rows])):
         t0 = time.perf_counter()
         mtr = np.zeros(len(d), bool)
-        mtr[itr] = True
+        mtr[rows[itr]] = True
+        ite = rows[ite]
         p_oof[ite] = det.fit_predict(mtr, ite)[0]
         print(f"  inner fold {k}: {len(np.unique(rec_tl[ite]))} held-out recordings ({time.perf_counter() - t0:.0f} s)", flush=True)
     assert not np.isnan(p_oof).any()
-    joblib.dump(dict(state=state, scale=SCALE, clip=CLIP, emb=EMB, epochs=epochs, seed=SEED), FINAL / "det.joblib")
-    np.save(FINAL / "p_oof.npy", p_oof)
-    np.save(FINAL / "p_full.npy", p_full.astype(np.float32))
+    joblib.dump(dict(state=state, scale=SCALE, clip=CLIP, emb=EMB, epochs=epochs, seed=SEED), final / "det.joblib")
+    np.save(final / "p_oof.npy", p_oof)
+    np.save(final / "p_full.npy", p_full.astype(np.float32))
     rem = d.target.to_numpy().astype(np.float64)
     res = dict(epochs=epochs, seed=SEED, deterministic=True, n_windows=len(d), oof_sanity=sanity(p_oof.astype(np.float64), rem),
                full_insample_sanity=sanity(p_full.astype(np.float64), rem))
-    (FINAL / "det.json").write_text(json.dumps(res, indent=2, default=float))
+    (final / "det.json").write_text(json.dumps(res, indent=2, default=float))
     s = res["oof_sanity"]
     print(f"OOF (540, subject-grouped): Spearman {s['spearman']:+.3f}, AUC60 {s['auc_last60_vs_300plus']:.3f}, "
           f"AUC30 {s['auc_last30_vs_60_150']:.3f}; in-sample AUC60 {res['full_insample_sanity']['auc_last60_vs_300plus']:.3f}")
 
 
 def stage_hgb():
+    """--trainval: train+val rows only, detector from n2det_final_tv -> SAVE/ens_c_tv_n2det (test check out-of-sample)."""
+    tv = "--trainval" in sys.argv
+    final = SAVE / ("n2det_final_tv" if tv else "n2det_final")
     wg, sg, _ = ABLATIONS[FEAT_SET]
     df, X, names = build_table_ext(wg, sg)
     recs = recordings(df)
-    p_oof, p_full = np.load(FINAL / "p_oof.npy"), np.load(FINAL / "p_full.npy")
-    det = joblib.load(FINAL / "det.joblib")
+    p_oof, p_full = np.load(final / "p_oof.npy"), np.load(final / "p_full.npy")
+    det = joblib.load(final / "det.joblib")
     X = np.concatenate([X, n2_table(p_oof, recs)], axis=1)
     names = list(names) + [f"n2cnn_{s}" for s in N2_NAMES]
-    bins = fit_bin_edges(X)
-    Xb = apply_bin_edges(X, bins)
-    y = df.target.to_numpy()
+    trm = (df.split != "test").to_numpy() if tv else np.ones(len(df), bool)
+    bins = fit_bin_edges(X[trm])
+    Xb = apply_bin_edges(X[trm], bins)
+    y = df.target.to_numpy()[trm]
     models, info = [], {}
     t_all = time.perf_counter()
     for name, (edges, params, _) in MEMBERS.items():
@@ -120,7 +133,7 @@ def stage_hgb():
         info[name] = dict(n_iter=n_iter, lofo=it, fit_s=time.perf_counter() - t0)
         print(f"{name}: {n_iter} iters, fit {info[name]['fit_s']:.0f} s", flush=True)
         models.append((clf, edges))
-    omega = grid_omega(df)
+    omega = grid_omega(df[trm].reset_index(drop=True))
     # in-sample pipeline check on the 40 test recordings, with the full detector's P as the wrapper will produce it
     mt = (df.split == "test").to_numpy()
     d_te = df[mt].reset_index(drop=True)
@@ -129,7 +142,7 @@ def stage_hgb():
     score = summarize(d_te, decide(P, None, omega, True, GRID))
     print(f"test (in-sample) hgb_c+n2det {score['wbmae']:.4f}  " + " ".join(f"{r} {score[r]:.1f}" for r in RANGE_NAMES)
           + f"; total fit {time.perf_counter() - t_all:.0f} s, {X.shape[1]} features")
-    out = SAVE / "ens_c_all_n2det"
+    out = SAVE / ("ens_c_tv_n2det" if tv else "ens_c_all_n2det")
     out.mkdir(exist_ok=True)
     joblib.dump(dict(kind="ens_grid", models=[c for c, _ in models], member_edges=[e for _, e in models], grid=GRID,
                      grid_omega=omega, feature_names=names, bin_edges=bins, calib_x=None, calib_y=None, groups=sg,

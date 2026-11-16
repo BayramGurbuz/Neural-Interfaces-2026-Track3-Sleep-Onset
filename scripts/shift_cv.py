@@ -1,0 +1,240 @@
+"""Shifted dual CV (16 Nov, Work B selection): the held-out recordings of every fold are streamed from a sampled start window
+k instead of the recording start (elapsed time, causal features, detector summaries, baselines and recurrent / TCN states all
+restart there; only windows >= k scored, official per-recording W-bMAE). Fold models are retrained exactly as in the dual CV
+(same training rows, crop copies, out-of-fold detector outputs, seeds, deterministic settings) at the number of trees / epoch
+the CV chose for that fold; then the held-out recordings are predicted under each shift distribution.
+
+Parts (run separately, CPU / GPU in parallel; outputs keyed by distribution set):
+  hgb             HGB(c) 4 members, closeness + crop table (ens_crop_cv.py c), n_iter per fold from its npz
+  seq NAME        sequence model NAME (SEQ_SPECS), epochs per fold from OUT/b2_seq.json (or the fixed final epochs)
+  mix ROWS        mixes "hgb:name+name+..." ; alpha nested LOFO 0.3-0.8 per distribution; Δ vs the first row
+Distributions (--dists=, comma list): k0 (no shift, check against the k=0 CV), kK (fixed K windows), UK (uniform 0..K),
+  mPUK (P no shift, 1-P uniform 0..K, e.g. m0.5U24), wide (uniform 0..(onset - 60 s) / 5). --draws=J starts per recording
+  (J pseudo-recordings), seed from (protocol, fold, draw).
+
+Usage: python scripts/shift_cv.py hgb|seq NAME|mix ROWS --dists=k0,U24 [--draws=2] [--tag=T]
+  -> OUT/shiftcv<T>_hgb_<proto>.npz, OUT/shiftcv<T>_seq_<NAME>_<proto>.npz, OUT/shiftcv<T>_mix.json
+"""
+import json
+import sys
+import time
+
+import numpy as np
+
+ARG = {a.split("=", 1)[0]: a.split("=", 1)[1] for a in sys.argv[1:] if a.startswith("--") and "=" in a}
+POS = [a for a in sys.argv[1:] if not a.startswith("--")]
+PART = POS[0]
+if PART == "seq":
+    from repro import set_deterministic
+    set_deterministic()
+
+import torch  # noqa: E402
+
+import hgb_crop_precheck as pc  # noqa: E402
+from decision_layer import FINE, evaluate, old_slot_weights, predict, rec_onsets, select  # noqa: E402
+from dist_hgb import VARIANTS, class_stats  # noqa: E402
+from dual_cv import OUT, seen_splits, unseen_splits  # noqa: E402
+from ensemble_dist import MEMBERS, grid_omega, to_grid  # noqa: E402
+from gru_cv import ARCHS, CONFIGS, DEV, load_inputs, pad, run_fold, seq_inputs  # noqa: E402
+from n2det_feats import MC_SEEDS, summaries  # noqa: E402
+
+B = VARIANTS["B"]
+DISTS = ARG.get("--dists", "k0").split(",")
+DRAWS = int(ARG.get("--draws", "2"))
+TAG = ARG.get("--tag", "")
+ALPHAS = [0.3, 0.4, 0.5, 0.6, 0.7, 0.8]
+CROP = (0.5, 0.35, 0.15)
+SEQ_SPECS = {  # name: (cfg, closeness inputs, CNN-embedding inputs, fixed epochs when the CV choice is not on record)
+    "uw_n10_n2c_crop": (dict(CONFIGS["uw_n10"], crop=CROP), True, False, None),
+    "tcn_n10": (CONFIGS["tcn_n10"], False, False, 10),
+    "tcn_n10_n2c_crop": (dict(CONFIGS["tcn_n10"], crop=CROP), True, False, None),
+    "cnn3_emb": (dict(CONFIGS["uw"], run_epochs=40, n_seeds=3), False, True, 10),
+    "cnn3_emb_old_crop": (dict(CONFIGS["uw"], run_epochs=40, n_seeds=3, crop=CROP), False, True, None),
+}
+
+m = (pc.df.split != "test").to_numpy()
+assert (np.flatnonzero(m) == np.arange(m.sum())).all()
+d = pc.df[m].reset_index(drop=True)
+recs = [g.sort_values("stop").index.to_numpy() for _, g in d.groupby("timeline", sort=False)]
+rec_of = np.empty(len(d), int)
+for i, r in enumerate(recs):
+    rec_of[r] = i
+protocols = {"unseen": unseen_splits(d), "seen": seen_splits(d)}
+target = d.target.to_numpy()
+
+
+def sample_k(dist, rng, r):
+    n = len(r)
+    if dist == "k0":
+        k = 0
+    elif dist == "wide":
+        onset = float(d.stop[r[-1]] + target[r[-1]])
+        k = int(rng.integers(0, max(int((onset - 60) // 5), 0) + 1))
+    elif dist.startswith("m"):
+        p, K = dist[1:].split("U")
+        k = 0 if rng.random() < float(p) else int(rng.integers(0, int(K) + 1))
+    elif dist.startswith("U"):
+        k = int(rng.integers(0, int(dist[1:]) + 1))
+    else:
+        k = int(dist[1:])
+    return min(k, n - 1)
+
+
+def shifted(proto, k_fold, dist):
+    """-> list of (recording index, start k, draw j) for the held-out recordings of the fold (deterministic)."""
+    te = protocols[proto][k_fold][1]
+    out = []
+    for j in range(1 if dist == "k0" else DRAWS):
+        rng = np.random.default_rng([sum(map(ord, proto)), k_fold, j, sum(map(ord, dist))])  # no hash(): randomised per process
+        for i in np.unique(rec_of[te]):
+            out.append((int(i), sample_k(dist, rng, recs[i]), j))
+    return out
+
+
+def close_values(proto, k):
+    return np.mean([np.load(OUT / f"n2det_multi_s{s}_{proto}_f{k}.npz")["close"] for s in MC_SEEDS], axis=0)
+
+
+def part_hgb():
+    from cv_utils import apply_bin_edges, fit_bin_edges
+    from sklearn.ensemble import HistGradientBoostingClassifier
+    from dist_hgb import to_class
+    X0 = pc.X817[m]
+    c_rows, c_X, ks = pc.cropped_copies(recs, np.random.default_rng(0))
+    crop_recs = [r[k:] for r, k in zip(recs, ks)]
+    tl_c = d.timeline.to_numpy()[c_rows]
+    y_ext = np.concatenate([target, target[c_rows]])
+    iters = {nm: np.load(OUT / f"ens_dyn_maxmin_spec_eye_n2c_crop_{nm}.npz", allow_pickle=True)["n_iter"].item() for nm in MEMBERS}
+    probas = {nm: np.load(OUT / f"ens_dyn_maxmin_spec_eye_n2c_crop_{nm}.npz", allow_pickle=True)["probas"].item() for nm in MEMBERS}
+    for proto, splits in protocols.items():
+        path = OUT / f"shiftcv{TAG}_hgb_{proto}.npz"
+        if path.exists():
+            print(f"hgb {proto}: cached", flush=True)
+            continue
+        res = {}
+        for k, (tr, te) in enumerate(splits):
+            t0 = time.perf_counter()
+            v = close_values(proto, k)
+            S = summaries(v, recs)
+            Sc = summaries(v, crop_recs)[c_rows]
+            Xe = np.concatenate([np.concatenate([X0, S], 1), np.concatenate([c_X, Sc], 1)])
+            tr_e = np.concatenate([tr, np.isin(tl_c, np.unique(d.timeline.to_numpy()[tr]))])
+            bins = fit_bin_edges(Xe[tr_e])
+            Xb = apply_bin_edges(Xe[tr_e], bins)
+            clfs = []
+            for nm, (edges, params, _) in MEMBERS.items():
+                clf = HistGradientBoostingClassifier(max_iter=int(iters[nm][proto][k]), max_features=0.5, early_stopping=False,
+                                                     random_state=0, **params)
+                clfs.append((clf.fit(Xb, to_class(y_ext[tr_e], edges)), edges, nm))
+            # check: unshifted held-out probabilities reproduce the CV's
+            P0 = clfs[0][0].predict_proba(apply_bin_edges(Xe[:len(d)][te], bins))
+            dev = float(np.abs(P0 - probas[clfs[0][2]][proto][k]).max())
+            for dist in DISTS:
+                Ph = []
+                for i, kk, j in shifted(proto, k, dist):
+                    rows = recs[i][kk:]
+                    H = np.concatenate([pc.restream(rows), summaries(v[rows], [np.arange(len(rows))])], 1)
+                    Hb = apply_bin_edges(H, bins)
+                    Ph.append(np.mean([to_grid(c.predict_proba(Hb), e) for c, e, _ in clfs], axis=0).astype(np.float32))
+                res[f"{dist}_f{k}"] = np.concatenate(Ph)
+            print(f"hgb {proto} fold {k}: refit + {len(DISTS)} distributions in {time.perf_counter() - t0:.0f} s; unshifted vs CV probas "
+                  f"max |Δ| {dev:.2e}", flush=True)
+        np.savez(path, **res)
+
+
+def part_seq(name):
+    cfg, n2c, emb, fixed = SEQ_SPECS[name]
+    d2, recs2, F, gain = load_inputs()
+    assert (d2.timeline.to_numpy() == d.timeline.to_numpy()).all() and (d2.stop.to_numpy() == d.stop.to_numpy()).all()
+    cv = json.loads((OUT / "b2_seq.json").read_text()).get(name)
+    n_seeds = cfg.get("n_seeds", 10)
+    for proto, splits in protocols.items():
+        path = OUT / f"shiftcv{TAG}_seq_{name}_{proto}.npz"
+        if path.exists():
+            print(f"{name} {proto}: cached", flush=True)
+            continue
+        res = {}
+        for k, (tr, te) in enumerate(splits):
+            t0 = time.perf_counter()
+            ep = int(cv[proto]["epochs"][k]) if cv else fixed
+            v = close_values(proto, k) if n2c else None
+            models = []
+            for s in range(n_seeds):
+                E = np.load(OUT / f"cnn_cnn3_{proto}_f{k}_s{s}.npz")["emb"].astype(np.float32) if emb else None
+                if n2c:
+                    def extra(r, v=v):
+                        return summaries(v[r], [np.arange(len(r))])
+                else:
+                    extra = E
+                net, mu, sd = run_fold(d2, recs2, F, gain, tr, None, cfg, s, stop_epoch=ep, extra=extra)
+                models.append((net, mu, sd, extra))
+            for dist in DISTS:
+                items = shifted(proto, k, dist)
+                P = []
+                for net, mu, sd, extra in models:
+                    xs = []
+                    for i, kk, j in items:
+                        rows = recs2[i][kk:]
+                        ex = None if extra is None else (extra(rows) if callable(extra) else extra[rows])
+                        xs.append((seq_inputs(F[rows], ex) - mu) / sd)
+                    with torch.no_grad():
+                        out = torch.softmax(net(torch.tensor(pad(xs), device=DEV))[0], -1).cpu().numpy()
+                    P.append(np.concatenate([out[n, :len(x)] for n, x in enumerate(xs)]))
+                res[f"{dist}_f{k}"] = np.mean(P, axis=0).astype(np.float32)
+            print(f"{name} {proto} fold {k}: epoch {ep}, {n_seeds} seeds + {len(DISTS)} distributions in {time.perf_counter() - t0:.0f} s",
+                  flush=True)
+        np.savez(path, **res)
+
+
+def part_mix(rows_arg):
+    import pandas as pd
+    onset = rec_onsets(d)
+    rows = [(r.split(":")[0], r.split(":")[1].split("+")) for r in rows_arg.split(",")]
+    H = {p: np.load(OUT / f"shiftcv{TAG}_hgb_{p}.npz") for p in protocols}
+    out = {}
+    for dist in DISTS:
+        E = {}
+        for hg, seqs in rows:
+            assert hg == "n2c", "only the new HGB(c) is retrained here"
+            Z = {s: {p: np.load(OUT / f"shiftcv{TAG}_seq_{s}_{p}.npz") for p in protocols} for s in seqs}
+            folds = []
+            for proto, splits in protocols.items():
+                for k, (tr, _) in enumerate(splits):
+                    items = shifted(proto, k, dist)
+                    idx = np.concatenate([recs[i][kk:] for i, kk, _ in items])
+                    dte = d.iloc[idx].reset_index(drop=True).copy()
+                    dte["timeline"] = np.concatenate([[f"{d.timeline[recs[i][0]]}#{j}"] * (len(recs[i]) - kk) for i, kk, j in items])
+                    dtr = d[tr].reset_index(drop=True)
+                    _, ob = class_stats(dtr, B)
+                    folds.append(dict(proto=proto, k=k, dte=dte, t=dte.stop.to_numpy().astype(np.float64),
+                                      seq=[to_grid(Z[s][proto][f"{dist}_f{k}"].astype(np.float64), B) @ FINE for s in seqs],
+                                      hgb=H[proto][f"{dist}_f{k}"].astype(np.float64) @ FINE,
+                                      w_old=old_slot_weights(ob, grid_omega(dtr)),
+                                      D=onset.loc[d.timeline.to_numpy()[idx]].to_numpy()))
+            c0 = {a: [predict(f, "old", 0.0, alpha=a) for f in folds] for a in ALPHAS}
+            p, ch, al = select(folds, c0)
+            E[f"{hg}:{'+'.join(seqs)}"] = (evaluate(folds, p), ch, al)
+        r0 = list(E.values())[0][0]
+        res = {}
+        for key, (e, ch, al) in E.items():
+            du = np.array(e["unseen"]["folds"]) - np.array(r0["unseen"]["folds"])
+            ds = np.array(e["seen"]["folds"]) - np.array(r0["seen"]["folds"])
+            res[key] = dict(unseen=e["unseen"]["mean"], seen=e["seen"]["mean"], macro=e["macro"]["mean"],
+                            delta=e["macro"]["mean"] - r0["macro"]["mean"], better=int((du < -1e-9).sum() + (ds < -1e-9).sum()),
+                            d_unseen=du.tolist(), d_seen=ds.tolist(), contrib=e["macro"]["contrib"], alpha=ch, alpha_all=al)
+        out[dist] = res
+        print(f"\n== {dist} (Δ vs the first row)")
+        for key, v in res.items():
+            print(f"  {key:62s} unseen {v['unseen']:6.2f} seen {v['seen']:6.2f} dual {v['macro']:6.2f} Δ {v['delta']:+6.2f} "
+                  f"{v['better']:2d}/10 α {v['alpha_all']} | folds Δ {np.round(v['d_unseen'], 2).tolist()} {np.round(v['d_seen'], 2).tolist()}",
+                  flush=True)
+    path = OUT / f"shiftcv{TAG}_mix.json"
+    old = json.loads(path.read_text()) if path.exists() else {}
+    old.update(out)
+    path.write_text(json.dumps(old, indent=2, default=float))
+
+
+if __name__ == "__main__":
+    t0 = time.perf_counter()
+    {"hgb": lambda: part_hgb(), "seq": lambda: part_seq(POS[1]), "mix": lambda: part_mix(POS[1])}[PART]()
+    print(f"{PART} done ({time.perf_counter() - t0:.0f} s)")
