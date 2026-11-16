@@ -260,3 +260,37 @@ Aynı seed'lerle (0,1,2) yeniden eğitim: bit düzeyinde aynı (48.2224). Farkl�
 - Mühürlü: **W-bMAE makro 37.09**, W-bMAE 37.33, bMAE 92.96, MAE 181.64, süre **1526.6 s** (sınır 3600; mix3_540 1722 s → oran 0.89,
   yerel Docker oranı 0.96–1.08 ile tutarlı). Yerel 38.86 → −1.77 (mix3_540 −1.61); beklenen ≈ 37.25. Eski gönderimlerin güncel skorları
   yukarıda "Güncel mühürlü skorlar".
+
+### cand2_cropGc_540.zip (aday 2, 2026-11-16; hazır, gönderilmedi) ⁹
+- **ZIP SHA-256: 0ad65422284736e630fa2f401c973efd84116bf08c547d62e629e9e7acd63f94** (13.10 MB; submission.py 43 265 B, model.joblib
+  21 120 733 B, SHA-256 67fca7fe…c6a1b3d). Yedek: cand2_cropG_540.zip (SHA-256 a23ea00c…48c3ee217).
+- Model: HGB(c) 4 üye, 817 öznitelik + çok sınıflı dedektörün yakınlık özetleri (5), kırpma artırmalı eğitim tablosu (`ens_c_all_n2c_crop`,
+  iterasyon 200 / 175 / 375 / 200) + GRU-uw 10 tohum, kırpma artırmalı, girdisinde yakınlık özetleri (`gru_n2c_all`, 20 epoch) + TCN 10 tohum
+  ve GRU-emb 3 tohum (`mix3det_all`, artırmasız); **α 0.6**; ızgara / kalibrasyon / yumuşatma kapalı. Dedektör: çok sınıflı (5 sınıf),
+  3 tohum (epoch 18 / 15 / 12), çıkış = tohum ortalaması yakınlık. **Bütün bileşenler deterministik** (dedektör, GRU, TCN, CNN kodlayıcı,
+  GRU-emb: `--deterministic` / repro; HGB random_state 0).
+- Çift CV (500 kayıt, ızgarasız, `b2_mix_cand2.json` "HGB(n2c) + seq(cropGc)"): unseen 39.49, seen 37.49 → **38.49**; 39.40'a göre
+  −0.91 (8/10), **aday 1'e (38.86) göre −0.37, 7/10** → aday 2 kabulü (Δ ≤ −0.15 ve ≥ 7/10) geçildi. α iç içe LOFO 9/10 katta 0.6.
+- Dayanıklılık (train+val modeller, 40 test kaydı): k = 6 karışım zararı **+0.56** (< +1.0 ✓); k = 1 / 3 / 12 / 24 / 60 / rastgele
+  −0.84 / −0.68 / +0.77 / −0.42 / +1.53 / +2.81. Aday 1'e en yakın ölçümde k = 6 +3.53, rastgele +14.34.
+- **Paket tarifi ↔ 38.49 veren çift CV tarifi:** bileşenler, α 0.6, ω (ızgara ve GRU ω_B; assert), 5 yakınlık özeti (tek kaynak
+  `n2det_stream.py`; HGB'de ve GRU girdisinde, kırpmada kırpılan başlangıçtan yeniden akıtılır), kırpma dağılımları (HGB 70/30, GRU 50/35/15),
+  tohumlar: aynı. Farklar: (1) 500 → 540 kayıt; (2) kat başına LOFO seçimleri yerine medyanları (dedektör epoch'ları, GRU 20 epoch, HGB
+  iterasyonları, 25'e yuvarlı); (3) eğitim satırlarının fold-dışı yakınlığı kişi bazlı iç katlardan; (4) **TCN / CNN kodlayıcı / GRU-emb
+  deterministik yeniden eğitildi** — CV'deki "eski" OOF'lar deterministik olmayan özgün koşulardı. Test kayıtlarında TCN bit düzeyinde aynı
+  (40.3806), GRU-emb 49.56 → 49.07 (yalnız kodlayıcı değişti).
+- Komutlar (`scripts/`): `train_n2det_final.py detmc` → `train_n2det_final.py hgbmc` → `train_gru_n2c.py` →
+  `train_mix3_final.py --all --deterministic --tag=det` → `train_n2det_final.py mix --alpha=0.6 --ens=ens_c_all_n2c_crop --seq=mix3det_all
+  --gru-from=gru_n2c_all --out=cand2_cropGc_all` → `build_hgb_submission.py --model ~/neuralbench/save/cand2_cropGc_all/model.joblib
+  --name cand2_cropGc_540 --smooth-a 0`. CV: `n2det_v2_inner.py 0|1|2`, `ens_crop_cv.py c`, `b2_seq_cv.py n2c gru --crop`, `b2_mix.py`.
+- Kontroller (16 Kasım, log `~/neuralbench/save/cand2_build.log`, `cand2_docker.log`):
+  - Bileşen kimliği (toplu yol, açık test, örneklem içi): TCN 40.3806, GRU-emb 49.0675, HGB 26.5861 — eğitim loglarıyla aynı; GRU+yakınlık 34.16.
+  - Akış ↔ toplu: maks |Δ| 0.041 s, > 0.5 s pencere yok; 31.1905 ↔ 31.1904.
+  - Girdi temizliği (`n2det_clean_test.py`, çok sınıflı dedektör dahil) PASS; ek 9 senaryo PASS (tahminler sonlu ve [0, 600] içinde; GRU /
+    GRU-emb / TCN durumları, tabanlar, dedektör özetleri ve GRU'nun dedektör tabanında NaN/inf yok).
+  - Paketleyici regresyonu: aday 1 yeni paketleyiciyle yeniden üretildi → akış tahminleri gönderilen paketle bit düzeyinde aynı.
+  - Docker v3 ×2: wbmae **31.1904923768249** her ikisinde (bit düzeyinde aynı), bMAE 79.79, MAE 150.29; duration 256.4 / 244.3 s; aynı
+    oturumda aday 1: 221.8 s (31.883341811607796, 15 Kasım'la aynı). **Oran 1.10–1.16** (kural ≤ 1.50 ✓) → mühürlü süre tahmini
+    1527 × 1.10–1.16 ≈ **1680–1770 s** (sınır 3600). Import satırları aday 1 ile aynı.
+  - Yedek cand2_cropG_540: Docker 30.390960407877003, 249.5 s.
+- **Beklenen mühürlü skor ≈ 36.7–36.9** (yerel 38.49; aday 1 38.86 ↔ 37.09; yerel–mühürlü farkı −1.61 … −1.77).

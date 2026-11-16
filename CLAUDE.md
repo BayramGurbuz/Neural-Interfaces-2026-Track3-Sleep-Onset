@@ -69,6 +69,7 @@ Track 03 (Sleep Onset) yarışması için model geliştirme deposudur.
 - Gönderim hakkı: toplam 7 (13 Kasım teknik güncellemesiyle 5'ten 7'ye), günde en fazla 1. Güncel mühürlü skorlar:
   #1 final540 38.74, #2 mix3_540 37.79, #3 mix3_540_gridpi 39.20 (ızgara mühürlüde zararlı ve yasak), #4 mix3_n2det_cropg_540
   37.09 (15 Kasım, EN İYİ, 27. sıra; ilk 3: 34.63 / 35.05 / 35.37). 7 hakkın 4'ü kullanıldı, KALAN 3.
+  Aday 2 hazır (16 Kasım): cand2_cropGc_540.zip, çift CV 38.49 (aday 1'e −0.37), gönderim kullanıcıda.
 - 13 KASIM KURAL DEĞİŞİKLİĞİ (2026-competition: codabench/pages/scientific_faq_sleep.md, terms.md): mühürlü değerlendirme
   güncellendi, bütün gönderimler yeniden skorlandı (eski skorlar 39.56 / 38.66 / 37.49 GEÇERSİZ). Tahminler EEG'den gelmeli;
   kayıtların etiketlenme/paketlenme düzenliliklerini kullanmak YASAK ve denetimde kontrol ediliyor. Geçen süre (akışın

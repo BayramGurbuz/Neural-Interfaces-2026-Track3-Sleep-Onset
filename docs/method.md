@@ -57,3 +57,19 @@
 - **Çıkarım:** yalnız numpy / torch / joblib / scipy (find_peaks, welch); import satırları final540 ve mix3_540 ile aynı.
   ZIP SHA-256, Docker koşuları ve süreler: `docs/submissions_log.md`.
 - **Beklenen mühürlü skor ≈ 37.25** (yerel 38.86; referans 39.40 ↔ mühürlü 37.79, fark −1.61).
+
+## Aday 2 (16 Kasım): cand2_cropGc_540 — HGB(c, yakınlık + kırpma) + GRU (kırpma + yakınlık) + TCN + GRU-emb, α 0.6, ızgarasız
+- **Dedektör (çok sınıflı):** aynı CNN mimarisi, 5 sınıf: onset'e ≥ 300 sn / 150–300 / 60–150 / 0–60 sn kalan akış pencereleri ve onset
+  sonrası pencereler (ham dosyaların akışta kullanılmayan onset-sonrası 300 sn'si). Önceki ikili dedektörden farkı: onset'e 0–300 sn kalan
+  pencereler de kalan-süre sınıflarıyla eğitimde. Çıktı = "yakınlık" = beklenen sınıf indeksi / 4; 3 tohum (0, 1, 2), çıkarımda ortalama.
+  Girdi yalnız o pencerenin 640 ham örneği; özetler (EMA 30 sn / 2 dk, koşan maksimum, 30 sn artış) yalnız geçmiş pencerelerden.
+  Kayıt uzunluğu, kayıt sonu, gelecek pencere, dosya adı veya denek kimliği kullanılmaz. Sınıf etiketleri yalnız eğitimde kullanılır.
+- **Başlangıç kırpma artırması:** HGB eğitim tablosuna her eğitim kaydının bir kırpılmış kopyası eklenir (%70 ilk 1–12 pencere, %30 ilk
+  13 … (uzunluk − 12) pencere atılır; tohum 0); GRU her epoch ve kayıtta yeniden kırpılır (%50 yok, %35 1–12, %15 13 … onset − 60 sn).
+  Kırpılan kopyada bütün nedensel öznitelikler ve dedektör özetleri kırpılan başlangıçtan yeniden hesaplanır; hedefler değişmez. Amaç:
+  akışın kaydın başından başlamadığı duruma dayanıklılık (13 Kasım FAQ).
+- **Sızıntı kuralı:** CV'de dedektör her katta yalnız o katın eğitim kayıtlarıyla eğitildi; HGB / GRU eğitim satırlarının dedektör çıktısı
+  iç katlardan fold-dışı. Finalde eğitim satırlarının yakınlığı kişi bazlı 5 iç katlı fold-dışı.
+- **Deterministik:** bütün sinir ağı bileşenleri `repro.set_deterministic` ile (cuDNN deterministic, sabit tohumlar); HGB random_state 0.
+- Seçim, komutlar, kontroller, SHA-256: `docs/submissions_log.md` "cand2_cropGc_540"; seçim tabloları `B_ASAMASI_RAPORU.md` 16 Kasım.
+- **Beklenen mühürlü skor ≈ 36.7–36.9** (yerel 38.49).

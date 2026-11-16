@@ -1,6 +1,13 @@
 # Proje durumu (son güncelleme: 2026-11-15)
 
-## ŞU AN (15 Kasım akşamı)
+## ŞU AN (16 Kasım sabahı)
+- **Aday 2 HAZIR, kullanıcı gönderecek:** `submissions/cand2_cropGc_540.zip`, SHA-256
+  0ad65422284736e630fa2f401c973efd84116bf08c547d62e629e9e7acd63f94. Çift CV 38.49 (aday 1'e göre −0.37, 7/10; 39.40'a göre −0.91),
+  k = 6 zararı +0.56, bütün bileşenler deterministik, Docker ×2 aynı skor, süre aday 1'in 1.10–1.16 katı. Beklenen mühürlü ≈ 36.7–36.9.
+  Yedek: `cand2_cropG_540.zip` (38.56, −0.30, k = 6 +0.28). Ayrıntı `docs/submissions_log.md`, seçim `B_ASAMASI_RAPORU.md` 16 Kasım.
+- Hak: 7'nin 4'ü kullanıldı, 3 kaldı (17 Kasım aday 2; kalan iki hak 18–21 Kasım).
+
+## Önceki (15 Kasım akşamı)
 - **Aday 1 gönderildi (#4, 15 Kasım 19:46): mühürlü 37.09, 27. sıra** (yerel 38.86; beklenen 37.25). En iyi gönderimimiz. Güncel
   skorlar: final540 38.74, mix3_540 37.79, gridpi 39.20. 7 hakkın 4'ü kullanıldı, **3 kaldı**. İlk 3: 34.63 / 35.05 / 35.37.
   Kullanıcı ölçütüne göre (≤ 37.3) dedektör + kırpma taşınıyor → aday 2 planlandığı gibi sürüyor; duraklatma koşulu (≥ 37.8) oluşmadı.

@@ -630,3 +630,47 @@ Kat Δ (3): unseen [−0.00, +0.40, −2.83, −1.54, −0.70], seen [−1.57, �
 P'yi eklemek zarar veriyor (−1.09 → −0.84). Kazanç seen'de tutarlı (5/5), unseen'de iki katta sıfır/küçük kayıp.
 Uyarılar: (a) eski dedektörde B üyesindeki −2.34, 4 üyede −1.89'a, karışımda −0.43'e inmişti; buradaki −1.09 karışıma küçülerek
 yansıyacak. (b) Çıkarımda 3 tohum = pencere başına 3 dedektör geçişi (eskisi 1) → +%10 süre kuralı paketlemede ölçülecek.
+
+## 16 Kasım — Aday 2 seçimi
+
+**4 üye genişletmesi** (`ens_crop_cv.py c`, 8.2 saat): HGB(c) 4 üye + çok sınıflı dedektörün yakınlık özetleri (5) + kırpma artırmalı
+eğitim tablosu (kopyalar yalnız kat eğitim satırlarında; dışarıda k = 0): **39.59** (unseen 40.61, seen 38.58); HGB(c)+n2det'e (40.76)
+göre −1.17, 8/10; HGB(c) 817'ye göre −3.06, 10/10. Δ katkı (n2det'e göre) −0.07 / −0.62 / −0.82 / +0.34. B_h2 seen'de 2 kat 600 ağaç
+sınırına dayandı.
+
+**GRU artırmalı + yakınlık girdisi** (`b2_seq_cv.py n2c gru --crop`; özetler kırpılan başlangıçtan yeniden akıtılır): tek başına
+**39.81** (unseen 40.56, seen 39.07); yalnız artırmalı GRU 40.85 → −1.04. Eski ikili dedektör dizi girdisinde görülmüş kişilerde zararlıydı;
+yakınlık özeti değil (seen 39.77 → 39.07).
+
+**Karışım (ızgarasız, α iç içe LOFO 0.3–0.8; `b2_mix.py ... cand2 nogrid --ref2=n:cropG`, `OUT/b2_mix_cand2.json`):**
+
+| Satır | unseen | seen | çift CV | Δ 39.40 | Δ aday 1 (38.86) | iyi kat (aday 1'e) | Δ katkı aday 1'e | α |
+|---|---|---|---|---|---|---|---|---|
+| aday 1: HGB(n2det) + yalnız GRU artırmalı | 39.93 | 37.79 | 38.86 | −0.54 | – | – | – | 0.6 |
+| HGB(yeni) + yalnız GRU artırmalı | 39.65 | 37.47 | 38.56 | −0.84 | −0.30 | 7/10 | −0.00 / −0.19 / −0.29 / +0.18 | 0.5 |
+| HGB(yeni) + üçü artırmalı | 39.98 | 37.91 | 38.95 | −0.45 | +0.09 | 5/10 | +0.07 / −0.14 / −0.26 / +0.41 | 0.4 |
+| **HGB(yeni) + GRU artırmalı + yakınlık** | **39.49** | **37.49** | **38.49** | **−0.91** | **−0.37** | **7/10** | +0.02 / −0.03 / −0.41 / +0.06 | 0.6 |
+
+Kat Δ (kalın satır, aday 1'e): unseen [+0.11, +0.21, −1.65, −0.54, −0.33], seen [−0.21, −0.48, −0.75, −0.20, +0.16].
+HGB'deki −1.17 karışıma −0.30 / −0.37 olarak yansıyor (HGB artık dizi modelleriyle aynı düzeyde, α 0.5–0.6).
+
+**Dayanıklılık (train+val modeller, 40 test kaydı; `stream_start_test.py --hgb-from=ens_c_tv_n2c_crop --n2-from=n2det_final_tv`;
+Δ = kesik akış − aynı pencerelerde tam geçmiş):**
+
+| k | GRU art. (karışım / dizi / HGB) | üçü art. (karışım / dizi) | **GRU art. + yakınlık (karışım / dizi)** | HGB(c) eski (dedektörsüz) + GRU art., α 0.7 (14 Kasım; aday 1'e en yakın ölçüm) |
+|---|---|---|---|---|
+| k0 test skoru | 45.26 | 44.65 | **44.44** | 46.16 |
+| 1 (5 s) | −0.77 / −0.41 / −0.68 | −0.53 / −0.05 | **−0.84** / −0.73 | −0.10 |
+| 3 (15 s) | −0.61 / −0.78 / −0.08 | −0.31 / −0.49 | **−0.68** / −0.88 | +0.63 |
+| 6 (30 s) | +0.28 / +2.12 / −0.90 | +0.19 / +1.65 | **+0.56** / +1.86 | +3.53 |
+| 12 (60 s) | +0.61 / +2.36 / +0.01 | +0.16 / +0.37 | **+0.77** / +1.75 | +5.64 |
+| 24 (2 dk) | −0.30 / +2.64 / −0.17 | −0.25 / −0.36 | **−0.42** / +1.67 | +4.50 |
+| 60 (5 dk) | +1.03 / +8.73 / +0.09 | +0.90 / +3.73 | **+1.53** / +7.80 | +15.53 |
+| rastgele | +2.01 / +9.65 / +1.11 | +0.85 / +2.24 | **+2.81** / +9.17 | +14.34 |
+
+HGB artık akış başlangıcına neredeyse duyarsız (k ≤ 60'ta |Δ| ≤ 0.9, rastgele +1.1). Kalan zarar dizi tarafında (artırmasız TCN /
+GRU-emb): üçü artırmalı satırda en düşük, ama k = 0'da aday 1'den kötü.
+
+**Seçim (kural: aday 1'e göre Δ ≤ −0.15 ve ≥ 7/10 VE k = 6 karışım zararı < +1.0; k = 0'da en iyisi):** GRU artırmalı + yakınlık
+(38.49, −0.37, 7/10, k = 6 +0.56) → **aday 2 = cand2_cropGc_540**. Yalnız GRU artırmalı satır da geçiyor (38.56, −0.30, 7/10, k = 6 +0.28),
+yedek paket olarak hazır (cand2_cropG_540). Çelişki yok.
