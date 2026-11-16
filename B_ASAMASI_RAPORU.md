@@ -674,3 +674,42 @@ GRU-emb): üçü artırmalı satırda en düşük, ama k = 0'da aday 1'den köt�
 **Seçim (kural: aday 1'e göre Δ ≤ −0.15 ve ≥ 7/10 VE k = 6 karışım zararı < +1.0; k = 0'da en iyisi):** GRU artırmalı + yakınlık
 (38.49, −0.37, 7/10, k = 6 +0.56) → **aday 2 = cand2_cropGc_540**. Yalnız GRU artırmalı satır da geçiyor (38.56, −0.30, 7/10, k = 6 +0.28),
 yedek paket olarak hazır (cand2_cropG_540). Çelişki yok.
+
+## 16 Kasım — İş A: kayma kalibrasyonu (`scripts/shift_calib.py`, `scripts/shift_fit.py`; `OUT/shift_calib_*.npz`, `OUT/shift_fit.json`)
+
+Gönderilen 5 modelin train+val karşılıkları (final540 → mix_uw_n10, mix3_540 → mix3, gridpi → mix3 + paketin kendi π(D) ızgara kararı,
+aday 1 → cand1_tv [yeni: ikili dedektör + HGB(n2det) train+val], aday 2 → cand2_tv), 40 test kaydı, akış k. pencereden başlatılarak
+(bütün nedensel öznitelikler, özetler, tabanlar, durumlar k'dan; yalnız ≥ k pencereler skorlanır; resmi binned_mae). k = 0 doğrulama:
+46.9131 / 47.0599 / 46.3887 / 45.11 / 44.38 (bilinen değerlerle aynı). Kayıt başına S[k], k = 0…60 + 3 geniş rastgele başlangıç.
+Uyum: mühürlü = sabit + test (eğim 1, sabit serbest), 5 modelde artık RMSE; 40 kayıt ve yalnız görülmüş kişiler → yön, kanıt değil.
+
+| Dağılım | final540 | mix3 | gridpi | aday 1 | aday 2 | RMSE | aday1→2 | mix3→gridpi | mix3→aday1 | final540→mix3 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| **mühürlü** | 38.74 | 37.79 | 39.20 | 37.09 | 34.41 | – | **−2.68** | **+1.41** | **−0.70** | **−0.95** |
+| k = 1 (5 sn) | 48.13 | 47.48 | 47.82 | 45.18 | 43.57 | **0.57** | −1.60 | +0.34 | −2.31 | −0.65 |
+| %75 k0 + %25 U[0,12] | 48.53 | 48.04 | 47.78 | 45.47 | 44.23 | 0.74 | −1.24 | −0.26 | −2.57 | −0.50 |
+| %75 k0 + %25 U[0,24] | 49.12 | 48.60 | 48.38 | 45.58 | 44.31 | 0.83 | −1.27 | −0.23 | −3.03 | −0.52 |
+| k = 0 | 46.91 | 47.06 | 46.39 | 45.11 | 44.38 | 0.98 | −0.73 | −0.67 | −1.95 | +0.15 |
+| %50 k0 + %50 U[0,12] | 50.17 | 49.01 | 49.17 | 45.82 | 44.06 | 1.01 | −1.77 | +0.16 | −3.19 | −1.16 |
+| k = 3 (15 sn) | 50.73 | 49.29 | 51.45 | 46.00 | 43.58 | 1.43 | −2.41 | +2.15 | −3.29 | −1.44 |
+| U[0,6] | 51.15 | 49.74 | 50.58 | 45.84 | 43.42 | 1.52 | −2.42 | +0.84 | −3.91 | −1.41 |
+| k = 2 (10 sn) | 50.65 | 49.55 | 50.98 | 45.65 | 42.46 | 1.73 | −3.19 | +1.43 | −3.90 | −1.10 |
+| U[0,12] | 53.48 | 50.94 | 51.94 | 46.50 | 43.68 | 2.17 | −2.82 | +1.00 | −4.44 | −2.54 |
+| k = 12 (1 dk) | 56.98 | 52.04 | 51.71 | 45.86 | 42.64 | 3.69 | −3.22 | −0.32 | −6.18 | −4.94 |
+| U[0,60] | 81.61 | 63.25 | 65.05 | 46.75 | 42.22 | 12.77 | −4.53 | +1.80 | −16.50 | −18.36 |
+| geniş rastgele | 116.34 | 80.63 | 83.34 | 47.57 | 40.81 | 25.96 | −6.76 | +2.71 | −33.06 | −35.71 |
+
+Okuma:
+1. **Büyük kaymalar dışlanıyor.** Akış kaydın ortasından (dakikalarca geç) başlasaydı artırmasız final540 / mix3 / gridpi mühürlüde
+   aday 2'den 30–70 s kötü olurdu; gerçekte fark 3.4–4.8 s. U[0,60] ve geniş rastgele RMSE 13–26.
+2. **Küçük kaymalar en iyi uyuyor:** k = 1 (0.57), çoğunlukla kaymasız + biraz U[0,12] / U[0,24] (0.74–0.83), k = 0 (0.98).
+3. **Tek tek farklar:** aday1→2 (−2.68) ve mix3→gridpi (+1.41) birlikte en iyi k ≈ 2–3 pencere (10–15 sn) ya da U[0,6]–U[0,12] ile
+   açıklanıyor (−2.4 … −3.2 / +0.8 … +2.2); k = 0 ikisini de açıklamıyor (−0.73 / −0.67). gridpi'nin ızgara cezası, kaymanın 6
+   pencerenin katı olmadığını (veya pencere fazının farklı olduğunu) gösteriyor.
+4. **Uymayan nokta mix3→aday1:** mühürlüde −0.70, testte her dağılımda −2 … −4. Aday 1'in test avantajı kaymadan bağımsız olarak
+   mühürlüye taşınmamış (ikili dedektör? 40 kaydın gürültüsü?). Aday 1 dışarıda bırakılınca k = 1 0.39, k = 2 1.63.
+5. Simüle edilemeyen alternatif: pencere fazı kayması (akış kayıt başından 5 sn'nin katı olmayan bir anda başlıyor → pencere sınırları
+   farklı). Önbellekteki pencerelerle denenemiyor; etkisi küçük kaymaya benzer (ızgara bozulur, başlangıca duyarlı öznitelikler kayar).
+**Sonuç (yön):** mühürlü akışlar ya kaymasız ya küçük kaymalı (≈ 0–15 sn, en fazla ~1 dk); büyük ortadan başlama yok. Kaymalı çift CV
+dağılımları buna göre: k0, k1, k2, k3, %75 k0 + U[0,12], %50 k0 + U[0,12], U[0,6], U[0,12], %50 k0 + U[0,24] (birincil: k1–k3 ve U[0,6]–U[0,12]
+aralığı; seçim bunların hepsinde tutarlı olan satıra).
