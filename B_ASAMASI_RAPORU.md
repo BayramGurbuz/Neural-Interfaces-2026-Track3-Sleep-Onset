@@ -713,3 +713,23 @@ Okuma:
 **Sonuç (yön):** mühürlü akışlar ya kaymasız ya küçük kaymalı (≈ 0–15 sn, en fazla ~1 dk); büyük ortadan başlama yok. Kaymalı çift CV
 dağılımları buna göre: k0, k1, k2, k3, %75 k0 + U[0,12], %50 k0 + U[0,12], U[0,6], U[0,12], %50 k0 + U[0,24] (birincil: k1–k3 ve U[0,6]–U[0,12]
 aralığı; seçim bunların hepsinde tutarlı olan satıra).
+
+## 16 Kasım — İş C, 1. aşama: bağlamlı dedektör elemesi (`scripts/n2det_ctx.py`, GPU, deterministik, tohum 0; `OUT/n2det_ctx.json`)
+
+Model: her pencerenin CNN gömmesi (cnn_encoder, 32 boyut) son N pencere için → GRU(32) → [mevcut gömme, GRU durumu] → 5 sınıf
+(n2det_v2 "multi" ile aynı sınıflar). Akış başlangıcından önceki konumlar sıfır pencere (sol dolgu, geçerlilik maskesi); eğitimde
+bağlamın %50'si rastgele 1..N uzunluğa kesiliyor (akış başlangıcı taklidi). Dış katlar görülmemiş kişi, LOFO epoch.
+
+| N (pencere) | Spearman | AUC60 | AUC30 | Spearman, akış 2. pencereden | epoch | süre |
+|---|---|---|---|---|---|---|
+| 1 (ref, n2det_v2 multi tohum 0) | −0.521 | 0.951 | 0.821 | — | — | — |
+| **6 (30 sn)** | **−0.574** | **0.975** | **0.884** | −0.572 | 16–18 | 1235 s |
+| 12 (1 dk) | −0.569 | 0.975 | 0.884 | −0.567 | 12–15 | 5182 s |
+
+Durdurma kuralı (Spearman ≤ −0.551): ikisi de GEÇTİ; N = 6 hem daha iyi hem 4 kat ucuz → N = 6 sürdürülüyor. Akışı 2. pencereden
+başlatmak Spearman'ı yalnız 0.002 bozuyor (bağlam başlangıçtan bağımsız, kaymaya dayanıklı).
+Çıkarım maliyeti: pencere başına 1 CNN gömmesi (eskisiyle aynı, gömmeler önbellekte tutulur) + 6 adımlık GRU(32) → ihmal edilebilir ek.
+
+2. aşama (başladı, 16 Kasım 23:10): `scripts/n2det_ctx_inner.py 6 SEED` (tohum 0, 1, 2; eski iç-kat düzeneğiyle aynı sızıntı kuralı,
+≈ 3.5 sa / tohum) → B üyesi ablasyonu `n2det_v2_ablation.py c --src=n2det_ctx6` (yakınlık özetleri, 3 tohum ortalaması).
+Kazanma kuralı (İş 3 ile aynı): aday 2'nin dedektör satırına (b2_n2multi_c, dual 39.77) göre Δ ≤ −0.15 ve ≥ 7/10 kat.

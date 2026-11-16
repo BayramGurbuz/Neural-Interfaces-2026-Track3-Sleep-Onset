@@ -97,7 +97,8 @@ class Data:
         return x * v[..., None, None], v.float()
 
 
-def run_fold(data, tr_tls, te_tls, n_ctx, seed=0):
+def run_fold(data, tr_tls, te_tls, n_ctx, seed=0, stop_epoch=None):
+    """stop_epoch (inner folds): same cosine schedule, stopped after that many epochs, evaluated once at the end (k0 only)."""
     torch.manual_seed(seed)
     rng = np.random.default_rng(seed)
     g = torch.Generator(device=DEV).manual_seed(seed)
@@ -114,7 +115,8 @@ def run_fold(data, tr_tls, te_tls, n_ctx, seed=0):
     w_close = torch.tensor(np.minimum(np.arange(N_CLS), FIRST_POS) / FIRST_POS, dtype=torch.float32, device=DEV)
     out = []
     bs = max(BATCH // max(n_ctx // 4, 1), 32)
-    for ep in range(CNN_EPOCHS):
+    n_ep = CNN_EPOCHS if stop_epoch is None else stop_epoch
+    for ep in range(n_ep):
         model.train()
         perm = rng.permutation(len(y))
         for b in range(0, len(perm), bs):
@@ -129,10 +131,13 @@ def run_fold(data, tr_tls, te_tls, n_ctx, seed=0):
             nn.utils.clip_grad_norm_(model.parameters(), 1.0)
             opt.step()
         sched.step()
+        if stop_epoch is not None and ep < n_ep - 1:
+            continue
         model.eval()
         res = {}
         with torch.no_grad():
-            for name, sel, start in (("k0", is_stream, None), ("k2", is_stream, 2), ("lab", keep, None)):
+            evals = (("k0", is_stream, None),) if stop_epoch is not None else (("k0", is_stream, None), ("k2", is_stream, 2), ("lab", keep, None))
+            for name, sel, start in evals:
                 ii = np.flatnonzero(sel)
                 probs = []
                 for b in range(0, len(ii), 1024):
@@ -142,9 +147,13 @@ def run_fold(data, tr_tls, te_tls, n_ctx, seed=0):
                     x, v = data.batch(idx, valid)
                     probs.append(torch.softmax(model(x, v), 1))
                 res[name] = torch.cat(probs)
+        if stop_epoch is not None:
+            out.append(dict(close=(res["k0"] @ w_close).cpu().numpy(), p=res["k0"][:, FIRST_POS:].sum(1).cpu().numpy()))
+            continue
         pe = res["lab"][:, FIRST_POS:].sum(1).cpu().numpy()
         yb = (ey[keep] == N_CLS - 1).astype(float)
         out.append(dict(close=(res["k0"] @ w_close).cpu().numpy(), close_k2=(res["k2"] @ w_close).cpu().numpy(),
+                        p=res["k0"][:, FIRST_POS:].sum(1).cpu().numpy(),
                         ce=float(-np.mean(yb * np.log(pe + 1e-7) + (1 - yb) * np.log(1 - pe + 1e-7)))))
     # stream rows of the held-out recordings in data.items order -> row indices in d
     rows = np.concatenate([data.seq[tl][:data.n_stream[tl]] for tl in te_tls])
