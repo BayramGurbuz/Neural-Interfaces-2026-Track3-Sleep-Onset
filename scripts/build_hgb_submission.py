@@ -316,6 +316,7 @@ class HGBStreamModel:
             self.n2_w = torch.tensor(np.minimum(np.arange(ncls), first) / first, dtype=torch.float32)
         elif bundle.get("n2det_state") is not None:
             self.n2det = load_net(Encoder(2, int(bundle.get("n2det_emb", 32))), bundle["n2det_state"])
+        if self.n2det is not None:
             self.n2_scale, self.n2_clip = float(bundle["n2det_scale"]), float(bundle["n2det_clip"])
             self.n2_into = tuple(bundle.get("n2det_into", ()))
             self.n2_summ = None

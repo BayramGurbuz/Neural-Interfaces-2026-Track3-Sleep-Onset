@@ -73,6 +73,7 @@ from dist_hgb import decide  # noqa: E402
 from ensemble_dist import GRID, to_grid  # noqa: E402
 from gru_cv import ARCHS, CONFIGS, DEV, pad, seq_inputs  # noqa: E402
 from n2det_stream import N2Summary  # noqa: E402
+from n2det_feats import summaries  # noqa: E402
 
 b = joblib.load(Path(bundle_dir).expanduser() / "model.joblib")
 wg, sg, _ = ABLATIONS["dyn_maxmin_spec_eye"]
@@ -108,7 +109,13 @@ def weighted_grid(P):
     return to_grid(q / q.sum(1, keepdims=True), B)
 
 
-Pg = seq_probs("gru", b["gru_states"], b["gru_mu"], b["gru_sd"], CONFIGS["uw"])
+n2v = None  # per-window detector output for all 540 rows (final model, as the wrapper computes it)
+if b.get("n2det_states") is not None:
+    n2v = np.load(SAVE / "n2det_final" / "close_full.npy").astype(np.float64)
+elif b.get("n2det_state") is not None:
+    n2v = np.load(SAVE / "n2det_final" / "p_full.npy").astype(np.float64)
+n2_te = None if n2v is None else summaries(n2v[mt], te_recs)  # (test rows, 5), per recording from its first window
+Pg = seq_probs("gru", b["gru_states"], b["gru_mu"], b["gru_sd"], CONFIGS["uw"], extra=n2_te if "gru" in tuple(b.get("n2det_into", ())) else None)
 Pt = seq_probs("tcn", b["tcn_states"], b["tcn_mu"], b["tcn_sd"], CONFIGS["tcn_n10"])
 Xr = torch.as_tensor(X_te, device=DEV)
 Pe = []
@@ -120,15 +127,15 @@ for sdict, st in zip(b["cnn_states"], b["gemb_states"]):
     Pe.append(seq_probs("gru", [st], b["gemb_mu"], b["gemb_sd"], CONFIGS["uw"], extra=e.cpu().numpy().astype(np.float32)))
 Pe = np.mean(Pe, axis=0)
 Xt = X[dmt]
-if b.get("n2det_state") is not None:
-    assert tuple(b.get("n2det_into", ())) == (), "sequence inputs with n2det are not covered by this check"
-    p_full = np.load(SAVE / "n2det_final" / "p_full.npy")
+if n2v is not None:
+    assert set(b.get("n2det_into", ())) <= {"gru"}, "TCN / GRU-emb with detector inputs are not covered by this check"
     n2 = np.zeros((len(df), 5), np.float32)
     st = N2Summary(5.0)
     for _, g in df.groupby("timeline", sort=False):
         st.reset()
         for i in g.sort_values("stop").index.to_numpy():
-            n2[i] = st.update(p_full[i])
+            n2[i] = st.update(n2v[i])
+    assert np.abs(n2[dmt] - n2_te).max() < 1e-6
     Xt = np.concatenate([Xt, n2[dmt]], axis=1)
 Xb = apply_bin_edges(Xt, b["bin_edges"])
 Wh = np.mean([to_grid(m.predict_proba(Xb), e) for m, e in zip(b["models"], b["member_edges"])], axis=0) * b["grid_omega"]
