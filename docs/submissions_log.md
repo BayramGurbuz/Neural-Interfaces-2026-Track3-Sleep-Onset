@@ -50,6 +50,7 @@ Son gönderim en geç 20 Kasım, 21 Kasım yedek gün.
 | 2 | 2026-11-11 | mix3_540.zip | **38.66** | kaydedilmedi | kaydedilmedi | kaydedilmedi | kaydedilmedi | kaydedilmedi |
 | 3 | 2026-11-12 | mix3_540_gridpi.zip | **37.49** | 37.78 | 105.48 | 213.98 | 2762.79 s | kaydedilmedi |
 | 4 | 2026-11-15 | mix3_n2det_cropg_540.zip | **37.09** (güncel skorlama) | 37.33 | 92.96 | 181.64 | 1526.6 s | 27. |
+| 5 | 2026-11-16 | cand2_cropGc_540.zip | **34.41** | 34.23 | 94.93 | 175.06 | 1292 s | 12. / 160 |
 
 **Güncel mühürlü skorlar (My Submissions, 15 Kasım; 13 Kasım yeniden skorlamasından sonra):**
 
@@ -59,6 +60,7 @@ Son gönderim en geç 20 Kasım, 21 Kasım yedek gün.
 | 2 | 1047946 | mix3_540.zip | 39.40 | 38.66 | **37.79** | −1.61 |
 | 3 | 1050107 | mix3_540_gridpi.zip | 38.27 | 37.49 | **39.20** | +0.93 |
 | 4 | 1053877 | mix3_n2det_cropg_540.zip | 38.86 | – | **37.09** | −1.77 |
+| 5 | – | cand2_cropGc_540.zip | 38.49 | – | **34.41** | −4.08 |
 
 Hak: 7'nin 4'ü kullanıldı, **3 kaldı** (15 Kasım'ın hakkı kullanıldı). Sıralama 15 Kasım: **27.** (37.09); ilk 3 = 34.63 / 35.05 / 35.37
 (3.lüğe fark 1.72 s). mix3_540 13 Kasım'da 37.79 ile 17./123 idi → leaderboard iki günde belirgin ilerledi.
@@ -261,7 +263,7 @@ Aynı seed'lerle (0,1,2) yeniden eğitim: bit düzeyinde aynı (48.2224). Farkl�
   yerel Docker oranı 0.96–1.08 ile tutarlı). Yerel 38.86 → −1.77 (mix3_540 −1.61); beklenen ≈ 37.25. Eski gönderimlerin güncel skorları
   yukarıda "Güncel mühürlü skorlar".
 
-### cand2_cropGc_540.zip (aday 2, 2026-11-16; hazır, gönderilmedi) ⁹
+### cand2_cropGc_540.zip (gönderim #5, 2026-11-16; mühürlü 34.41, 12./160) ⁹
 - **ZIP SHA-256: 0ad65422284736e630fa2f401c973efd84116bf08c547d62e629e9e7acd63f94** (13.10 MB; submission.py 43 265 B, model.joblib
   21 120 733 B, SHA-256 67fca7fe…c6a1b3d). Yedek: cand2_cropG_540.zip (SHA-256 a23ea00c…48c3ee217).
 - Model: HGB(c) 4 üye, 817 öznitelik + çok sınıflı dedektörün yakınlık özetleri (5), kırpma artırmalı eğitim tablosu (`ens_c_all_n2c_crop`,
@@ -294,3 +296,8 @@ Aynı seed'lerle (0,1,2) yeniden eğitim: bit düzeyinde aynı (48.2224). Farkl�
     1527 × 1.10–1.16 ≈ **1680–1770 s** (sınır 3600). Import satırları aday 1 ile aynı.
   - Yedek cand2_cropG_540: Docker 30.390960407877003, 249.5 s.
 - **Beklenen mühürlü skor ≈ 36.7–36.9** (yerel 38.49; aday 1 38.86 ↔ 37.09; yerel–mühürlü farkı −1.61 … −1.77).
+
+**Gönderim #5 sonucu (16 Kasım):** W-bMAE makro **34.41**, W-bMAE 34.23, bMAE 94.93, MAE 175.06, süre 1292 s; sıra **12 / 160**; ilk 3 =
+32.03 / 32.63 / 32.75, 10. = 33.81. Hak: 7'nin 5'i kullanıldı, **2 kaldı**. Beklenen 36.7–36.9 idi: aday 1 → aday 2 yerelde −0.37,
+mühürlüde **−2.68**. Kullanıcı hipotezi: mühürlü akışlar kaydın başından başlamıyor; aday 2'deki HGB kırpma artırması bu yüzden mühürlüde
+büyük kazandırdı (gridpi'nin 37.49 → 39.20 düşüşüyle tutarlı). Bundan sonra seçim kaymalı değerlendirmeyle (İş A).

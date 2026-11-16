@@ -1,6 +1,14 @@
 # Proje durumu (son güncelleme: 2026-11-15)
 
-## ŞU AN (16 Kasım sabahı)
+## ŞU AN (16 Kasım akşamı)
+- **Aday 2 gönderildi (#5): mühürlü 34.41, 12./160** (W-bMAE 34.23, bMAE 94.93, MAE 175.06, 1292 s). 7 hakkın 5'i kullanıldı, 2 kaldı.
+  Aday 1 → 2: yerel −0.37, mühürlü −2.68 → mühürlü akışlar kaydın başından başlamıyor olabilir. Yeni plan (kullanıcı):
+  İş A kayma kalibrasyonu (5 gönderimin train+val karşılıkları, 40 test kaydında k ve tekdüze [0, K] kaymaları, mühürlü farklarla eşleme);
+  İş B dizi tarafının dayanıklılığı (TCN / GRU-emb kırpma, TCN'ye yakınlık; karışım satırları 1–5); aday 3 seçimi kaymalı ölçütle
+  (k=0 çift CV'de aday 2'ye göre ≤ +0.3); İş C bağlamlı dedektör (ikincil). Takvim: İş A 17 Kasım sabah, İş B CV 17 akşam, aday 3 ZIP
+  18–19, gönderim 19 Kasım, son hak 21 Kasım.
+
+## Önceki (16 Kasım sabahı)
 - **Aday 2 HAZIR, kullanıcı gönderecek:** `submissions/cand2_cropGc_540.zip`, SHA-256
   0ad65422284736e630fa2f401c973efd84116bf08c547d62e629e9e7acd63f94. Çift CV 38.49 (aday 1'e göre −0.37, 7/10; 39.40'a göre −0.91),
   k = 6 zararı +0.56, bütün bileşenler deterministik, Docker ×2 aynı skor, süre aday 1'in 1.10–1.16 katı. Beklenen mühürlü ≈ 36.7–36.9.

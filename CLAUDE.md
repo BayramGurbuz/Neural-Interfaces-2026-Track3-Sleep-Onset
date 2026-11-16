@@ -68,8 +68,11 @@ Track 03 (Sleep Onset) yarışması için model geliştirme deposudur.
   Kesin başlangıç saati için Codabench Phases sekmesi geçerli. Kayıtlar kapandı. Diğer track'ler 5–21 Kasım.
 - Gönderim hakkı: toplam 7 (13 Kasım teknik güncellemesiyle 5'ten 7'ye), günde en fazla 1. Güncel mühürlü skorlar:
   #1 final540 38.74, #2 mix3_540 37.79, #3 mix3_540_gridpi 39.20 (ızgara mühürlüde zararlı ve yasak), #4 mix3_n2det_cropg_540
-  37.09 (15 Kasım, EN İYİ, 27. sıra; ilk 3: 34.63 / 35.05 / 35.37). 7 hakkın 4'ü kullanıldı, KALAN 3.
-  Aday 2 hazır (16 Kasım): cand2_cropGc_540.zip, çift CV 38.49 (aday 1'e −0.37), gönderim kullanıcıda.
+  37.09, #5 cand2_cropGc_540 **34.41** (16 Kasım, EN İYİ, 12./160; ilk 3: 32.03 / 32.63 / 32.75; 10.: 33.81).
+  7 hakkın 5'i kullanıldı, KALAN 2 (19 Kasım aday 3; 21 Kasım son hak).
+- 16 KASIM BULGUSU: aday 1 → aday 2 yerelde −0.37, mühürlüde −2.68 → mühürlü akışlar büyük olasılıkla kaydın başından
+  başlamıyor. SEÇİM ARTIK k=0 ÇİFT CV'YE DEĞİL KAYMALI DEĞERLENDİRMEYE dayanır (İş A kayma kalibrasyonu; aday 3 kuralı:
+  kaymalı test + kaymalı çift CV birincil, k=0 çift CV'de aday 2'ye göre en fazla +0.3 kötüleşme).
 - 13 KASIM KURAL DEĞİŞİKLİĞİ (2026-competition: codabench/pages/scientific_faq_sleep.md, terms.md): mühürlü değerlendirme
   güncellendi, bütün gönderimler yeniden skorlandı (eski skorlar 39.56 / 38.66 / 37.49 GEÇERSİZ). Tahminler EEG'den gelmeli;
   kayıtların etiketlenme/paketlenme düzenliliklerini kullanmak YASAK ve denetimde kontrol ediliyor. Geçen süre (akışın
@@ -92,8 +95,8 @@ Track 03 (Sleep Onset) yarışması için model geliştirme deposudur.
   Görülmemiş kişi CV = train+val üzerinde kişi bazlı 5 katlı GroupKFold. Görülmüş kişi CV = birden
   fazla gecesi olan kişilerin birer gecesi dışarıda, kalan geceleri eğitimde. Açık test setine
   (40 kayıt) sadece son kontrol için bakılır; test'e bakarak seçim/ayar yapılmaz.
-- Gönderim planı: #4 mix3_n2det_cropg_540 (37.09) şu anki en iyi; 7 hakkın 4'ü kullanıldı, kalan 3 (aday 2: 17–18 Kasım;
-  İş 3 iyileştirmeli aday: 19–20 Kasım; 21 Kasım yedek). Kalan haklar YALNIZCA kabul kuralını geçen, ızgarasız
+- Gönderim planı: #5 cand2_cropGc_540 (34.41) şu anki en iyi; 7 hakkın 5'i kullanıldı, kalan 2 (aday 3: 19 Kasım;
+  21 Kasım son hak). Kalan haklar YALNIZCA kabul kuralını geçen, ızgarasız
   yeni modeller için; son gönderim en geç 20 Kasım, 21 Kasım yedek gün. Ayrıntı: docs/status.md, docs/submissions_log.md.
 - ADAY 2 KABULÜ (15 Kasım): referans aday 1 (çift CV 38.86, HGB(n2det) + yalnız GRU artırmalı, α 0.6; Δ'lar hem 39.40'a hem
   38.86'ya göre verilir); 38.86'ya göre Δ ≤ −0.15 ve ≥ 7/10 kat VE k=6 karışım zararı < +1.0. Tüm bileşenler --deterministic.
