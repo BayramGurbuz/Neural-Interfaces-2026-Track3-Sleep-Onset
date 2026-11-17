@@ -8,6 +8,9 @@ differences, N2Summary all restart there); targets unchanged. Detector outputs a
 training rows, as before (per-window values do not depend on the stream start, only their summaries do).
 DET: old = shipped binary CNN detector (n2det_cnn_<proto>_f<k>.npy, 5 summaries of P);
      c   = multi-class detector, 3-seed mean, 5 summaries of closeness; cp = closeness + P (10 summaries).
+     ctx6 = Work C context detector (last 6 windows; n2det_ctx_inner.py files), 3-seed mean, 5 summaries of closeness.
+            Approximation: a cropped copy's first 5 windows keep the closeness computed with the pre-crop context (the
+            detector models of the inner folds are not saved); the stream-from-window-2 check moved Spearman by 0.002.
 Cache as ensemble_dist.member_probas: OUT/ens_<feat_set>_<member>.npz, feat_set = dyn_maxmin_spec_eye_n2<DET>_crop
 (per-protocol .part.npz checkpoints), so the mix scripts can read the out-of-fold probabilities.
 
@@ -27,18 +30,20 @@ from ensemble_dist import MEMBERS, ensemble_preds
 from n2det_feats import summaries
 from range_breakdown import breakdown, load_preds
 
-KEYS = {"old": None, "c": ("close",), "cp": ("close", "p")}
+KEYS = {"old": None, "c": ("close",), "cp": ("close", "p"), "ctx6": ("close",)}
+SRC = {"c": "n2det_multi", "cp": "n2det_multi", "ctx6": "n2det_ctx6"}
 # Tree caps: ensemble_dist.MEMBERS except B_h1 600 -> 400 (its LOFO choices with n2det were <= 225; the crop copies lengthened
 # the B member by <= 1.6x in the pre-check). A fold that selects the cap is reported in the log (n_iter == cap).
 CAPS = {"B_h1": 400}
-REFS = {"HGB(c) 817": "ens_dyn_maxmin_spec_eye_(c)_B-B_h1-B_h2-B2@grid", "HGB(c)+n2det": "ens_dyn_maxmin_spec_eye_n2det_(c)"}
+REFS = {"HGB(c) 817": "ens_dyn_maxmin_spec_eye_(c)_B-B_h1-B_h2-B2@grid", "HGB(c)+n2det": "ens_dyn_maxmin_spec_eye_n2det_(c)",
+        "HGB(c) n2c crop (cand 2)": "ens_dyn_maxmin_spec_eye_n2c_crop_(c)"}
 
 
 def det_values(det, proto, k, seeds):
     """-> list of per-window arrays (one per summarised detector output) for outer fold k."""
     if det == "old":
         return [np.load(OUT / f"n2det_cnn_{proto}_f{k}.npy")]
-    zs = [np.load(OUT / f"n2det_multi_s{s}_{proto}_f{k}.npz") for s in seeds]
+    zs = [np.load(OUT / f"{SRC[det]}_s{s}_{proto}_f{k}.npz") for s in seeds]
     return [np.mean([z[key] for z in zs], axis=0) for key in KEYS[det]]
 
 

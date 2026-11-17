@@ -304,5 +304,64 @@ def stage_hgbmc():
     print("saved", out)
 
 
+def stage_detctx():
+    """Work C context detector (n2det_ctx.py, last N_CTX = 6 windows) on all 540 recordings, seeds 0, 1, 2, as stage_detmc:
+    epoch per seed = median of that seed's dual-CV LOFO choices (OUT/n2det_ctx6_s<seed>.json); per seed a full model (state
+    for the wrapper) and out-of-fold outputs for the training rows from 5 subject-grouped inner folds at the same epoch.
+    Context from the recording start (the wrapper restarts it at the stream start).
+    -> SAVE/n2det_ctx_final[_tv]/detctx.joblib (states, epochs, n_ctx), close_oof.npy / close_full.npy (3-seed means), detctx.json"""
+    from n2det_ctx import CtxDet, Data, run_fold, N_CLS, FIRST_POS
+    n_ctx = 6
+    tv = "--trainval" in sys.argv
+    final = SAVE / ("n2det_ctx_final_tv" if tv else "n2det_ctx_final")
+    final.mkdir(parents=True, exist_ok=True)
+    d, _, _, _ = load_inputs(include_test=True)
+    zp = np.load(SAVE / "n2det_post.npz")
+    post = dict(tl=zp["timeline"], k=zp["k"])
+    assert set(post["tl"]) == set(d.timeline) and len(d) == 80975
+    data = Data(d, post, np.ones(len(d), bool), np.ones(len(zp["k"]), bool))
+    tl = d.timeline.to_numpy()
+    tls = lambda mask: list(dict.fromkeys(tl[mask]))  # noqa: E731
+    allm = np.ones(len(d), bool)
+    trm = (d.split != "test").to_numpy() if tv else allm
+    groups = d.subject.to_numpy()
+    states, epochs, oof, full = [], [], [], []
+    t_all = time.perf_counter()
+    for seed in MC_SEEDS:
+        cv = json.loads((OUT / f"n2det_ctx{n_ctx}_s{seed}.json").read_text())
+        ep = int(np.median(cv["unseen"]["epochs"] + cv["seen"]["epochs"]))
+        t0 = time.perf_counter()
+        out, rows_all = run_fold(data, tls(trm), tls(allm), n_ctx, seed, stop_epoch=ep)
+        states.append({k: v.detach().cpu().numpy() for k, v in run_fold.last_model.state_dict().items()})
+        f = np.full(len(d), np.nan)
+        f[rows_all] = out[-1]["close"]
+        full.append(f)
+        o = np.full(len(d), np.nan)
+        o[~trm] = f[~trm]
+        rows = np.flatnonzero(trm)
+        for itr, ite in GroupKFold(5).split(rows, groups=groups[rows]):
+            mtr, mte = np.zeros(len(d), bool), np.zeros(len(d), bool)
+            mtr[rows[itr]], mte[rows[ite]] = True, True
+            oi, ri = run_fold(data, tls(mtr), tls(mte), n_ctx, seed, stop_epoch=ep)
+            o[ri] = oi[-1]["close"]
+        assert not np.isnan(o).any() and not np.isnan(f).any()
+        oof.append(o)
+        epochs.append(ep)
+        print(f"seed {seed}: epoch {ep}, full + 5 inner folds in {time.perf_counter() - t0:.0f} s", flush=True)
+    c_oof, c_full = np.mean(oof, axis=0), np.mean(full, axis=0)
+    rem = d.target.to_numpy().astype(np.float64)
+    res = dict(trainval=tv, n_ctx=n_ctx, seeds=list(MC_SEEDS), epochs=epochs, n_cls=N_CLS, first_pos=FIRST_POS, deterministic=True,
+               oof_sanity=sanity(c_oof, rem), full_insample_sanity=sanity(c_full, rem), time_s=time.perf_counter() - t_all)
+    joblib.dump(dict(states=states, epochs=epochs, seeds=list(MC_SEEDS), n_ctx=n_ctx, n_cls=N_CLS, first_pos=FIRST_POS,
+                     scale=SCALE, clip=CLIP, emb=EMB, arch="CtxDet(Encoder -> GRU(32) -> Linear(64, 5))"), final / "detctx.joblib")
+    np.save(final / "close_oof.npy", c_oof.astype(np.float32))
+    np.save(final / "close_full.npy", c_full.astype(np.float32))
+    (final / "detctx.json").write_text(json.dumps(res, indent=2, default=float))
+    s = res["oof_sanity"]
+    print(f"context closeness OOF (3-seed mean): Spearman {s['spearman']:+.3f}, AUC60 {s['auc_last60_vs_300plus']:.3f}, "
+          f"AUC30 {s['auc_last30_vs_60_150']:.3f}; in-sample Spearman {res['full_insample_sanity']['spearman']:+.3f} ({res['time_s']:.0f} s)")
+
+
 if __name__ == "__main__":
-    {"det": stage_det, "hgb": stage_hgb, "mix": stage_mix, "detmc": stage_detmc, "hgbmc": stage_hgbmc}[sys.argv[1]]()
+    {"det": stage_det, "hgb": stage_hgb, "mix": stage_mix, "detmc": stage_detmc, "hgbmc": stage_hgbmc,
+     "detctx": stage_detctx}[sys.argv[1]]()

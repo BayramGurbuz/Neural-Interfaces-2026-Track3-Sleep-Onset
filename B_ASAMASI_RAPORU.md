@@ -779,3 +779,19 @@ test farkları ≈ 1 SE, birkaç kayıt taşıyor. α kontrolü: aday 2 α 0.5't
 +0.07…+0.11 (3–4/10). 40 test kaydı ise bütün yeni satırları, en çok (5)'i öne koyuyor (−0.6…−1.2), ama fark gürültü düzeyinde.
 Ters varyans ağırlığıyla birleşik tahmin CV'ye yakın (≈ +0.05). TCN / GRU-emb kırpma artırması (2–4) her iki ölçütte de (5)'ten kötü;
 dizi tarafını sadeleştirmek kırpmalı bileşen eklemekten iyi. Karar kullanıcıda (aşağıdaki seçenekler).
+
+## 17 Kasım — İş C, 2. aşama: bağlamlı dedektörle B üyesi ablasyonu (`n2det_v2_ablation.py c --src=n2det_ctx6`, `OUT/n2det_v2_ablation.json`)
+
+İç-kat çıktıları `n2det_ctx_inner.py 6 0|1|2` (3 tohum, 7750–10476 s / tohum, 16 Kasım 23:10 → 17 Kasım 06:14). Dış katların LOFO epoch'ları
+tohum 0: 16–18 / 12–20, tohum 1: 11–14 / 10–13, tohum 2: 10–19 / 10–16 (görülmemiş / görülmüş).
+
+| satır | görülmemiş | görülmüş | çift CV | Δ vs B+ikili dedektör (40.86) | Δ vs B+çok sınıflı c (39.77, aday 2) |
+|---|---|---|---|---|---|
+| B + bağlamlı (6 pencere) yakınlık, 5 özet | 39.70 | 38.15 | **38.92** | −1.94, 10/10 | **−0.85, 8/10** |
+
+Aralık katkıları (Δ vs aday 2'nin satırı): [0,40) −0.29, [40,90) −0.05, [90,300) −0.54, [300,600] +0.03. Kat Δ: görülmemiş
+−0.86 −2.21 +0.56 −1.44 −1.23, görülmüş −0.63 −0.42 −0.69 +0.04 −1.61. **Kazanma kuralı (Δ ≤ −0.15 ve ≥ 7/10) GEÇTİ.**
+
+3. aşama (başladı, 17 Kasım 07:25, `scripts/ctx_full_chain.sh`): HGB(c) 4 üye kırpma genişletmesi `ens_crop_cv.py ctx6` (CPU ≈ 8 sa; ref aday 2'nin
+39.59'u), GRU kırpma + bağlamlı yakınlık `b2_seq_cv.py ctx6 gru --crop` (GPU), final dedektör `train_n2det_final.py detctx [--trainval]`.
+Yaklaşım: kırpılmış kopyaların ilk 5 penceresinde yakınlık kırpma öncesi bağlamla hesaplanmış kalıyor (iç-kat modelleri saklanmadı).

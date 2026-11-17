@@ -14,6 +14,7 @@ run_epochs 40, 3 seeds; epoch per fold chosen LOFO on the other folds' mean curv
                embeddings: fold k uses OUT/n2det_<det>_<proto>_f<k>.npy, out-of-fold for every row)
   n2c        : + the 5 summaries of the multi-class detector's closeness (3-seed mean; Work 3), re-streamed from the first
                window the model sees (a start crop restarts them, as at inference)
+  ctx6       : as n2c with the Work C context detector's closeness (n2det_ctx6_s<seed>_<proto>_f<k>.npz, 3-seed mean)
   old        : no extra group (deterministic rerun of the original inputs)
 Usage: python scripts/b2_seq_cv.py VARIANT ARCH [--crop]   (VARIANT old | bip | bip+epoch | n2det | bip+n2det ...;
        ARCH gru | tcn | gemb; --crop = stream-start augmentation 50 / 35 / 15 % (gru_cv.run_fold cfg["crop"]), name suffix _crop)
@@ -79,8 +80,9 @@ if __name__ == "__main__":
             runs = []
             if k == 0:
                 n2 = [fold_features(proto, j, recs) for j in range(len(splits))] if "n2det" in variant else None
-                n2c = ([np.mean([np.load(OUT / f"n2det_multi_s{s_}_{proto}_f{j}.npz")["close"] for s_ in MC_SEEDS], axis=0)
-                        for j in range(len(splits))] if "n2c" in variant.split("+") else None)  # per-window closeness, 3-seed mean
+                csrc = "n2det_ctx6" if "ctx6" in variant.split("+") else "n2det_multi"
+                n2c = ([np.mean([np.load(OUT / f"{csrc}_s{s_}_{proto}_f{j}.npz")["close"] for s_ in MC_SEEDS], axis=0)
+                        for j in range(len(splits))] if {"n2c", "ctx6"} & set(variant.split("+")) else None)  # per-window closeness, 3-seed mean
             for s in range(n_seeds):
                 ex = []
                 if arch == "gemb":
@@ -88,7 +90,7 @@ if __name__ == "__main__":
                 if "n2det" in variant.split("+"):
                     ex.append(n2[k])
                 extra = np.concatenate(ex, axis=1) if ex else None
-                if "n2c" in variant.split("+"):  # summaries re-streamed from the first row given (start crop restarts them)
+                if {"n2c", "ctx6"} & set(variant.split("+")):  # summaries re-streamed from the first row given (start crop restarts them)
                     def extra(r, st=extra, v=n2c[k]):
                         sm = summaries(v[r], [np.arange(len(r))])
                         return sm if st is None else np.concatenate([st[r], sm], axis=1)

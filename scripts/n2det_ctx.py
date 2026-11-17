@@ -155,6 +155,7 @@ def run_fold(data, tr_tls, te_tls, n_ctx, seed=0, stop_epoch=None):
         out.append(dict(close=(res["k0"] @ w_close).cpu().numpy(), close_k2=(res["k2"] @ w_close).cpu().numpy(),
                         p=res["k0"][:, FIRST_POS:].sum(1).cpu().numpy(),
                         ce=float(-np.mean(yb * np.log(pe + 1e-7) + (1 - yb) * np.log(1 - pe + 1e-7)))))
+    run_fold.last_model = model  # final training (train_n2det_final.py detctx) keeps the weights
     # stream rows of the held-out recordings in data.items order -> row indices in d
     rows = np.concatenate([data.seq[tl][:data.n_stream[tl]] for tl in te_tls])
     return out, rows
