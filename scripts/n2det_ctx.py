@@ -97,8 +97,11 @@ class Data:
         return x * v[..., None, None], v.float()
 
 
-def run_fold(data, tr_tls, te_tls, n_ctx, seed=0, stop_epoch=None):
-    """stop_epoch (inner folds): same cosine schedule, stopped after that many epochs, evaluated once at the end (k0 only)."""
+def run_fold(data, tr_tls, te_tls, n_ctx, seed=0, stop_epoch=None, ctx_lens=False):
+    """stop_epoch (inner folds): same cosine schedule, stopped after that many epochs, evaluated once at the end (k0 only).
+    ctx_lens (with stop_epoch, 17 Nov): also close_L (n_ctx, n) = closeness with the context limited to the last L = 1..n_ctx
+    windows (L = n_ctx: the k0 output). A stream that starts at window k gives window k + j the value L = min(j + 1, n_ctx),
+    exactly the inference behaviour after a start crop."""
     torch.manual_seed(seed)
     rng = np.random.default_rng(seed)
     g = torch.Generator(device=DEV).manual_seed(seed)
@@ -137,18 +140,24 @@ def run_fold(data, tr_tls, te_tls, n_ctx, seed=0, stop_epoch=None):
         res = {}
         with torch.no_grad():
             evals = (("k0", is_stream, None),) if stop_epoch is not None else (("k0", is_stream, None), ("k2", is_stream, 2), ("lab", keep, None))
+            if stop_epoch is not None and ctx_lens:
+                evals = evals + tuple((f"L{L}", is_stream, -L) for L in range(1, n_ctx))
             for name, sel, start in evals:
                 ii = np.flatnonzero(sel)
                 probs = []
                 for b in range(0, len(ii), 1024):
                     jj = ii[b:b + 1024]
-                    st = None if start is None else np.full(len(jj), start)
+                    # start >= 0: fixed stream start; start = -L: context of the last L windows (start at pos - L + 1)
+                    st = None if start is None else (np.full(len(jj), start) if start >= 0 else np.maximum(epos[jj] + start + 1, 0))
                     idx, valid = data.context(te_tls, eti[jj], epos[jj], n_ctx, st)
                     x, v = data.batch(idx, valid)
                     probs.append(torch.softmax(model(x, v), 1))
                 res[name] = torch.cat(probs)
         if stop_epoch is not None:
-            out.append(dict(close=(res["k0"] @ w_close).cpu().numpy(), p=res["k0"][:, FIRST_POS:].sum(1).cpu().numpy()))
+            o = dict(close=(res["k0"] @ w_close).cpu().numpy(), p=res["k0"][:, FIRST_POS:].sum(1).cpu().numpy())
+            if ctx_lens:
+                o["close_L"] = np.stack([(res[f"L{L}"] @ w_close).cpu().numpy() for L in range(1, n_ctx)] + [o["close"]])
+            out.append(o)
             continue
         pe = res["lab"][:, FIRST_POS:].sum(1).cpu().numpy()
         yb = (ey[keep] == N_CLS - 1).astype(float)

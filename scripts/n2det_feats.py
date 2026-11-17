@@ -38,3 +38,10 @@ def fold_features_mc(proto, k, recs, keys=("close",), seeds=MC_SEEDS):
     out-of-fold for every row) -> (N, 5 * len(keys)) float32."""
     zs = [np.load(OUT / f"n2det_multi_s{s}_{proto}_f{k}.npz") for s in seeds]
     return np.concatenate([summaries(np.mean([z[key] for z in zs], axis=0), recs) for key in keys], axis=1)
+
+
+def crop_closeness(close_L, r):
+    """Context detector (Work C): per-window closeness of a stream made of the rows r (time order, r[0] = stream start),
+    from close_L (n_ctx, N): window j of the stream had only min(j + 1, n_ctx) windows of context."""
+    L = close_L.shape[0]
+    return close_L[np.minimum(np.arange(len(r)), L - 1), r]

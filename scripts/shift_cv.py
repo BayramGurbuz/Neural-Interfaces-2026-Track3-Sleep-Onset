@@ -12,7 +12,12 @@ Distributions (--dists=, comma list): k0 (no shift, check against the k=0 CV), k
   mPUK (P no shift, 1-P uniform 0..K, e.g. m0.5U24), wide (uniform 0..(onset - 60 s) / 5). --draws=J starts per recording
   (J pseudo-recordings), seed from (protocol, fold, draw).
 
-Usage: python scripts/shift_cv.py hgb|seq NAME|mix ROWS --dists=k0,U24 [--draws=2] [--tag=T]
+Work C (17 Nov): `hgb --det=ctx` = HGB(c) with the context detector's closeness (ens_crop_cv.py ctx6) -> shiftcv<T>_hgbctx_<proto>.npz,
+  mix rows "ctx:..."; seq uw_n10_ctx6_crop. Same shift samples as the n2c rows (seed from protocol, fold, draw, distribution).
+  Approximation: the outer-fold context detectors are not saved, so a shifted stream's first 5 windows keep the closeness computed
+  with the pre-shift context (the stream-from-window-2 check moved Spearman by 0.002); exact in the finals and the 40-test runs.
+
+Usage: python scripts/shift_cv.py hgb|seq NAME|mix ROWS --dists=k0,U24 [--draws=2] [--tag=T] [--det=ctx]
   -> OUT/shiftcv<T>_hgb_<proto>.npz, OUT/shiftcv<T>_seq_<NAME>_<proto>.npz, OUT/shiftcv<T>_mix.json
 """
 import json
@@ -50,7 +55,9 @@ SEQ_SPECS = {  # name: (cfg, closeness inputs, CNN-embedding inputs, fixed epoch
     "tcn_n10_n2c_crop": (dict(CONFIGS["tcn_n10"], crop=CROP), True, False, None),
     "cnn3_emb": (dict(CONFIGS["uw"], run_epochs=40, n_seeds=3), False, True, 10),
     "cnn3_emb_old_crop": (dict(CONFIGS["uw"], run_epochs=40, n_seeds=3, crop=CROP), False, True, None),
+    "uw_n10_ctx6_crop": (dict(CONFIGS["uw_n10"], crop=CROP), "ctx6", False, None),
 }
+DET = ARG.get("--det", "mc")
 
 m = (pc.df.split != "test").to_numpy()
 assert (np.flatnonzero(m) == np.arange(m.sum())).all()
@@ -91,8 +98,8 @@ def shifted(proto, k_fold, dist):
     return out
 
 
-def close_values(proto, k):
-    return np.mean([np.load(OUT / f"n2det_multi_s{s}_{proto}_f{k}.npz")["close"] for s in MC_SEEDS], axis=0)
+def close_values(proto, k, src="multi"):
+    return np.mean([np.load(OUT / f"n2det_{src}_s{s}_{proto}_f{k}.npz")["close"] for s in MC_SEEDS], axis=0)
 
 
 def part_hgb():
@@ -104,17 +111,18 @@ def part_hgb():
     crop_recs = [r[k:] for r, k in zip(recs, ks)]
     tl_c = d.timeline.to_numpy()[c_rows]
     y_ext = np.concatenate([target, target[c_rows]])
-    iters = {nm: np.load(OUT / f"ens_dyn_maxmin_spec_eye_n2c_crop_{nm}.npz", allow_pickle=True)["n_iter"].item() for nm in MEMBERS}
-    probas = {nm: np.load(OUT / f"ens_dyn_maxmin_spec_eye_n2c_crop_{nm}.npz", allow_pickle=True)["probas"].item() for nm in MEMBERS}
+    fs = "n2ctx6_crop" if DET == "ctx" else "n2c_crop"
+    iters = {nm: np.load(OUT / f"ens_dyn_maxmin_spec_eye_{fs}_{nm}.npz", allow_pickle=True)["n_iter"].item() for nm in MEMBERS}
+    probas = {nm: np.load(OUT / f"ens_dyn_maxmin_spec_eye_{fs}_{nm}.npz", allow_pickle=True)["probas"].item() for nm in MEMBERS}
     for proto, splits in protocols.items():
-        path = OUT / f"shiftcv{TAG}_hgb_{proto}.npz"
+        path = OUT / f"shiftcv{TAG}_hgb{'ctx' if DET == 'ctx' else ''}_{proto}.npz"
         if path.exists():
             print(f"hgb {proto}: cached", flush=True)
             continue
         res = {}
         for k, (tr, te) in enumerate(splits):
             t0 = time.perf_counter()
-            v = close_values(proto, k)
+            v = close_values(proto, k, "ctx6" if DET == "ctx" else "multi")
             S = summaries(v, recs)
             Sc = summaries(v, crop_recs)[c_rows]
             Xe = np.concatenate([np.concatenate([X0, S], 1), np.concatenate([c_X, Sc], 1)])
@@ -157,7 +165,7 @@ def part_seq(name):
         for k, (tr, te) in enumerate(splits):
             t0 = time.perf_counter()
             ep = int(cv[proto]["epochs"][k]) if cv else fixed
-            v = close_values(proto, k) if n2c else None
+            v = (close_values(proto, k, "ctx6" if n2c == "ctx6" else "multi") if n2c else None)
             models = []
             for s in range(n_seeds):
                 E = np.load(OUT / f"cnn_cnn3_{proto}_f{k}_s{s}.npz")["emb"].astype(np.float32) if emb else None
@@ -190,12 +198,14 @@ def part_mix(rows_arg):
     import pandas as pd
     onset = rec_onsets(d)
     rows = [(r.split(":")[0], r.split(":")[1].split("+")) for r in rows_arg.split(",")]
-    H = {p: np.load(OUT / f"shiftcv{TAG}_hgb_{p}.npz") for p in protocols}
+    H = {"n2c": {p: np.load(OUT / f"shiftcv{TAG}_hgb_{p}.npz") for p in protocols}}
+    if any(r[0] == "ctx" for r in rows):
+        H["ctx"] = {p: np.load(OUT / f"shiftcv{TAG}_hgbctx_{p}.npz") for p in protocols}
     out = {}
     for dist in DISTS:
         E = {}
         for hg, seqs in rows:
-            assert hg == "n2c", "only the new HGB(c) is retrained here"
+            assert hg in H, "HGB sets retrained here: n2c, ctx"
             Z = {s: {p: np.load(OUT / f"shiftcv{TAG}_seq_{s}_{p}.npz") for p in protocols} for s in seqs}
             folds = []
             for proto, splits in protocols.items():
@@ -208,7 +218,7 @@ def part_mix(rows_arg):
                     _, ob = class_stats(dtr, B)
                     folds.append(dict(proto=proto, k=k, dte=dte, t=dte.stop.to_numpy().astype(np.float64),
                                       seq=[to_grid(Z[s][proto][f"{dist}_f{k}"].astype(np.float64), B) @ FINE for s in seqs],
-                                      hgb=H[proto][f"{dist}_f{k}"].astype(np.float64) @ FINE,
+                                      hgb=H[hg][proto][f"{dist}_f{k}"].astype(np.float64) @ FINE,
                                       w_old=old_slot_weights(ob, grid_omega(dtr)),
                                       D=onset.loc[d.timeline.to_numpy()[idx]].to_numpy()))
             c0 = {a: [predict(f, "old", 0.0, alpha=a) for f in folds] for a in ALPHAS}
@@ -228,7 +238,7 @@ def part_mix(rows_arg):
             print(f"  {key:62s} unseen {v['unseen']:6.2f} seen {v['seen']:6.2f} dual {v['macro']:6.2f} Δ {v['delta']:+6.2f} "
                   f"{v['better']:2d}/10 α {v['alpha_all']} | folds Δ {np.round(v['d_unseen'], 2).tolist()} {np.round(v['d_seen'], 2).tolist()}",
                   flush=True)
-    path = OUT / f"shiftcv{TAG}_mix.json"
+    path = OUT / ARG.get("--mixout", f"shiftcv{TAG}_mix.json")  # 17 Nov: separate file per row set (Work C: shiftcv_mix_wc.json)
     old = json.loads(path.read_text()) if path.exists() else {}
     old.update(out)
     path.write_text(json.dumps(old, indent=2, default=float))

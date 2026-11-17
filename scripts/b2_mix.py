@@ -37,10 +37,13 @@ SEQ = {"old": SEQ_OLD, "a": [f"{s}_bip" for s in SEQ_OLD], "a+c": [f"{s}_bip_epo
        "wb2": ["uw_n10_n2c_crop", "tcn_n10_n2c_crop", "cnn3_emb"],
        "wb3": ["uw_n10_n2c_crop", "tcn_n10_n2c_crop", "cnn3_emb_old_crop"],
        "wb4": ["uw_n10_n2c_crop", "tcn_n10_n2c_crop"],
-       "wb5": ["uw_n10_n2c_crop"]}
+       "wb5": ["uw_n10_n2c_crop"],
+       # Work C (17 Nov): GRU crop + context-detector closeness; candidate 3's set (GRU only) and candidate 2's set (+ old TCN / GRU-emb)
+       "c3ctx": ["uw_n10_ctx6_crop"], "c2ctx": ["uw_n10_ctx6_crop", "tcn_n10", "cnn3_emb"]}
 HGB = {"old": "dyn_maxmin_spec_eye", "a": "dyn_maxmin_spec_eye_bip", "a+c": "dyn_maxmin_spec_eye_bip+epoch",
        "n": "dyn_maxmin_spec_eye_n2det", "nB": "dyn_maxmin_spec_eye_n2Bonly",
-       "n2c": "dyn_maxmin_spec_eye_n2c_crop"}  # 15 Nov: 4 members + multi-class closeness + crop-augmented table (ens_crop_cv.py c)  # nB: only the B member with n2det (indicator)
+       "n2c": "dyn_maxmin_spec_eye_n2c_crop",
+       "ctx": "dyn_maxmin_spec_eye_n2ctx6_crop"}  # 17 Nov, Work C: context detector (ens_crop_cv.py ctx6)  # 15 Nov: 4 members + multi-class closeness + crop-augmented table (ens_crop_cv.py c)  # nB: only the B member with n2det (indicator)
 ROWS = [("old", "old"), ("a", "a"), ("a", "a+c"), ("old", "a"), ("a", "old"), ("old", "a+c")]
 ALPHAS = [0.3, 0.4, 0.5, 0.6, 0.7, 0.8]  # nested-LOFO grid (14 Nov: 0.3-0.8, HGB may now beat the sequence models)
 CUTS = [900.0, 1100.0, 1300.0]

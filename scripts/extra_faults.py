@@ -33,7 +33,7 @@ def finite_state(m):
         if isinstance(v, (float, int, np.floating, np.ndarray)):
             a = np.asarray(v, dtype=np.float64)
             if a.size and not np.isfinite(a).all(): bad.append(name)
-    for k in ("prev_out", "last_win", "gru_h", "gru_sum", "gemb_h", "emb_sum", "n2_prev", "n2_sum"):
+    for k in ("prev_out", "last_win", "gru_h", "gru_sum", "gemb_h", "emb_sum", "n2_prev", "n2_sum", "n2_buf"):  # n2_buf: context detector (17 Nov)
         chk(k, getattr(m, k, None))
     if getattr(m, "tcns", None) is not None:
         chk("tcn.hist", m.tcns.hist)

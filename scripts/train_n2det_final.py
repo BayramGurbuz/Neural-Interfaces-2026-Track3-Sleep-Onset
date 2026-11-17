@@ -248,13 +248,23 @@ def stage_hgbmc():
     and summaries re-streamed from the crop), as in the dual CV (ens_crop_cv.py c). n_iter per member = median of that CV's
     LOFO choices, rounded to 25. Closeness of the training rows = out-of-fold (inner folds, stage detmc).
     --trainval: the 500 train+val recordings only, detector from n2det_final_tv (robustness tests) -> SAVE/ens_c_tv_n2c_crop;
-    default: all 540 -> SAVE/ens_c_all_n2c_crop"""
+    default: all 540 -> SAVE/ens_c_all_n2c_crop
+    --det=ctx (17 Nov, Work C): context detector (stage detctx, SAVE/n2det_ctx_final[_tv]); a cropped copy's window k + j gets the
+    closeness computed with min(j + 1, 6) windows of context (close_oof_L, crop-exact, as at inference); n_iter from
+    ens_crop_cv.py ctx6 -> SAVE/ens_c_{all,tv}_ctx_crop"""
     import hgb_crop_precheck as pc
-    from n2det_feats import summaries
+    from n2det_feats import crop_closeness, summaries
     tv = "--trainval" in sys.argv
-    src = SAVE / ("n2det_final_tv" if tv else "n2det_final")
-    det = joblib.load(src / "detmc.joblib")
-    c_oof, c_full = np.load(src / "close_oof.npy").astype(np.float64), np.load(src / "close_full.npy").astype(np.float64)
+    ctx = "--det=ctx" in sys.argv
+    if ctx:
+        src = SAVE / ("n2det_ctx_final_tv" if tv else "n2det_ctx_final")
+        det = joblib.load(src / "detctx.joblib")
+        c_oof_L = np.load(src / "close_oof_L.npy").astype(np.float64)
+        c_oof, c_full = c_oof_L[-1], np.load(src / "close_full.npy").astype(np.float64)
+    else:
+        src = SAVE / ("n2det_final_tv" if tv else "n2det_final")
+        det = joblib.load(src / "detmc.joblib")
+        c_oof, c_full = np.load(src / "close_oof.npy").astype(np.float64), np.load(src / "close_full.npy").astype(np.float64)
     df, X = pc.df, pc.X817
     assert len(df) == len(c_oof) == 80975
     m = (df.split != "test").to_numpy() if tv else np.ones(len(df), bool)
@@ -264,7 +274,11 @@ def stage_hgbmc():
     S = summaries(c_oof[m], recs)
     c_rows, c_X, ks = pc.cropped_copies(recs, np.random.default_rng(0))
     crop_recs = [r[k:] for r, k in zip(recs, ks)]
-    Sc = summaries(c_oof[m], crop_recs)[c_rows]
+    if ctx:  # crop-exact: the detector context restarts at the crop
+        assert (np.concatenate(crop_recs) == c_rows).all()
+        Sc = np.concatenate([summaries(crop_closeness(c_oof_L, r), [np.arange(len(r))]) for r in crop_recs])
+    else:
+        Sc = summaries(c_oof[m], crop_recs)[c_rows]
     Xtr = np.concatenate([np.concatenate([X[m], S], 1), np.concatenate([c_X, Sc], 1)])
     ytr = np.concatenate([d.target.to_numpy(), d.target.to_numpy()[c_rows]])
     names = list(build_table_ext(*ABLATIONS[FEAT_SET][:2])[2]) + [f"n2close_{s}" for s in N2_NAMES]
@@ -273,7 +287,7 @@ def stage_hgbmc():
     models, info = [], {}
     t_all = time.perf_counter()
     for name, (edges, params, _) in MEMBERS.items():
-        it = np.load(OUT / f"ens_dyn_maxmin_spec_eye_n2c_crop_{name}.npz", allow_pickle=True)["n_iter"].item()
+        it = np.load(OUT / f"ens_dyn_maxmin_spec_eye_n2{'ctx6' if ctx else 'c'}_crop_{name}.npz", allow_pickle=True)["n_iter"].item()
         n_iter = int(25 * round(np.median(list(it["unseen"]) + list(it["seen"])) / 25))
         t0 = time.perf_counter()
         clf = HistGradientBoostingClassifier(max_iter=n_iter, max_features=0.5, early_stopping=False, random_state=0, **params)
@@ -290,13 +304,15 @@ def stage_hgbmc():
     score = summarize(d_te, decide(P, None, omega, True, GRID))
     print(f"test ({'out-of-sample' if tv else 'in-sample'}) hgb_c+n2c+crop {score['wbmae']:.4f}  " + " ".join(f"{r} {score[r]:.1f}" for r in RANGE_NAMES)
           + f"; total fit {time.perf_counter() - t_all:.0f} s, {Xtr.shape[1]} features, {len(Xtr)} rows ({len(c_rows)} cropped)")
-    out = SAVE / ("ens_c_tv_n2c_crop" if tv else "ens_c_all_n2c_crop")
+    out = SAVE / (f"ens_c_tv_{'ctx' if ctx else 'n2c'}_crop" if tv else f"ens_c_all_{'ctx' if ctx else 'n2c'}_crop")
     out.mkdir(exist_ok=True)
     wg, sg, _ = ABLATIONS[FEAT_SET]
+    det_keys = dict(n2det_ncls=det["n_cls"], n2det_first_pos=det["first_pos"], n2det_scale=det["scale"], n2det_clip=det["clip"],
+                    n2det_emb=det["emb"], n2det_into=())
+    det_keys.update(dict(n2det_ctx_states=det["states"], n2det_ctx_n=det["n_ctx"]) if ctx else dict(n2det_states=det["states"]))
     joblib.dump(dict(kind="ens_grid", models=[c for c, _ in models], member_edges=[e for _, e in models], grid=GRID,
                      grid_omega=omega, feature_names=names, bin_edges=bins, calib_x=None, calib_y=None, groups=sg,
-                     window_groups=wg, n2det_states=det["states"], n2det_ncls=det["n_cls"], n2det_first_pos=det["first_pos"],
-                     n2det_scale=det["scale"], n2det_clip=det["clip"], n2det_emb=det["emb"], n2det_into=()), out / "model.joblib")
+                     window_groups=wg, **det_keys), out / "model.joblib")
     (out / "results.json").write_text(json.dumps(dict(feat_set=FEAT_SET + "+n2close+crop", trainval=tv, n_features=int(Xtr.shape[1]),
                                                       n_rows=int(len(Xtr)), n_cropped=int(len(c_rows)), members=info,
                                                       detector=dict(epochs=det["epochs"], seeds=det["seeds"]),
@@ -309,7 +325,10 @@ def stage_detctx():
     epoch per seed = median of that seed's dual-CV LOFO choices (OUT/n2det_ctx6_s<seed>.json); per seed a full model (state
     for the wrapper) and out-of-fold outputs for the training rows from 5 subject-grouped inner folds at the same epoch.
     Context from the recording start (the wrapper restarts it at the stream start).
-    -> SAVE/n2det_ctx_final[_tv]/detctx.joblib (states, epochs, n_ctx), close_oof.npy / close_full.npy (3-seed means), detctx.json"""
+    17 Nov (user): crop-exact values. close_oof_L.npy / close_full_L.npy (n_ctx, N) = closeness with the context limited to the
+    last L = 1..n_ctx windows; a training stream cropped at window k uses, for its window k + j, row L = min(j + 1, n_ctx)
+    (crop_closeness), i.e. the detector sees only windows after the crop start, as at inference.
+    -> SAVE/n2det_ctx_final[_tv]/detctx.joblib (states, epochs, n_ctx), close_oof[_L].npy / close_full[_L].npy (3-seed means), detctx.json"""
     from n2det_ctx import CtxDet, Data, run_fold, N_CLS, FIRST_POS
     n_ctx = 6
     tv = "--trainval" in sys.argv
@@ -331,24 +350,25 @@ def stage_detctx():
         cv = json.loads((OUT / f"n2det_ctx{n_ctx}_s{seed}.json").read_text())
         ep = int(np.median(cv["unseen"]["epochs"] + cv["seen"]["epochs"]))
         t0 = time.perf_counter()
-        out, rows_all = run_fold(data, tls(trm), tls(allm), n_ctx, seed, stop_epoch=ep)
+        out, rows_all = run_fold(data, tls(trm), tls(allm), n_ctx, seed, stop_epoch=ep, ctx_lens=True)
         states.append({k: v.detach().cpu().numpy() for k, v in run_fold.last_model.state_dict().items()})
-        f = np.full(len(d), np.nan)
-        f[rows_all] = out[-1]["close"]
+        f = np.full((n_ctx, len(d)), np.nan)
+        f[:, rows_all] = out[-1]["close_L"]
         full.append(f)
-        o = np.full(len(d), np.nan)
-        o[~trm] = f[~trm]
+        o = np.full((n_ctx, len(d)), np.nan)
+        o[:, ~trm] = f[:, ~trm]
         rows = np.flatnonzero(trm)
         for itr, ite in GroupKFold(5).split(rows, groups=groups[rows]):
             mtr, mte = np.zeros(len(d), bool), np.zeros(len(d), bool)
             mtr[rows[itr]], mte[rows[ite]] = True, True
-            oi, ri = run_fold(data, tls(mtr), tls(mte), n_ctx, seed, stop_epoch=ep)
-            o[ri] = oi[-1]["close"]
+            oi, ri = run_fold(data, tls(mtr), tls(mte), n_ctx, seed, stop_epoch=ep, ctx_lens=True)
+            o[:, ri] = oi[-1]["close_L"]
         assert not np.isnan(o).any() and not np.isnan(f).any()
         oof.append(o)
         epochs.append(ep)
         print(f"seed {seed}: epoch {ep}, full + 5 inner folds in {time.perf_counter() - t0:.0f} s", flush=True)
-    c_oof, c_full = np.mean(oof, axis=0), np.mean(full, axis=0)
+    c_oof_L, c_full_L = np.mean(oof, axis=0), np.mean(full, axis=0)
+    c_oof, c_full = c_oof_L[-1], c_full_L[-1]
     rem = d.target.to_numpy().astype(np.float64)
     res = dict(trainval=tv, n_ctx=n_ctx, seeds=list(MC_SEEDS), epochs=epochs, n_cls=N_CLS, first_pos=FIRST_POS, deterministic=True,
                oof_sanity=sanity(c_oof, rem), full_insample_sanity=sanity(c_full, rem), time_s=time.perf_counter() - t_all)
@@ -356,6 +376,8 @@ def stage_detctx():
                      scale=SCALE, clip=CLIP, emb=EMB, arch="CtxDet(Encoder -> GRU(32) -> Linear(64, 5))"), final / "detctx.joblib")
     np.save(final / "close_oof.npy", c_oof.astype(np.float32))
     np.save(final / "close_full.npy", c_full.astype(np.float32))
+    np.save(final / "close_oof_L.npy", c_oof_L.astype(np.float32))
+    np.save(final / "close_full_L.npy", c_full_L.astype(np.float32))
     (final / "detctx.json").write_text(json.dumps(res, indent=2, default=float))
     s = res["oof_sanity"]
     print(f"context closeness OOF (3-seed mean): Spearman {s['spearman']:+.3f}, AUC60 {s['auc_last60_vs_300plus']:.3f}, "

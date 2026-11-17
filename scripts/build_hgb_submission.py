@@ -203,6 +203,22 @@ EMB = 32
 # ---- end of copies ----
 
 
+class CtxDet(nn.Module):
+    """Work C context N2 detector (scripts/n2det_ctx.py CtxDet, same parameter names): the window encoder's embedding of each of
+    the last N windows -> GRU(32) over the context (left-padded with zero embeddings before the stream start) -> Linear on
+    [current embedding, GRU last state] -> class logits."""
+
+    def __init__(self, n_cls, emb):
+        super().__init__()
+        self.enc = Encoder(n_cls, emb)
+        self.gru = nn.GRU(emb, 32, batch_first=True)
+        self.out = nn.Linear(emb + 32, n_cls)
+
+    def head(self, e):
+        """e: (1, N, emb) context embeddings (zeros where padded) -> (1, n_cls) logits."""
+        return self.out(torch.cat([e[:, -1], self.gru(e)[1][-1]], 1))
+
+
 class TCNBank:
     """All TCN seeds evaluated together, window by window, with stacked parameters. Identical to the
     batched left-padded causal convolution of TCNNet: output_t of a layer with dilation k =
@@ -314,8 +330,13 @@ class HGBStreamModel:
         # In-domain N2 detector (scripts/n2det_cv.py): the CNN encoder architecture with 2 outputs on the cleaned
         # raw window -> P(N2); N2Summary turns it into 5 causal features appended to the HGB inputs (and, for the
         # components named in n2det_into, to the sequence inputs as value and difference to the first-2-min mean).
-        self.n2det, self.n2_into = None, ()
-        if bundle.get("n2det_states") is not None:  # Work 3: multi-class detector, several seeds; output = mean closeness
+        self.n2det, self.n2_into, self.n2_ctx = None, (), 0
+        if bundle.get("n2det_ctx_states") is not None:  # Work C: context detector (last n2det_ctx_n windows), several seeds
+            ncls, first = int(bundle["n2det_ncls"]), int(bundle["n2det_first_pos"])
+            self.n2det = [load_net(CtxDet(ncls, int(bundle.get("n2det_emb", 32))), st) for st in bundle["n2det_ctx_states"]]
+            self.n2_w = torch.tensor(np.minimum(np.arange(ncls), first) / first, dtype=torch.float32)
+            self.n2_ctx = int(bundle["n2det_ctx_n"])
+        elif bundle.get("n2det_states") is not None:  # Work 3: multi-class detector, several seeds; output = mean closeness
             ncls, first = int(bundle["n2det_ncls"]), int(bundle["n2det_first_pos"])
             self.n2det = [load_net(Encoder(ncls, int(bundle.get("n2det_emb", 32))), st) for st in bundle["n2det_states"]]
             self.n2_w = torch.tensor(np.minimum(np.arange(ncls), first) / first, dtype=torch.float32)
@@ -349,6 +370,7 @@ class HGBStreamModel:
                 self.n2_summ.reset()
             self.n2_prev = None
             self.n2_sum = None
+            self.n2_buf = []  # context detector: last n2_ctx windows' embeddings, (seeds, emb) each, oldest first
 
     def _grid_q(self, P):
         """(B, n_classes) probabilities -> metric-weighted, normalised grid distribution."""
@@ -377,7 +399,17 @@ class HGBStreamModel:
         detector, of the seed-mean closeness = expected class index / (number of pre-onset classes) for the multi-class one)."""
         with torch.no_grad():
             xr = torch.clamp(torch.tensor(x, dtype=torch.float32) / self.n2_scale, -self.n2_clip, self.n2_clip)
-            if isinstance(self.n2det, list):
+            if self.n2_ctx:  # context detector: the stream's last n2_ctx windows only (shorter right after a (re)start)
+                E = torch.stack([net.enc(xr)[1] for net in self.n2det], 1)  # (B, seeds, emb)
+                p = []
+                for i in range(len(E)):
+                    self.n2_buf = (self.n2_buf + [E[i]])[-self.n2_ctx:]
+                    ctx = torch.zeros(len(self.n2det), self.n2_ctx, E.shape[-1])
+                    ctx[:, self.n2_ctx - len(self.n2_buf):] = torch.stack(self.n2_buf, 1)
+                    p.append(torch.stack([torch.softmax(net.head(ctx[s:s + 1])[0], -1) @ self.n2_w
+                                          for s, net in enumerate(self.n2det)]).mean())
+                p = torch.stack(p).numpy().astype(np.float64)
+            elif isinstance(self.n2det, list):
                 p = torch.stack([torch.softmax(net(xr)[0], -1) @ self.n2_w for net in self.n2det]).mean(0).numpy().astype(np.float64)
             else:
                 p = torch.softmax(self.n2det(xr)[0], -1)[:, 1].numpy().astype(np.float64)
@@ -617,7 +649,7 @@ keep = {k: bundle[k] for k in ("model", "feature_names", "bin_edges", "kind", "g
                                "tcn_states", "tcn_mu", "tcn_sd", "tcn_dilations", "cnn_states", "cnn_scale",
                                "cnn_clip", "cnn_emb", "gemb_states", "gemb_mu", "gemb_sd",
                                "n2det_state", "n2det_scale", "n2det_clip", "n2det_emb", "n2det_into",
-                               "n2det_states", "n2det_ncls", "n2det_first_pos", "seq_comps")
+                               "n2det_states", "n2det_ncls", "n2det_first_pos", "seq_comps", "n2det_ctx_states", "n2det_ctx_n")
         if k in bundle}
 for comp, ks in (("tcn", ("tcn_states", "tcn_mu", "tcn_sd", "tcn_dilations")),
                  ("gemb", ("cnn_states", "cnn_scale", "cnn_clip", "cnn_emb", "gemb_states", "gemb_mu", "gemb_sd"))):
