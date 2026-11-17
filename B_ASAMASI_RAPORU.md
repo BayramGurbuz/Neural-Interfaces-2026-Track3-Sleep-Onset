@@ -795,3 +795,16 @@ Aralık katkıları (Δ vs aday 2'nin satırı): [0,40) −0.29, [40,90) −0.05
 3. aşama (başladı, 17 Kasım 07:25, `scripts/ctx_full_chain.sh`): HGB(c) 4 üye kırpma genişletmesi `ens_crop_cv.py ctx6` (CPU ≈ 8 sa; ref aday 2'nin
 39.59'u), GRU kırpma + bağlamlı yakınlık `b2_seq_cv.py ctx6 gru --crop` (GPU), final dedektör `train_n2det_final.py detctx [--trainval]`.
 Yaklaşım: kırpılmış kopyaların ilk 5 penceresinde yakınlık kırpma öncesi bağlamla hesaplanmış kalıyor (iç-kat modelleri saklanmadı).
+
+## 17 Kasım — İş C finalleri ve sarmalayıcı testleri
+- Final bağlamlı dedektör (`train_n2det_final.py detctx`, 3 tohum, epoch 18 / 12 / 16): fold-dışı yakınlık (3 tohum ortalaması) Spearman
+  −0.592, AUC60 0.978, AUC30 0.892 (540); train+val −0.593 / 0.978 / 0.889. Bağlam uzunluğu başına çıktılar (close_*_L, L = 1..6) →
+  kırpılmış eğitim akışlarında yakınlık çıkarımla birebir (kullanıcı isteği 2; CV'de yeniden koşu ≈ 27 sa GPU → yalnız finallerde;
+  CV ve kaymalı CV'de ilk 5 pencere yaklaşığı kalıyor).
+- GRU kırpma + bağlamlı yakınlık: çift CV 39.42 (eski dedektörle 39.81); finaller gru_ctx_all / gru_ctx_tv (20 epoch, 10 tohum).
+- Sarmalayıcı (`build_hgb_submission.py` CtxDet): tohum başına son 6 pencerenin gömme tamponu, sol sıfır dolgu, GRU(32). Testler
+  (cand3 paketi + bağlamlı dedektör, `scripts/ctx_wrapper_test.py`): (a) reset_state tamponu ve özetleri sıfırlıyor, A + reset + B ==
+  taze model B (bit düzeyinde) PASS; (b) akış k = 0, 1, 2, 3, 4, 5, 9'dan: eğitim ileri yoluna göre maks |Δ| 1.2e-7, final eğitimin
+  kırpma-kesin değerlerine (GPU) göre 2.8e-5 PASS (k = 5'te ilk pencerelerde kırpılmış ↔ tam bağlam farkı 0.07 → test anlamlı);
+  (c) `n2det_clean_test.py` (toplu referans = eğitim ileri yolu) PASS, `extra_faults.py` 9 senaryo (n2_buf dahil) PASS.
+  Süre (aynı yük altında): 44.8 ↔ 43.0 ms/pencere (+%4).

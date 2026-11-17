@@ -204,3 +204,24 @@ if __name__ == "__main__":
         print(f"{key}: Spearman {s['spearman']:+.3f} AUC60 {s['auc_last60_vs_300plus']:.3f} AUC30 {s['auc_last30_vs_60_150']:.3f} | "
               f"stream from window 2: Spearman {s2['spearman']:+.3f} | epochs {res[key]['epochs']} ({res[key]['time_s']:.0f} s) | "
               f"ref -0.521 / 0.951 / 0.821; stop rule Spearman <= -0.551: {'PASS' if s['spearman'] <= -0.551 else 'STOP'}", flush=True)
+
+
+def batched_closeness(states, x, n_ctx=6, scale=20.0, clip=15.0, start=0):
+    """Reference for the wrapper tests (17 Nov): training forward path (CtxDet, left-padded contexts, validity mask) on the raw
+    windows x (n, C, T) of one stream in time order, the stream starting at window `start` (earlier windows unseen) -> (n - start,)
+    seed-mean closeness on the CPU."""
+    xs = torch.clamp(torch.as_tensor(np.asarray(x[start:]), dtype=torch.float32) / scale, -clip, clip)
+    n = len(xs)
+    pos = np.arange(n)
+    idx = pos[:, None] - np.arange(n_ctx - 1, -1, -1)[None, :]  # (n, n_ctx), oldest first
+    valid = torch.as_tensor(idx >= 0)
+    xc = xs[torch.as_tensor(np.maximum(idx, 0))] * valid[..., None, None]
+    w = torch.tensor(np.minimum(np.arange(N_CLS), FIRST_POS) / FIRST_POS, dtype=torch.float32)
+    out = []
+    for st in states:
+        net = CtxDet(n_ctx)
+        net.load_state_dict({k: torch.tensor(v) for k, v in st.items()})
+        net.eval()
+        with torch.no_grad():
+            out.append(torch.cat([torch.softmax(net(xc[b:b + 256], valid[b:b + 256].float()), 1) @ w for b in range(0, n, 256)]))
+    return torch.stack(out).mean(0).numpy().astype(np.float64)
