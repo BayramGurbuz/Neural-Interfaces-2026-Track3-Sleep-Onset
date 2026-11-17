@@ -808,3 +808,7 @@ Yaklaşım: kırpılmış kopyaların ilk 5 penceresinde yakınlık kırpma önc
   kırpma-kesin değerlerine (GPU) göre 2.8e-5 PASS (k = 5'te ilk pencerelerde kırpılmış ↔ tam bağlam farkı 0.07 → test anlamlı);
   (c) `n2det_clean_test.py` (toplu referans = eğitim ileri yolu) PASS, `extra_faults.py` 9 senaryo (n2_buf dahil) PASS.
   Süre (aynı yük altında): 44.8 ↔ 43.0 ms/pencere (+%4).
+- HGB(c) 4 üye kırpma genişletmesi, bağlamlı yakınlık (`ens_crop_cv.py ctx6`, 17 Kasım 14:29, 27446 s): görülmemiş 39.93, görülmüş 38.00,
+  **çift CV 38.97** — aday 2'nin HGB'sine (39.59) göre **Δ −0.62, 8/10** (katkılar [0,40) −0.15, [40,90) +0.03, [90,300) −0.45,
+  [300,600] −0.06). B2 n_iter görülmemiş 125–150, görülmüş 225–300. Gece zinciri bilgisayar molası için durduruldu; kalan: k=0 karışım CV,
+  HGB finalleri, kaymalı CV, kaymalı karışım (`ctx_night_chain.sh`, kaldığı yerden).
