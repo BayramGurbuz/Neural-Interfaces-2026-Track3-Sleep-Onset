@@ -116,16 +116,17 @@ elif b.get("n2det_state") is not None:
     n2v = np.load(SAVE / "n2det_final" / "p_full.npy").astype(np.float64)
 n2_te = None if n2v is None else summaries(n2v[mt], te_recs)  # (test rows, 5), per recording from its first window
 Pg = seq_probs("gru", b["gru_states"], b["gru_mu"], b["gru_sd"], CONFIGS["uw"], extra=n2_te if "gru" in tuple(b.get("n2det_into", ())) else None)
-Pt = seq_probs("tcn", b["tcn_states"], b["tcn_mu"], b["tcn_sd"], CONFIGS["tcn_n10"])
+comps = tuple(b.get("seq_comps", ("gru", "tcn", "gemb")))  # 17 Nov: subsets (candidate 3: GRU only)
+Pt = seq_probs("tcn", b["tcn_states"], b["tcn_mu"], b["tcn_sd"], CONFIGS["tcn_n10"]) if "tcn" in comps else None
 Xr = torch.as_tensor(X_te, device=DEV)
 Pe = []
-for sdict, st in zip(b["cnn_states"], b["gemb_states"]):
+for sdict, st in (zip(b["cnn_states"], b["gemb_states"]) if "gemb" in comps else ()):
     enc = Encoder().to(DEV)
     enc.load_state_dict({k: torch.tensor(v) for k, v in sdict.items()})
     enc.eval()
     _, e = infer(enc, Xr, torch.arange(len(dd), device=DEV))
     Pe.append(seq_probs("gru", [st], b["gemb_mu"], b["gemb_sd"], CONFIGS["uw"], extra=e.cpu().numpy().astype(np.float32)))
-Pe = np.mean(Pe, axis=0)
+Pe = np.mean(Pe, axis=0) if Pe else None
 Xt = X[dmt]
 if n2v is not None:
     assert set(b.get("n2det_into", ())) <= {"gru"}, "TCN / GRU-emb with detector inputs are not covered by this check"
@@ -142,8 +143,8 @@ Wh = np.mean([to_grid(m.predict_proba(Xb), e) for m, e in zip(b["models"], b["me
 Wh /= Wh.sum(1, keepdims=True)
 alpha = float(b["mix_alpha"])
 ones = np.ones(len(GRID) - 1)
-qg, qt, qe = weighted_grid(Pg), weighted_grid(Pt), weighted_grid(Pe)
-cands = {"gru": qg, "tcn": qt, "gemb": qe, "hgb": Wh, "mix": alpha * (qg + qt + qe) / 3 + (1 - alpha) * Wh}
+qs = {k: weighted_grid(P) for k, P in (("gru", Pg), ("tcn", Pt), ("gemb", Pe)) if k in comps}
+cands = {**qs, "hgb": Wh, "mix": alpha * sum(qs[k] for k in comps) / len(comps) + (1 - alpha) * Wh}
 ok = True
 for k, W in cands.items():
     s = summarize(dd, decide(W, None, ones, True, GRID))["wbmae"]

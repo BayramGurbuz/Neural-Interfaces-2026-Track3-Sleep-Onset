@@ -301,3 +301,23 @@ Aynı seed'lerle (0,1,2) yeniden eğitim: bit düzeyinde aynı (48.2224). Farkl�
 32.03 / 32.63 / 32.75, 10. = 33.81. Hak: 7'nin 5'i kullanıldı, **2 kaldı**. Beklenen 36.7–36.9 idi: aday 1 → aday 2 yerelde −0.37,
 mühürlüde **−2.68**. Kullanıcı hipotezi: mühürlü akışlar kaydın başından başlamıyor; aday 2'deki HGB kırpma artırması bu yüzden mühürlüde
 büyük kazandırdı (gridpi'nin 37.49 → 39.20 düşüşüyle tutarlı). Bundan sonra seçim kaymalı değerlendirmeyle (İş A).
+
+## Aday 3 hazırlığı (17 Kasım): cand3_gru_540 — HAZIR, GÖNDERİLMEDİ (karar kullanıcıda)
+- Tarif: İş B satır 5 = aday 2'nin HGB(c) n2c kırpma (4 üye, 540) + yalnız GRU-uw kırpma+yakınlık (10 tohum, 540) + 3 tohumlu çok sınıflı
+  dedektör; TCN ve GRU-emb YOK; **α 0.5** (k=0 ve kaymalı çift CV'nin iç içe LOFO seçimi); ızgara kapalı. Bileşenler aday 2'nin 540
+  bileşenleriyle aynı dosyalar (hepsi deterministik); yalnız α ve dizi bileşen listesi değişti.
+- Seçim ölçütleri (ayrıntı B raporu 17 Kasım): k=0 çift CV 38.67 (aday 2'ye göre +0.18 ≤ +0.3 ✓, 2/10); kaymalı çift CV 9 dağılımda
+  +0.07 … +0.11 (3–4/10, aday 2 hepsinde önde); 40 test kaydı (train+val modelleri) İş A dağılımlarında −0.64 … −1.16 (≈ 1 SE, 18–20/40 kayıt).
+- Paketleyici: `build_hgb_submission.py` mix3'e isteğe bağlı `seq_comps` (varsayılan 3 bileşen); kullanılmayan bileşen ağırlıkları
+  pakete girmiyor. Regresyon: aday 2 yeni paketleyiciyle → akış tahminleri gönderilen paketle **bit düzeyinde aynı**.
+- Komutlar: bundle = `cand2_cropGc_all` + mix_alpha 0.5 + seq_comps ("gru",) − TCN/GRU-emb anahtarları → `SAVE/cand3_gru_all`;
+  `build_hgb_submission.py --model ~/neuralbench/save/cand3_gru_all/model.joblib --name cand3_gru_540 --smooth-a 0`.
+- Kontroller (17 Kasım): bileşen kimliği HGB 26.5861 (eğitim logu ✓), GRU+yakınlık 34.1594 (aday 2 ile aynı); akış ↔ toplu maks |Δ| 0.045 s,
+  > 0.5 s pencere yok, 28.9375 ↔ 28.9376 PASS; `n2det_clean_test.py` PASS; `extra_faults.py` 9 senaryo PASS (tahminler sonlu, [0, 600];
+  durumlarda NaN/inf yok). Import satırları aday 2 ile aynı.
+- Docker v3 ×2 (log `~/neuralbench/save/cand3_docker.log`): wbmae **28.93754041402854** ikisinde (bit düzeyinde aynı), bMAE 77.64, MAE 149.50;
+  duration 200.8 / 187.6 s; aynı oturumda aday 1 225.5 s (31.883341811607796, öncekiyle aynı) → **oran 0.83–0.89** (kural ≤ 1.50 ✓).
+  Not: GPU'da İş C eğitimi sürüyordu (süreler üst sınır). Yerel akış 27 ms/pencere (aday 2 40 ms).
+- ZIP `submissions/cand3_gru_540.zip`, 8.89 MB, SHA-256 `6059fe7099f3cb92e00ecc4f81031e110ad33a7ba9eb22a1a67ce9e0b7de6fc0`.
+- Beklenen mühürlü: kaymalı çift CV'ye göre aday 2 ≈ +0.1 (≈ 34.5), 40 teste göre −0.6 … −1.2 (≈ 33.2–33.8); final sıralama takımın en iyi
+  mühürlü skoru olduğu için kötü sonuç 34.41'i bozmaz, yalnız bir hak harcar.

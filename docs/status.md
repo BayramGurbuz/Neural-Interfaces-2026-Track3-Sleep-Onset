@@ -1,6 +1,14 @@
-# Proje durumu (son güncelleme: 2026-11-15)
+# Proje durumu (son güncelleme: 2026-11-17)
 
-## ŞU AN (16 Kasım akşamı)
+## ŞU AN (17 Kasım sabahı)
+- **İş A** bitti (küçük kaymalar, k ≈ 0–3 pencere en iyi uyum). **İş B** bitti: kaymalı çift CV'de aday 2 9 dağılımın hepsinde en iyi;
+  en yakın satır 5 (yalnız GRU) +0.07 … +0.11; 40 test kaydında ise satır 5 −0.6 … −1.2 (≈ 1 SE). TCN / GRU-emb kırpması yardım etmiyor.
+- **Aday 3 adayı hazır, gönderilmedi:** `submissions/cand3_gru_540.zip` (satır 5, α 0.5; tüm testler + Docker ×2 PASS, süre aday 1'in
+  0.83–0.89'u; SHA-256 6059fe70…6fc0). Karar kullanıcıda.
+- **İş C** (bağlamlı dedektör, 6 pencere): eleme PASS (Spearman −0.574 ↔ −0.521); 2. aşama iç-kat çıktıları (3 tohum) GPU'da, ardından
+  HGB "c" ablasyonu (kazanma: aday 2'nin dedektör satırına göre Δ ≤ −0.15 ve ≥ 7/10). Geçerse 21 Kasım son hakkın adayı.
+
+## Önceki (16 Kasım akşamı)
 - **Aday 2 gönderildi (#5): mühürlü 34.41, 12./160** (W-bMAE 34.23, bMAE 94.93, MAE 175.06, 1292 s). 7 hakkın 5'i kullanıldı, 2 kaldı.
   Aday 1 → 2: yerel −0.37, mühürlü −2.68 → mühürlü akışlar kaydın başından başlamıyor olabilir. Yeni plan (kullanıcı):
   İş A kayma kalibrasyonu (5 gönderimin train+val karşılıkları, 40 test kaydında k ve tekdüze [0, K] kaymaları, mühürlü farklarla eşleme);

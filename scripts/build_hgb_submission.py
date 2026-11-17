@@ -284,20 +284,25 @@ class HGBStreamModel:
             self.alpha = float(bundle["mix_alpha"])
             self.base_n = int(bundle["gru_baseline_n"])
             self.el_clip = float(bundle["gru_elapsed_clip"])
-        if self.kind == "mix3":  # (GRU-uw + TCN + GRU-emb) / 3 on the grid, mixed with HGB(c) (weight alpha)
+        if self.kind == "mix3":  # mean of the sequence components (GRU-uw, TCN, GRU-emb) on the grid, mixed with HGB(c) (weight alpha)
             c = bundle["gru_cfg"]
             n_out = len(bundle["gru_edges"]) - 1
+            self.comps = tuple(bundle.get("seq_comps", ("gru", "tcn", "gemb")))  # 17 Nov: a subset, e.g. ("gru",)
+            assert self.comps[0] == "gru" and set(self.comps) <= {"gru", "tcn", "gemb"}
             self.gru_mu, self.gru_sd = (np.asarray(bundle[k], np.float32) for k in ("gru_mu", "gru_sd"))
-            self.tcn_mu, self.tcn_sd = (np.asarray(bundle[k], np.float32) for k in ("tcn_mu", "tcn_sd"))
-            self.gemb_mu, self.gemb_sd = (np.asarray(bundle[k], np.float32) for k in ("gemb_mu", "gemb_sd"))
             self.grus = [load_net(GRUNet(len(self.gru_mu), n_out, c["hidden"]), s) for s in bundle["gru_states"]]
-            self.tcns = TCNBank([load_net(TCNNet(len(self.tcn_mu), n_out, c["hidden"],
-                                                 dilations=tuple(bundle["tcn_dilations"])), s)
-                                 for s in bundle["tcn_states"]])
-            self.encs = [load_net(Encoder(n_out, int(bundle["cnn_emb"])), s) for s in bundle["cnn_states"]]
-            self.gembs = [load_net(GRUNet(len(self.gemb_mu), n_out, c["hidden"]), s) for s in bundle["gemb_states"]]
+            self.tcns, self.encs, self.gembs = None, [], []
+            if "tcn" in self.comps:
+                self.tcn_mu, self.tcn_sd = (np.asarray(bundle[k], np.float32) for k in ("tcn_mu", "tcn_sd"))
+                self.tcns = TCNBank([load_net(TCNNet(len(self.tcn_mu), n_out, c["hidden"],
+                                                     dilations=tuple(bundle["tcn_dilations"])), s)
+                                     for s in bundle["tcn_states"]])
+            if "gemb" in self.comps:
+                self.gemb_mu, self.gemb_sd = (np.asarray(bundle[k], np.float32) for k in ("gemb_mu", "gemb_sd"))
+                self.encs = [load_net(Encoder(n_out, int(bundle["cnn_emb"])), s) for s in bundle["cnn_states"]]
+                self.gembs = [load_net(GRUNet(len(self.gemb_mu), n_out, c["hidden"]), s) for s in bundle["gemb_states"]]
+                self.cnn_scale, self.cnn_clip = float(bundle["cnn_scale"]), float(bundle["cnn_clip"])
             assert len(self.encs) == len(self.gembs)
-            self.cnn_scale, self.cnn_clip = float(bundle["cnn_scale"]), float(bundle["cnn_clip"])
             self.gru_edges = np.asarray(bundle["gru_edges"], np.float64)
             self.gru_omega = np.asarray(bundle["gru_omega_b"], np.float64)
             self.alpha = float(bundle["mix_alpha"])
@@ -337,7 +342,8 @@ class HGBStreamModel:
         if self.kind == "mix3":
             self.gemb_h = [None] * len(self.gembs)
             self.emb_sum = [None] * len(self.encs)
-            self.tcns.reset()
+            if self.tcns is not None:
+                self.tcns.reset()
         if self.n2det is not None:
             if self.n2_summ is not None:
                 self.n2_summ.reset()
@@ -386,13 +392,15 @@ class HGBStreamModel:
         return np.stack(out).astype(np.float32)
 
     def _mix3_probs(self, f32, x, n2=None):
-        """f32: (B, 62) window features, x: (B, C, T) raw windows, time order -> seed-mean class
-        probabilities (B, n_classes) of GRU-uw (10 seeds), TCN (10 seeds) and GRU-emb (3 encoder/GRU pairs).
+        """f32: (B, 62) window features, x: (B, C, T) raw windows, time order -> list of seed-mean class
+        probabilities (B, n_classes), one per component in self.comps: GRU-uw (10 seeds), TCN (10 seeds), GRU-emb (3 encoder/GRU pairs).
         n2: (B, 5) N2-detector summaries; appended as extra inputs (value and difference to the first-2-min
         mean, like the encoder embeddings) to the components listed in n2det_into."""
-        with torch.no_grad():
-            xr = torch.clamp(torch.tensor(x, dtype=torch.float32) / self.cnn_scale, -self.cnn_clip, self.cnn_clip)
-            embs = [enc(xr)[1].numpy().astype(np.float32) for enc in self.encs]  # (B, EMB) per seed
+        embs = []
+        if self.encs:
+            with torch.no_grad():
+                xr = torch.clamp(torch.tensor(x, dtype=torch.float32) / self.cnn_scale, -self.cnn_clip, self.cnn_clip)
+                embs = [enc(xr)[1].numpy().astype(np.float32) for enc in self.encs]  # (B, EMB) per seed
         if n2 is not None and "gemb" in self.n2_into:
             embs = [np.concatenate([E, n2], axis=1) for E in embs]
         use_n2 = n2 is not None and ("gru" in self.n2_into or "tcn" in self.n2_into)
@@ -424,14 +432,16 @@ class HGBStreamModel:
             for i, net in enumerate(self.grus):
                 logits, self.gru_h[i] = net(xg, self.gru_h[i])
                 ps_g.append(torch.softmax(logits[0], -1).numpy().astype(np.float64))
-            xt = torch.tensor((rows_t - self.tcn_mu) / self.tcn_sd)
-            logits = torch.stack([self.tcns.step(xt[j]) for j in range(len(xt))])  # (B, S, n_out)
-            ps_t = list(torch.softmax(logits, -1).permute(1, 0, 2).numpy().astype(np.float64))
+            if self.tcns is not None:
+                xt = torch.tensor((rows_t - self.tcn_mu) / self.tcn_sd)
+                logits = torch.stack([self.tcns.step(xt[j]) for j in range(len(xt))])  # (B, S, n_out)
+                ps_t = list(torch.softmax(logits, -1).permute(1, 0, 2).numpy().astype(np.float64))
             for s, net in enumerate(self.gembs):
                 xe = torch.tensor((np.stack(erows[s]) - self.gemb_mu) / self.gemb_sd)[None]
                 logits, self.gemb_h[s] = net(xe, self.gemb_h[s])
                 ps_e.append(torch.softmax(logits[0], -1).numpy().astype(np.float64))
-        return np.mean(ps_g, axis=0), np.mean(ps_t, axis=0), np.mean(ps_e, axis=0)
+        ps = {"gru": ps_g, "tcn": ps_t, "gemb": ps_e}
+        return [np.mean(ps[k], axis=0) for k in self.comps]
 
     def _gru_probs(self, f32):
         """f32: (B, 62) window features (float32), time order -> (B, n_classes) mean GRU probabilities."""
@@ -543,7 +553,7 @@ class HGBStreamModel:
             Ps = self._mix3_probs(f32, x, n2)
             Wh = Ph * self.grid_omega
             Wh /= Wh.sum(axis=1, keepdims=True)
-            W = self.alpha * (self._grid_q(Ps[0]) + self._grid_q(Ps[1]) + self._grid_q(Ps[2])) / 3.0 + (1.0 - self.alpha) * Wh
+            W = self.alpha * sum(self._grid_q(P) for P in Ps) / float(len(Ps)) + (1.0 - self.alpha) * Wh
             pred = decide(W, None, np.ones(W.shape[1]), self.grid)
             if GRID_ON:
                 step = self.stream.step_s
@@ -607,8 +617,13 @@ keep = {k: bundle[k] for k in ("model", "feature_names", "bin_edges", "kind", "g
                                "tcn_states", "tcn_mu", "tcn_sd", "tcn_dilations", "cnn_states", "cnn_scale",
                                "cnn_clip", "cnn_emb", "gemb_states", "gemb_mu", "gemb_sd",
                                "n2det_state", "n2det_scale", "n2det_clip", "n2det_emb", "n2det_into",
-                               "n2det_states", "n2det_ncls", "n2det_first_pos")
+                               "n2det_states", "n2det_ncls", "n2det_first_pos", "seq_comps")
         if k in bundle}
+for comp, ks in (("tcn", ("tcn_states", "tcn_mu", "tcn_sd", "tcn_dilations")),
+                 ("gemb", ("cnn_states", "cnn_scale", "cnn_clip", "cnn_emb", "gemb_states", "gemb_mu", "gemb_sd"))):
+    if "seq_comps" in keep and comp not in keep["seq_comps"]:  # unused component: not shipped
+        for k in ks:
+            keep.pop(k, None)
 if not args.sklearn_trees:
     sys.path.insert(0, str(ROOT / "scripts"))
     from tree_numpy import export_hgb, pad_bin_edges
