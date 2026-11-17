@@ -733,3 +733,49 @@ başlatmak Spearman'ı yalnız 0.002 bozuyor (bağlam başlangıçtan bağımsı
 2. aşama (başladı, 16 Kasım 23:10): `scripts/n2det_ctx_inner.py 6 SEED` (tohum 0, 1, 2; eski iç-kat düzeneğiyle aynı sızıntı kuralı,
 ≈ 3.5 sa / tohum) → B üyesi ablasyonu `n2det_v2_ablation.py c --src=n2det_ctx6` (yakınlık özetleri, 3 tohum ortalaması).
 Kazanma kuralı (İş 3 ile aynı): aday 2'nin dedektör satırına (b2_n2multi_c, dual 39.77) göre Δ ≤ −0.15 ve ≥ 7/10 kat.
+
+## 17 Kasım — İş B sonucu: dizi tarafı dayanıklılığı, kaymalı çift CV ve kaymalı 40 test
+
+Satırlar (HGB = aday 2'nin HGB(n2c, kırpma) sabit; k+y = başlangıç kırpma artırması + yakınlık özetleri girdisi):
+(1) aday 2 = GRU k+y + TCN eski + GRU-emb eski; (2) GRU k+y + TCN k+y + GRU-emb eski; (3) GRU k+y + TCN k+y + GRU-emb kırpma;
+(4) GRU k+y + TCN k+y; (5) yalnız GRU k+y. α iç içe LOFO: satır 1 0.6, diğerleri 0.5.
+
+**k = 0 çift CV** (`b2_mix.py ... wb nogrid --ref2=n2c:cropGc`): 38.49 / 38.77 (+0.28, 2/10) / 38.91 (+0.42, 0/10) / 38.80 (+0.31, 2/10) /
+38.67 (+0.18, 2/10). "+0.3'ten fazla kötüleşme yok" kuralını 2 ve 5 geçiyor; 4 sınırda (0.01) kalıyor, 3 kalıyor.
+
+**Kaymalı çift CV** (`shift_cv.py`; fold modelleri CV seçimlerinde yeniden eğitildi, dışarıdaki kayıtlar örneklenen kaymadan akıtıldı,
+2 çekiliş; HGB kaydırmasız olasılıkları CV ile max |Δ| 3e-8; toplam ≈ 8.3 sa). Δ satır 1'e göre (daha iyi kat):
+
+| dağılım | (1) | (2) | (3) | (4) | (5) |
+|---|---|---|---|---|---|
+| k0 | 38.59 | +0.18 (3) | +0.32 (0) | +0.21 (2) | +0.07 (3) |
+| k1 | 38.51 | +0.20 (3) | +0.34 (0) | +0.25 (2) | +0.09 (3) |
+| k2 | 38.57 | +0.20 (2) | +0.34 (0) | +0.23 (2) | +0.10 (3) |
+| k3 | 38.51 | +0.21 (2) | +0.35 (0) | +0.24 (2) | +0.11 (4) |
+| %75 k0 + U[0,12] | 38.51 | +0.17 (2) | +0.31 (0) | +0.20 (2) | +0.08 (3) |
+| %50 k0 + U[0,12] | 38.54 | +0.15 (3) | +0.28 (1) | +0.16 (2) | +0.07 (3) |
+| U[0,6] | 38.51 | +0.21 (2) | +0.34 (0) | +0.25 (2) | +0.11 (3) |
+| U[0,12] | 38.38 | +0.13 (2) | +0.26 (2) | +0.17 (3) | +0.09 (3) |
+| %50 k0 + U[0,24] | 38.25 | +0.14 (3) | +0.25 (3) | +0.18 (3) | +0.09 (4) |
+
+(k0 satırı 38.59 ↔ b2_mix 38.49: kaymalı CV'de HGB üyeleri CV medyan ağaç sayısıyla yeniden eğitildi.) Aday 2 bütün dağılımlarda en iyi;
+kayma 0–15 sn aralığında skorlar neredeyse sabit (aday 2 küçük kaymalara zaten dayanıklı).
+
+**40 test kaydı** (train+val modelleri, `shift_calib.py wbX --alpha-wbX=0.5`, `shift_rows.py`), Δ aday 2'ye göre:
+
+| dağılım | aday 2 | (2) | (3) | (4) | (5) |
+|---|---|---|---|---|---|
+| k0 | 44.38 | −0.43 | −0.80 | −0.95 | −1.15 |
+| k1 / k2 / k3 | 43.57 / 42.46 / 43.58 | −0.29 / −0.19 / −0.17 | −0.56 / −0.49 / −0.51 | −0.55 / −0.52 / −0.54 | −0.65 / −0.64 / −0.99 |
+| %75 k0 + U[0,12] | 44.23 | −0.41 | −0.79 | −0.89 | −1.08 |
+| U[0,6] / U[0,12] | 43.42 / 43.68 | −0.36 / −0.33 | −0.69 / −0.72 | −0.74 / −0.68 | −0.89 / −0.83 |
+| dayanıklılık k6 / k12 / k24 / k60 / geniş | 44.37 / 42.64 / 41.35 / 37.45 / 40.81 | −0.57 / −0.50 / −0.31 / −0.54 / −1.67 | −0.95 / −0.92 / −0.61 / −0.93 / −2.33 | −0.98 / −0.76 / −0.24 / −0.07 / −2.81 | −1.12 / −0.82 / −0.73 / −0.91 / −2.79 |
+
+Eşleştirilmiş kayıt farkları: (5) k0 −1.15 ± 1.10 (SE), k2 −0.64 ± 0.66; daha iyi kayıt 18/40 ve 20/40 (2–4 için de 16–20/40) →
+test farkları ≈ 1 SE, birkaç kayıt taşıyor. α kontrolü: aday 2 α 0.5'te testte +0.08…+0.27 kötü, (5) α 0.6'da −0.3 daha iyi → test kazancı
+α'dan değil, TCN / GRU-emb'in çıkarılmasından (α testten seçilmez; CV seçimi 0.5).
+
+**Okuma:** iki birincil ölçüt çelişiyor. Kaymalı çift CV (500 kayıt, 10 kat) aday 2'yi her dağılımda öne koyuyor, en yakın satır (5)
++0.07…+0.11 (3–4/10). 40 test kaydı ise bütün yeni satırları, en çok (5)'i öne koyuyor (−0.6…−1.2), ama fark gürültü düzeyinde.
+Ters varyans ağırlığıyla birleşik tahmin CV'ye yakın (≈ +0.05). TCN / GRU-emb kırpma artırması (2–4) her iki ölçütte de (5)'ten kötü;
+dizi tarafını sadeleştirmek kırpmalı bileşen eklemekten iyi. Karar kullanıcıda (aşağıdaki seçenekler).

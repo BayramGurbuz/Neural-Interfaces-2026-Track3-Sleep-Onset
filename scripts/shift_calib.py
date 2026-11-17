@@ -50,7 +50,9 @@ MODELS = {"final540": dict(bundle="mix_uw_n10"), "mix3_540": dict(bundle="mix3")
           "wb2": dict(bundle="cand2_tv", n2="close_full.npy", tcn_from="tcn_n2c_tv"),
           "wb3": dict(bundle="cand2_tv", n2="close_full.npy", tcn_from="tcn_n2c_tv", gemb_from="mix3crop"),
           "wb4": dict(bundle="cand2_tv", n2="close_full.npy", tcn_from="tcn_n2c_tv", comps=("gru", "tcn")),
-          "wb5": dict(bundle="cand2_tv", n2="close_full.npy", comps=("gru",))}
+          "wb5": dict(bundle="cand2_tv", n2="close_full.npy", comps=("gru",)),
+          # alpha checks (17 Nov): candidate 2 at the Work B rows' alpha 0.5, row 5 at candidate 2's alpha 0.6
+          "cand2a5": dict(bundle="cand2_tv", n2="close_full.npy"), "wb5a6": dict(bundle="cand2_tv", n2="close_full.npy", comps=("gru",))}
 
 wg, sg, _ = ABLATIONS["dyn_maxmin_spec_eye"]
 df, X817, _ = build_table_ext(wg, sg)
