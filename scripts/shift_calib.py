@@ -37,7 +37,7 @@ from dist_hgb import decide
 from dual_cv import OUT
 from ensemble_dist import GRID, to_grid
 from gru_cv import ARCHS, CONFIGS, seq_inputs
-from n2det_feats import summaries
+from n2det_feats import crop_closeness, summaries
 from train_hgb import SAVE
 
 torch.set_num_threads(2)
@@ -52,7 +52,12 @@ MODELS = {"final540": dict(bundle="mix_uw_n10"), "mix3_540": dict(bundle="mix3")
           "wb4": dict(bundle="cand2_tv", n2="close_full.npy", tcn_from="tcn_n2c_tv", comps=("gru", "tcn")),
           "wb5": dict(bundle="cand2_tv", n2="close_full.npy", comps=("gru",)),
           # alpha checks (17 Nov): candidate 2 at the Work B rows' alpha 0.5, row 5 at candidate 2's alpha 0.6
-          "cand2a5": dict(bundle="cand2_tv", n2="close_full.npy"), "wb5a6": dict(bundle="cand2_tv", n2="close_full.npy", comps=("gru",))}
+          "cand2a5": dict(bundle="cand2_tv", n2="close_full.npy"), "wb5a6": dict(bundle="cand2_tv", n2="close_full.npy", comps=("gru",)),
+          # Work C (17 Nov): context detector (n2det_ctx_final_tv), crop-exact closeness after the shift (close_full_L); bundle ctx_tv =
+          # HGB(c) ctx crop + GRU crop + context closeness + TCN / GRU-emb from mix3_det; c3ctx = GRU only (candidate 3's set),
+          # c2ctx = all three (candidate 2's set); alpha from the k=0 dual CV (--alpha-<name>=A)
+          "c3ctx": dict(bundle="ctx_tv", n2dir="n2det_ctx_final_tv", ctxL=True, comps=("gru",)),
+          "c2ctx": dict(bundle="ctx_tv", n2dir="n2det_ctx_final_tv", ctxL=True)}
 
 wg, sg, _ = ABLATIONS["dyn_maxmin_spec_eye"]
 df, X817, _ = build_table_ext(wg, sg)
@@ -114,8 +119,11 @@ class Runner:
 
         self.grus = nets("gru", b["gru_states"], len(b["gru_mu"]))
         self.n2_into = n2_into
-        self.hgb_n2 = b.get("n2det_state") is not None or b.get("n2det_states") is not None
-        self.n2v = np.load(SAVE / "n2det_final_tv" / spec["n2"]).astype(np.float64)[mt] if spec.get("n2") else None
+        self.hgb_n2 = any(b.get(k) is not None for k in ("n2det_state", "n2det_states", "n2det_ctx_states"))
+        n2dir = SAVE / spec.get("n2dir", "n2det_final_tv")
+        self.n2L = np.load(n2dir / "close_full_L.npy").astype(np.float64)[:, mt] if spec.get("ctxL") else None
+        self.n2v = (self.n2L[-1] if self.n2L is not None
+                    else np.load(n2dir / spec["n2"]).astype(np.float64)[mt] if spec.get("n2") else None)
         assert (self.n2v is not None) == (self.hgb_n2 or "gru" in self.n2_into or "tcn" in self.n2_into)
         if self.kind == "mix3":
             self.tcns = nets("tcn", b["tcn_states"], len(b["tcn_mu"]))
@@ -147,7 +155,8 @@ class Runner:
         H = np.stack([self.stream.update(fi.astype(np.float64)) for fi in Fw]).astype(np.float32)
         if k == 0:
             assert np.abs(H - X817[rows]).max() == 0.0
-        S2 = summaries(self.n2v[rows], [np.arange(len(rows))]).astype(np.float32) if self.n2v is not None else None
+        v2 = crop_closeness(self.n2L, rows) if self.n2L is not None else (self.n2v[rows] if self.n2v is not None else None)
+        S2 = summaries(v2, [np.arange(len(rows))]).astype(np.float32) if v2 is not None else None
         Hx = np.concatenate([H, S2], axis=1) if self.hgb_n2 else H
         Xb = apply_bin_edges(Hx, b["bin_edges"])
         Ph = np.mean([to_grid(m.predict_proba(Xb), e) for m, e in zip(b["models"], b["member_edges"])], axis=0)

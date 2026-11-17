@@ -5,7 +5,7 @@ cd "$(dirname "$0")"
 export PYTHONDONTWRITEBYTECODE=1 PYTHONWARNINGS=ignore
 OUT=~/neuralbench/save/cv/dual; PY=../.venv/bin/python; L=$OUT/ctx_night_chain.log
 DISTS=--dists=k0,k1,k2,k3,m0.75U12,m0.5U12,U6,U12,m0.5U24
-echo "start $(date -Iseconds)" > $L
+echo "start $(date -Iseconds)" >> $L
 until grep -q "^ens crop ctx6 exit" $OUT/ctx_full_chain.log 2>/dev/null; do sleep 60; done
 echo "HGB crop CV ready $(date -Iseconds)" >> $L
 nice -n 5 $PY b2_mix.py "n2c:cropGc,n2c:wb5,ctx:c3ctx,ctx:c2ctx,ctx:wb5,ctx:cropGc" wc nogrid --ref2=n2c:cropGc > $OUT/b2_mix_wc.log 2>&1 &
@@ -15,6 +15,14 @@ env -u OMP_NUM_THREADS $PY train_n2det_final.py hgbmc --det=ctx > $OUT/hgb_ctx_a
 until grep -q "^detctx tv exit" $OUT/ctx_final_gpu.log 2>/dev/null; do sleep 60; done
 env -u OMP_NUM_THREADS $PY train_n2det_final.py hgbmc --det=ctx --trainval > $OUT/hgb_ctx_tv.log 2>&1; echo "hgb ctx tv exit $? $(date -Iseconds)" >> $L
 wait $MIXPID; echo "k0 mix exit $? $(date -Iseconds)" >> $L
+# 40-test shifted scores (train+val models, crop-exact context closeness after the shift), alpha = the k=0 CV's choice per row
+$PY train_n2det_final.py mix --alpha=0.6 --ens=ens_c_tv_ctx_crop --seq=mix3_det --gru-from=gru_ctx_tv --out=ctx_tv > $OUT/ctx_tv_mix.log 2>&1
+A3=$($PY -c "import json;print(json.load(open('$OUT/b2_mix_wc.json'))['HGB(ctx) + seq(c3ctx)']['alpha_nogrid']['all'])")
+A2=$($PY -c "import json;print(json.load(open('$OUT/b2_mix_wc.json'))['HGB(ctx) + seq(c2ctx)']['alpha_nogrid']['all'])")
+echo "alphas c3ctx $A3 c2ctx $A2" >> $L
+{ $PY shift_calib.py c3ctx --alpha-c3ctx=$A3 > $OUT/shift_calib_c3ctx.log 2>&1 &
+  $PY shift_calib.py c2ctx --alpha-c2ctx=$A2 > $OUT/shift_calib_c2ctx.log 2>&1 & wait
+  echo "40-test shifted exit $(date -Iseconds)" >> $L; } &
 { until grep -q "^done" $OUT/ctx_final_gpu.log 2>/dev/null; do sleep 60; done
   $PY shift_cv.py seq uw_n10_ctx6_crop $DISTS > $OUT/shiftcv_seq_uw_n10_ctx6_crop.log 2>&1; echo "shift seq ctx exit $? $(date -Iseconds)" >> $L; } &
 env -u OMP_NUM_THREADS $PY shift_cv.py hgb --det=ctx $DISTS > $OUT/shiftcv_hgbctx.log 2>&1; echo "shift hgb ctx exit $? $(date -Iseconds)" >> $L
