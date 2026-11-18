@@ -304,6 +304,10 @@ class HGBStreamModel:
             c = bundle["gru_cfg"]
             n_out = len(bundle["gru_edges"]) - 1
             self.comps = tuple(bundle.get("seq_comps", ("gru", "tcn", "gemb")))  # 17 Nov: a subset, e.g. ("gru",)
+            # 18 Nov (Work F): optional per-component weights (normalised); absent -> the plain mean (unchanged code path)
+            self.seq_w = (None if bundle.get("seq_weights") is None
+                          else np.asarray(bundle["seq_weights"], np.float64) / float(np.sum(bundle["seq_weights"])))
+            assert self.seq_w is None or len(self.seq_w) == len(self.comps)
             assert self.comps[0] == "gru" and set(self.comps) <= {"gru", "tcn", "gemb"}
             self.gru_mu, self.gru_sd = (np.asarray(bundle[k], np.float32) for k in ("gru_mu", "gru_sd"))
             self.grus = [load_net(GRUNet(len(self.gru_mu), n_out, c["hidden"]), s) for s in bundle["gru_states"]]
@@ -585,7 +589,10 @@ class HGBStreamModel:
             Ps = self._mix3_probs(f32, x, n2)
             Wh = Ph * self.grid_omega
             Wh /= Wh.sum(axis=1, keepdims=True)
-            W = self.alpha * sum(self._grid_q(P) for P in Ps) / float(len(Ps)) + (1.0 - self.alpha) * Wh
+            if self.seq_w is None:
+                W = self.alpha * sum(self._grid_q(P) for P in Ps) / float(len(Ps)) + (1.0 - self.alpha) * Wh
+            else:
+                W = self.alpha * sum(w * self._grid_q(P) for w, P in zip(self.seq_w, Ps)) + (1.0 - self.alpha) * Wh
             pred = decide(W, None, np.ones(W.shape[1]), self.grid)
             if GRID_ON:
                 step = self.stream.step_s
@@ -649,7 +656,7 @@ keep = {k: bundle[k] for k in ("model", "feature_names", "bin_edges", "kind", "g
                                "tcn_states", "tcn_mu", "tcn_sd", "tcn_dilations", "cnn_states", "cnn_scale",
                                "cnn_clip", "cnn_emb", "gemb_states", "gemb_mu", "gemb_sd",
                                "n2det_state", "n2det_scale", "n2det_clip", "n2det_emb", "n2det_into",
-                               "n2det_states", "n2det_ncls", "n2det_first_pos", "seq_comps", "n2det_ctx_states", "n2det_ctx_n")
+                               "n2det_states", "n2det_ncls", "n2det_first_pos", "seq_comps", "n2det_ctx_states", "n2det_ctx_n", "seq_weights")
         if k in bundle}
 for comp, ks in (("tcn", ("tcn_states", "tcn_mu", "tcn_sd", "tcn_dilations")),
                  ("gemb", ("cnn_states", "cnn_scale", "cnn_clip", "cnn_emb", "gemb_states", "gemb_mu", "gemb_sd"))):

@@ -157,12 +157,17 @@ def pad(seqs, fill=0.0):
     return out
 
 
+CROP_E = {"mix": [(0.1, 0, 0), (0.5, 24, 60), (0.4, 0, 120)]}  # Work E (18 Nov): 10 % none, 50 % U[2,5] min, 40 % U[0,10] min
+
+
 def run_fold(d, recs, F, gain, tr, te, cfg, seed, stop_epoch=None, extra=None):
     """Train one model; return list over checkpoints of (n_te_windows, 11) probs (rows in d[te] order).
     te=None (final training): same schedule (cosine over cfg["epochs"]), stop after ``stop_epoch``
     epochs, no evaluation; returns (model, mu, sd).
     extra: optional (len(d), E) per-window inputs appended via seq_inputs (no gain augmentation).
     or a function rows -> (len(rows), E) (e.g. detector summaries re-streamed from rows[0], so a start crop restarts them).
+    cfg["crop"] = {"mix": [(p, a, b), ...]} (Work E, 18 Nov): start k uniform in windows a..b with probability p (b = 0: no crop);
+    a copy with no window left is skipped for that epoch.
     cfg["crop"] = (p_none, p_small, p_wide) (14 Nov, stream-start augmentation): per epoch and training recording the
     first k windows are dropped and the inputs rebuilt from the new start (elapsed time and first-2-min baseline restart;
     targets unchanged): k = 0 with p_none, uniform 1..12 (5-60 s) with p_small, uniform 13..len-12 (up to onset - 60 s)
@@ -196,6 +201,14 @@ def run_fold(d, recs, F, gain, tr, te, cfg, seed, stop_epoch=None, extra=None):
 
     def crop_k(n):
         u = rng.random()
+        if isinstance(crop, dict):  # Work E (18 Nov): {"mix": [(p, a, b), ...]} uniform windows a..b; no window left -> None (skipped)
+            acc = 0.0
+            for p, a, b in crop["mix"]:
+                acc += p
+                if u < acc:
+                    k = 0 if b == 0 else int(rng.integers(a, b + 1))
+                    return k if k <= n - 1 else None
+            return 0
         if u < crop[0]:
             return 0
         if u < crop[0] + crop[1] or n - 12 < 13:
@@ -214,6 +227,8 @@ def run_fold(d, recs, F, gain, tr, te, cfg, seed, stop_epoch=None, extra=None):
             for i in idx:  # augmentation: per-recording channel gains (raw part only; rel cancels) + noise [+ start crop]
                 g = rng.normal(0, GAIN_SD, 4).astype(np.float32) @ gain_std
                 k = crop_k(len(Xs[i])) if crop else 0
+                if k is None:
+                    continue
                 xi = Xs[i] if k == 0 else (inputs(tr_recs[i][k:]) - mu) / sd
                 xb.append(xi + g + rng.normal(0, NOISE_SD, xi.shape).astype(np.float32))
                 yb.append(Y[i][k:])

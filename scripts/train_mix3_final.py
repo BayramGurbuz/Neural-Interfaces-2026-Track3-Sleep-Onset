@@ -51,6 +51,9 @@ ALPHA = 0.7
 PLAN = dict(gru=dict(cfg="uw", seeds=range(10), epochs=15), tcn=dict(cfg="tcn_n10", seeds=range(10), epochs=10),
             cnn=dict(seeds=range(3), epochs=12), gemb=dict(cfg="uw", seeds=range(3), epochs=10))
 CROP = (0.5, 0.35, 0.15) if "--crop" in sys.argv else None
+if "--cropE" in sys.argv:  # Work E (18 Nov): crop mix gru_cv.CROP_E
+    from gru_cv import CROP_E
+    CROP = CROP_E
 for a in sys.argv:
     if a.startswith("--epochs="):
         for kv in a.split("=", 1)[1].split(","):

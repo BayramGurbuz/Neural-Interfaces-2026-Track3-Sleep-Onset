@@ -13,7 +13,9 @@ Distributions (--dists=, comma list): k0 (no shift, check against the k=0 CV), k
   (J pseudo-recordings), seed from (protocol, fold, draw).
 
 Work C (17 Nov): `hgb --det=ctx` = HGB(c) with the context detector's closeness (ens_crop_cv.py ctx6) -> shiftcv<T>_hgbctx_<proto>.npz,
-  mix rows "ctx:..."; seq uw_n10_ctx6_crop. Same shift samples as the n2c rows (seed from protocol, fold, draw, distribution).
+  mix rows "ctx:..."; seq uw_n10_ctx6_crop.
+Work E (18 Nov): `hgb --det=ctx --crop=E` (2 crop copies per recording from U[2,5] / U[0,10] min + ~10 % original rows) -> shiftcv<T>_hgbctxE_<proto>.npz,
+  mix rows "ctxE:..."; seq uw_n10_ctx6_cropE, tcn_n10_cropE, cnn3_emb_cropE (crop mix 10 / 50 / 40 %). Same shift samples as the n2c rows (seed from protocol, fold, draw, distribution).
   Approximation: the outer-fold context detectors are not saved, so a shifted stream's first 5 windows keep the closeness computed
   with the pre-shift context (the stream-from-window-2 check moved Spearman by 0.002); exact in the finals and the 40-test runs.
 
@@ -52,6 +54,8 @@ DRAWS = int(ARG.get("--draws", "2"))
 TAG = ARG.get("--tag", "")
 ALPHAS = [0.3, 0.4, 0.5, 0.6, 0.7, 0.8]
 CROP = (0.5, 0.35, 0.15)
+from gru_cv import CROP_E  # noqa: E402  Work E: 10 % none, 50 % U[2,5] min, 40 % U[0,10] min
+EPOCHS_FROM = {"uw_n10_ctx6_cropE": "uw_n10_ctx6_crop", "tcn_n10_cropE": "tcn_n10_n2c_crop", "cnn3_emb_cropE": "cnn3_emb_old_crop"}
 SEQ_SPECS = {  # name: (cfg, closeness inputs, CNN-embedding inputs, fixed epochs when the CV choice is not on record)
     "uw_n10_n2c_crop": (dict(CONFIGS["uw_n10"], crop=CROP), True, False, None),
     "tcn_n10": (CONFIGS["tcn_n10"], False, False, 10),
@@ -59,6 +63,10 @@ SEQ_SPECS = {  # name: (cfg, closeness inputs, CNN-embedding inputs, fixed epoch
     "cnn3_emb": (dict(CONFIGS["uw"], run_epochs=40, n_seeds=3), False, True, 10),
     "cnn3_emb_old_crop": (dict(CONFIGS["uw"], run_epochs=40, n_seeds=3, crop=CROP), False, True, None),
     "uw_n10_ctx6_crop": (dict(CONFIGS["uw_n10"], crop=CROP), "ctx6", False, None),
+    # Work E (18 Nov): the three sequence models with the Work E crop mix (epochs per fold from the analogous crop recipe's CV)
+    "uw_n10_ctx6_cropE": (dict(CONFIGS["uw_n10"], crop=CROP_E), "ctx6", False, None),
+    "tcn_n10_cropE": (dict(CONFIGS["tcn_n10"], crop=CROP_E), False, False, None),
+    "cnn3_emb_cropE": (dict(CONFIGS["uw"], run_epochs=40, n_seeds=3, crop=CROP_E), False, True, None),
 }
 DET = ARG.get("--det", "mc")
 
@@ -119,15 +127,32 @@ def part_hgb():
     from sklearn.ensemble import HistGradientBoostingClassifier
     from dist_hgb import to_class
     X0 = pc.X817[m]
-    c_rows, c_X, ks = pc.cropped_copies(recs, np.random.default_rng(0))
-    crop_recs = [r[k:] for r, k in zip(recs, ks)]
+    CROPH = ARG.get("--crop")
+    if CROPH == "E":  # Work E (18 Nov): 2 copies per recording, k ~ U[2,5] min and U[0,10] min (empty copy dropped), all features
+        # re-streamed from the crop (closeness summaries per copy below); original rows subsampled to ~10 % of the table
+        rng = np.random.default_rng(0)
+        crop_recs = []
+        for r in recs:
+            for a, b_ in ((24, 60), (0, 120)):
+                kk = int(rng.integers(a, b_ + 1))
+                if kk <= len(r) - 1:
+                    crop_recs.append(r[kk:])
+        c_rows = np.concatenate(crop_recs)
+        c_X = np.concatenate([pc.restream(rr) for rr in crop_recs])
+        keep_o = rng.random(len(d)) < len(c_rows) / 9 / len(d)
+        print(f"Work E table: {len(crop_recs)} crop copies, {len(c_rows)} crop rows, {int(keep_o.sum())} original rows "
+              f"({keep_o.sum() / (keep_o.sum() + len(c_rows)):.3f} of the table)", flush=True)
+    else:
+        c_rows, c_X, ks = pc.cropped_copies(recs, np.random.default_rng(0))
+        crop_recs = [r[k:] for r, k in zip(recs, ks)]
+        keep_o = np.ones(len(d), bool)
     tl_c = d.timeline.to_numpy()[c_rows]
     y_ext = np.concatenate([target, target[c_rows]])
     fs = "n2ctx6_crop" if DET == "ctx" else "n2c_crop"
     iters = {nm: np.load(OUT / f"ens_dyn_maxmin_spec_eye_{fs}_{nm}.npz", allow_pickle=True)["n_iter"].item() for nm in MEMBERS}
     probas = {nm: np.load(OUT / f"ens_dyn_maxmin_spec_eye_{fs}_{nm}.npz", allow_pickle=True)["probas"].item() for nm in MEMBERS}
     for proto, splits in protocols.items():
-        path = OUT / f"shiftcv{TAG}_hgb{'ctx' if DET == 'ctx' else ''}_{proto}.npz"
+        path = OUT / f"shiftcv{TAG}_hgb{'ctx' if DET == 'ctx' else ''}{CROPH or ''}_{proto}.npz"
         if path.exists():
             print(f"hgb {proto}: cached", flush=True)
             continue
@@ -136,9 +161,10 @@ def part_hgb():
             t0 = time.perf_counter()
             v = close_values(proto, k, "ctx6" if DET == "ctx" else "multi")
             S = summaries(v, recs)
-            Sc = summaries(v, crop_recs)[c_rows]
+            Sc = (np.concatenate([summaries(v[rr], [np.arange(len(rr))]) for rr in crop_recs]) if CROPH == "E"
+                  else summaries(v, crop_recs)[c_rows])
             Xe = np.concatenate([np.concatenate([X0, S], 1), np.concatenate([c_X, Sc], 1)])
-            tr_e = np.concatenate([tr, np.isin(tl_c, np.unique(d.timeline.to_numpy()[tr]))])
+            tr_e = np.concatenate([tr & keep_o, np.isin(tl_c, np.unique(d.timeline.to_numpy()[tr]))])
             bins = fit_bin_edges(Xe[tr_e])
             Xb = apply_bin_edges(Xe[tr_e], bins)
             clfs = []
@@ -148,7 +174,7 @@ def part_hgb():
                 clfs.append((clf.fit(Xb, to_class(y_ext[tr_e], edges)), edges, nm))
             # check: unshifted held-out probabilities reproduce the CV's
             P0 = clfs[0][0].predict_proba(apply_bin_edges(Xe[:len(d)][te], bins))
-            dev = float(np.abs(P0 - probas[clfs[0][2]][proto][k]).max())
+            dev = float(np.abs(P0 - probas[clfs[0][2]][proto][k]).max()) if CROPH is None else float("nan")
             for dist in DISTS:
                 Ph = []
                 for i, kk, j in shifted(proto, k, dist):
@@ -166,7 +192,7 @@ def part_seq(name):
     cfg, n2c, emb, fixed = SEQ_SPECS[name]
     d2, recs2, F, gain = load_inputs()
     assert (d2.timeline.to_numpy() == d.timeline.to_numpy()).all() and (d2.stop.to_numpy() == d.stop.to_numpy()).all()
-    cv = json.loads((OUT / "b2_seq.json").read_text()).get(name)
+    cv = json.loads((OUT / "b2_seq.json").read_text()).get(EPOCHS_FROM.get(name, name))
     n_seeds = cfg.get("n_seeds", 10)
     for proto, splits in protocols.items():
         path = OUT / f"shiftcv{TAG}_seq_{name}_{proto}.npz"
@@ -210,14 +236,16 @@ def part_mix(rows_arg):
     import pandas as pd
     onset = rec_onsets(d)
     rows = [(r.split(":")[0], r.split(":")[1].split("+")) for r in rows_arg.split(",")]
-    H = {"n2c": {p: np.load(OUT / f"shiftcv{TAG}_hgb_{p}.npz") for p in protocols}}
+    H = {"n2c": {p: np.load(OUT / f"shiftcv{TAG}_hgb_{p}.npz") for p in protocols}} if (OUT / f"shiftcv{TAG}_hgb_unseen.npz").exists() else {}
     if any(r[0] == "ctx" for r in rows):
         H["ctx"] = {p: np.load(OUT / f"shiftcv{TAG}_hgbctx_{p}.npz") for p in protocols}
+    if any(r[0] == "ctxE" for r in rows):  # Work E HGB (hgb --det=ctx --crop=E)
+        H["ctxE"] = {p: np.load(OUT / f"shiftcv{TAG}_hgbctxE_{p}.npz") for p in protocols}
     out = {}
     for dist in DISTS:
         E = {}
         for hg, seqs in rows:
-            assert hg in H, "HGB sets retrained here: n2c, ctx"
+            assert hg in H, "HGB sets retrained here: n2c, ctx, ctxE"
             Z = {s: {p: np.load(OUT / f"shiftcv{TAG}_seq_{s}_{p}.npz") for p in protocols} for s in seqs}
             folds = []
             for proto, splits in protocols.items():

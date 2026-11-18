@@ -251,7 +251,10 @@ def stage_hgbmc():
     default: all 540 -> SAVE/ens_c_all_n2c_crop
     --det=ctx (17 Nov, Work C): context detector (stage detctx, SAVE/n2det_ctx_final[_tv]); a cropped copy's window k + j gets the
     closeness computed with min(j + 1, 6) windows of context (close_oof_L, crop-exact, as at inference); n_iter from
-    ens_crop_cv.py ctx6 -> SAVE/ens_c_{all,tv}_ctx_crop"""
+    ens_crop_cv.py ctx6 -> SAVE/ens_c_{all,tv}_ctx_crop
+    --cropE (18 Nov, Work E; with --det=ctx): 2 copies per recording, k ~ U[2,5] min and U[0,10] min (empty copy dropped), original
+    rows subsampled to ~10 % of the table (seed 0; as shift_cv.py hgb --crop=E), crop-exact closeness; n_iter as --det=ctx
+    -> SAVE/ens_c_{all,tv}_ctxE_crop"""
     import hgb_crop_precheck as pc
     from n2det_feats import crop_closeness, summaries
     tv = "--trainval" in sys.argv
@@ -272,15 +275,31 @@ def stage_hgbmc():
     d = df[m].reset_index(drop=True)
     recs = [g.sort_values("stop").index.to_numpy() for _, g in d.groupby("timeline", sort=False)]
     S = summaries(c_oof[m], recs)
-    c_rows, c_X, ks = pc.cropped_copies(recs, np.random.default_rng(0))
-    crop_recs = [r[k:] for r, k in zip(recs, ks)]
+    crop_e = "--cropE" in sys.argv  # Work E (18 Nov): 2 copies per recording (U[2,5] / U[0,10] min) + ~10 % original rows
+    keep_o = np.ones(len(d), bool)
+    if crop_e:
+        assert ctx
+        rng = np.random.default_rng(0)
+        crop_recs = []
+        for r in recs:
+            for a, b_ in ((24, 60), (0, 120)):
+                kk = int(rng.integers(a, b_ + 1))
+                if kk <= len(r) - 1:
+                    crop_recs.append(r[kk:])
+        c_rows = np.concatenate(crop_recs)
+        c_X = np.concatenate([pc.restream(rr) for rr in crop_recs])
+        keep_o = rng.random(len(d)) < len(c_rows) / 9 / len(d)
+    else:
+        c_rows, c_X, ks = pc.cropped_copies(recs, np.random.default_rng(0))
+        crop_recs = [r[k:] for r, k in zip(recs, ks)]
     if ctx:  # crop-exact: the detector context restarts at the crop
         assert (np.concatenate(crop_recs) == c_rows).all()
         Sc = np.concatenate([summaries(crop_closeness(c_oof_L, r), [np.arange(len(r))]) for r in crop_recs])
     else:
         Sc = summaries(c_oof[m], crop_recs)[c_rows]
-    Xtr = np.concatenate([np.concatenate([X[m], S], 1), np.concatenate([c_X, Sc], 1)])
-    ytr = np.concatenate([d.target.to_numpy(), d.target.to_numpy()[c_rows]])
+    Xtr = np.concatenate([np.concatenate([X[m], S], 1)[keep_o], np.concatenate([c_X, Sc], 1)])
+    ytr = np.concatenate([d.target.to_numpy()[keep_o], d.target.to_numpy()[c_rows]])
+    print(f"table: {int(keep_o.sum())} original + {len(c_rows)} cropped rows ({len(crop_recs)} copies)", flush=True)
     names = list(build_table_ext(*ABLATIONS[FEAT_SET][:2])[2]) + [f"n2close_{s}" for s in N2_NAMES]
     bins = fit_bin_edges(Xtr)
     Xb = apply_bin_edges(Xtr, bins)
@@ -304,7 +323,8 @@ def stage_hgbmc():
     score = summarize(d_te, decide(P, None, omega, True, GRID))
     print(f"test ({'out-of-sample' if tv else 'in-sample'}) hgb_c+n2c+crop {score['wbmae']:.4f}  " + " ".join(f"{r} {score[r]:.1f}" for r in RANGE_NAMES)
           + f"; total fit {time.perf_counter() - t_all:.0f} s, {Xtr.shape[1]} features, {len(Xtr)} rows ({len(c_rows)} cropped)")
-    out = SAVE / (f"ens_c_tv_{'ctx' if ctx else 'n2c'}_crop" if tv else f"ens_c_all_{'ctx' if ctx else 'n2c'}_crop")
+    tg = ("ctx" if ctx else "n2c") + ("E" if crop_e else "")
+    out = SAVE / (f"ens_c_tv_{tg}_crop" if tv else f"ens_c_all_{tg}_crop")
     out.mkdir(exist_ok=True)
     wg, sg, _ = ABLATIONS[FEAT_SET]
     det_keys = dict(n2det_ncls=det["n_cls"], n2det_first_pos=det["first_pos"], n2det_scale=det["scale"], n2det_clip=det["clip"],

@@ -15,7 +15,8 @@ tcn_mu / tcn_sd / tcn_dilations + tcn_n2c -> SAVE/tcn_n2c_{all,tv}.
 gives window k + j the closeness computed with min(j + 1, 6) windows of context (close_oof_L.npy, n2det_feats.crop_closeness), as at
 inference; epochs from "uw_n10_ctx6_crop" -> SAVE/gru_ctx_{all,tv}.
 
-Usage: python scripts/train_gru_n2c.py [--trainval] [--arch=tcn] [--det=ctx]
+--cropE (18 Nov, Work E): crop mix gru_cv.CROP_E (10 % none, 50 % U[2,5] min, 40 % U[0,10] min) -> SAVE/<arch>_<det>E_{all,tv}.
+Usage: python scripts/train_gru_n2c.py [--trainval] [--arch=tcn] [--det=ctx] [--cropE]
 """
 import json
 import sys
@@ -30,13 +31,14 @@ import numpy as np  # noqa: E402
 
 from dist_hgb import VARIANTS, class_stats  # noqa: E402
 from dual_cv import OUT  # noqa: E402
-from gru_cv import CONFIGS, load_inputs, run_fold  # noqa: E402
+from gru_cv import CROP_E, CONFIGS, load_inputs, run_fold  # noqa: E402
 from n2det_feats import crop_closeness, summaries  # noqa: E402
 from train_hgb import SAVE  # noqa: E402
 
 TV = "--trainval" in sys.argv
 ARCH = next((a.split("=", 1)[1] for a in sys.argv if a.startswith("--arch=")), "gru")
 DET = next((a.split("=", 1)[1] for a in sys.argv if a.startswith("--det=")), "mc")
+CROPE = "--cropE" in sys.argv  # Work E (18 Nov): crop mix gru_cv.CROP_E -> SAVE/<arch>_ctxE_{all,tv}
 SEEDS = range(10)
 
 if __name__ == "__main__":
@@ -50,7 +52,7 @@ if __name__ == "__main__":
     tr = (d.split != "test").to_numpy() if TV else np.ones(len(d), bool)
     cv = json.loads((OUT / "b2_seq.json").read_text())[("uw_n10_ctx6_crop" if DET == "ctx" else "uw_n10_n2c_crop") if ARCH == "gru" else "tcn_n10_n2c_crop"]
     epochs = int(np.median(cv["unseen"]["epochs"] + cv["seen"]["epochs"]))
-    cfg = dict(CONFIGS["uw"] if ARCH == "gru" else CONFIGS["tcn_n10"], crop=(0.5, 0.35, 0.15))
+    cfg = dict(CONFIGS["uw"] if ARCH == "gru" else CONFIGS["tcn_n10"], crop=CROP_E if CROPE else (0.5, 0.35, 0.15))
     _, omega_b = class_stats(d[tr].reset_index(drop=True), VARIANTS["B"])
 
     def extra(r):
@@ -62,7 +64,7 @@ if __name__ == "__main__":
     for s in SEEDS:
         model, mu, sd = run_fold(d, recs, F, gain, tr, None, cfg, s, stop_epoch=epochs, extra=extra)
         states.append({k: v.detach().cpu().numpy() for k, v in model.state_dict().items()})
-    tag = "ctx" if DET == "ctx" else "n2c"
+    tag = ("ctx" if DET == "ctx" else "n2c") + ("E" if CROPE else "")
     out = SAVE / (f"{ARCH}_{tag}_tv" if TV else f"{ARCH}_{tag}_all")
     out.mkdir(exist_ok=True)
     if ARCH == "gru":
