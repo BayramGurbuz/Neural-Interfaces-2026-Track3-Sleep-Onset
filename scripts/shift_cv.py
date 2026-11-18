@@ -22,6 +22,9 @@ Work E (18 Nov): `hgb --det=ctx --crop=E` (2 crop copies per recording from U[2,
 Work D/F (18 Nov): distributions Wa-b (uniform windows a..b) and Fk (fixed k) DROP a recording with no window left (the other
   distributions clamp to the last window); part `fmix` = Work F mixes w * ctx_c2 + (1 - w) * ctx_c3 -> OUT/shiftcv<T>_fmix.json.
 
+Work G (19 Nov): `hgb ... --members=B --seeds=0,1,2` refits only those members, once per seed -> keys <dist>_f<k>_s<seed> in
+  shiftcv<T>_hgbctx<crop>_<members>_s<seeds>_<proto>.npz; part `seedeval` (same flags) = HGB-only decision, single seed vs seed mean.
+
 Usage: python scripts/shift_cv.py hgb|seq NAME|mix ROWS --dists=k0,U24 [--draws=2] [--tag=T] [--det=ctx]
   -> OUT/shiftcv<T>_hgb_<proto>.npz, OUT/shiftcv<T>_seq_<NAME>_<proto>.npz, OUT/shiftcv<T>_mix.json
 """
@@ -151,8 +154,11 @@ def part_hgb():
     fs = "n2ctx6_crop" if DET == "ctx" else "n2c_crop"
     iters = {nm: np.load(OUT / f"ens_dyn_maxmin_spec_eye_{fs}_{nm}.npz", allow_pickle=True)["n_iter"].item() for nm in MEMBERS}
     probas = {nm: np.load(OUT / f"ens_dyn_maxmin_spec_eye_{fs}_{nm}.npz", allow_pickle=True)["probas"].item() for nm in MEMBERS}
+    memb = ARG["--members"].split(",") if "--members" in ARG else list(MEMBERS)  # Work G (19 Nov): member subset and seeds
+    seeds = [int(x) for x in ARG["--seeds"].split(",")] if "--seeds" in ARG else [0]
+    SEED_SFX = f"_{'+'.join(memb)}_s{''.join(map(str, seeds))}" if "--seeds" in ARG else ""
     for proto, splits in protocols.items():
-        path = OUT / f"shiftcv{TAG}_hgb{'ctx' if DET == 'ctx' else ''}{CROPH or ''}_{proto}.npz"
+        path = OUT / f"shiftcv{TAG}_hgb{'ctx' if DET == 'ctx' else ''}{CROPH or ''}{SEED_SFX}_{proto}.npz"
         if path.exists():
             print(f"hgb {proto}: cached", flush=True)
             continue
@@ -169,9 +175,12 @@ def part_hgb():
             Xb = apply_bin_edges(Xe[tr_e], bins)
             clfs = []
             for nm, (edges, params, _) in MEMBERS.items():
-                clf = HistGradientBoostingClassifier(max_iter=int(iters[nm][proto][k]), max_features=0.5, early_stopping=False,
-                                                     random_state=0, **params)
-                clfs.append((clf.fit(Xb, to_class(y_ext[tr_e], edges)), edges, nm))
+                if nm not in memb:
+                    continue
+                for sd_ in seeds:
+                    clf = HistGradientBoostingClassifier(max_iter=int(iters[nm][proto][k]), max_features=0.5, early_stopping=False,
+                                                         random_state=sd_, **params)
+                    clfs.append((clf.fit(Xb, to_class(y_ext[tr_e], edges)), edges, nm, sd_))
             # check: unshifted held-out probabilities reproduce the CV's
             P0 = clfs[0][0].predict_proba(apply_bin_edges(Xe[:len(d)][te], bins))
             dev = float(np.abs(P0 - probas[clfs[0][2]][proto][k]).max()) if CROPH is None else float("nan")
@@ -181,8 +190,16 @@ def part_hgb():
                     rows = recs[i][kk:]
                     H = np.concatenate([pc.restream(rows), summaries(v[rows], [np.arange(len(rows))])], 1)
                     Hb = apply_bin_edges(H, bins)
-                    Ph.append(np.mean([to_grid(c.predict_proba(Hb), e) for c, e, _ in clfs], axis=0).astype(np.float32))
-                res[f"{dist}_f{k}"] = np.concatenate(Ph)
+                    if SEED_SFX:  # per seed: mean over the selected members
+                        Ph.append(np.stack([np.mean([to_grid(c.predict_proba(Hb), e) for c, e, _, s_ in clfs if s_ == sd_], axis=0)
+                                            for sd_ in seeds]).astype(np.float32))
+                    else:
+                        Ph.append(np.mean([to_grid(c.predict_proba(Hb), e) for c, e, _, _ in clfs], axis=0).astype(np.float32))
+                if SEED_SFX:
+                    for si, sd_ in enumerate(seeds):
+                        res[f"{dist}_f{k}_s{sd_}"] = np.concatenate([p[si] for p in Ph])
+                else:
+                    res[f"{dist}_f{k}"] = np.concatenate(Ph)
             print(f"hgb {proto} fold {k}: refit + {len(DISTS)} distributions in {time.perf_counter() - t0:.0f} s; unshifted vs CV probas "
                   f"max |Δ| {dev:.2e}", flush=True)
         np.savez(path, **res)
@@ -349,7 +366,61 @@ def part_fmix():
     path.write_text(json.dumps(old, indent=2, default=float))
 
 
+def part_seedeval():
+    """Work G (19 Nov): HGB-only decision of the member subset, single seed (the first) vs the mean of the seeds, per distribution."""
+    from decision_layer import slot_median, to_slots
+    onset = rec_onsets(d)
+    sfx = f"_{ARG['--members'].replace(',', '+')}_s{ARG['--seeds'].replace(',', '')}"
+    seeds = [int(x) for x in ARG["--seeds"].split(",")]
+    H = {p: np.load(OUT / f"shiftcv{TAG}_hgbctx{ARG.get('--crop', '')}{sfx}_{p}.npz") for p in protocols}
+
+    def pred_h(f, P, chunk=4096):
+        out = np.empty(len(f["t"]))
+        _, wh = f["w_old"]
+        for i0 in range(0, len(out), chunk):
+            sl = slice(i0, i0 + chunk)
+            h = to_slots(P[sl], f["t"][sl], 0.0) * wh
+            out[sl] = slot_median(h / h.sum(1, keepdims=True))
+        return out
+
+    out = {}
+    for dist in DISTS:
+        folds, cands = [], {f"seed {s}": [] for s in seeds}
+        cands["mean"] = []
+        for proto, splits in protocols.items():
+            for k, (tr, _) in enumerate(splits):
+                items = shifted(proto, k, dist)
+                idx = np.concatenate([recs[i][kk:] for i, kk, _ in items])
+                dte = d.iloc[idx].reset_index(drop=True).copy()
+                dte["timeline"] = np.concatenate([[f"{d.timeline[recs[i][0]]}#{j}"] * (len(recs[i]) - kk) for i, kk, j in items])
+                dtr = d[tr].reset_index(drop=True)
+                _, ob = class_stats(dtr, B)
+                f = dict(proto=proto, k=k, dte=dte, t=dte.stop.to_numpy().astype(np.float64),
+                         w_old=old_slot_weights(ob, grid_omega(dtr)), D=onset.loc[d.timeline.to_numpy()[idx]].to_numpy())
+                folds.append(f)
+                Ps = [H[proto][f"{dist}_f{k}_s{s}"].astype(np.float64) @ FINE for s in seeds]
+                for s, P in zip(seeds, Ps):
+                    cands[f"seed {s}"].append(pred_h(f, P))
+                cands["mean"].append(pred_h(f, np.mean(Ps, axis=0)))
+        E = {key: evaluate(folds, pr) for key, pr in cands.items()}
+        r0 = E[f"seed {seeds[0]}"]
+        rows = {}
+        for key, e in E.items():
+            du = np.array(e["unseen"]["folds"]) - np.array(r0["unseen"]["folds"])
+            ds = np.array(e["seen"]["folds"]) - np.array(r0["seen"]["folds"])
+            rows[key] = dict(unseen=e["unseen"]["mean"], seen=e["seen"]["mean"], macro=e["macro"]["mean"],
+                             delta=e["macro"]["mean"] - r0["macro"]["mean"], better=int((du < -1e-9).sum() + (ds < -1e-9).sum()),
+                             d_unseen=du.tolist(), d_seen=ds.tolist())
+        out[dist] = rows
+        print(f"\n== {dist} (HGB only, members {ARG['--members']}; Δ vs seed {seeds[0]})")
+        for key, v in rows.items():
+            print(f"  {key:8s} unseen {v['unseen']:6.2f} seen {v['seen']:6.2f} dual {v['macro']:6.2f} Δ {v['delta']:+6.2f} {v['better']:2d}/10 | "
+                  f"folds Δ {np.round(v['d_unseen'], 2).tolist()} {np.round(v['d_seen'], 2).tolist()}", flush=True)
+    (OUT / f"shiftcv{TAG}_seedeval{sfx}.json").write_text(json.dumps(out, indent=2, default=float))
+
+
 if __name__ == "__main__":
     t0 = time.perf_counter()
-    {"hgb": lambda: part_hgb(), "seq": lambda: part_seq(POS[1]), "mix": lambda: part_mix(POS[1]), "fmix": lambda: part_fmix()}[PART]()
+    {"hgb": lambda: part_hgb(), "seq": lambda: part_seq(POS[1]), "mix": lambda: part_mix(POS[1]), "fmix": lambda: part_fmix(),
+     "seedeval": lambda: part_seedeval()}[PART]()
     print(f"{PART} done ({time.perf_counter() - t0:.0f} s)")
