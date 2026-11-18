@@ -233,6 +233,8 @@ def run_fold(d, recs, F, gain, tr, te, cfg, seed, stop_epoch=None, extra=None):
                 xb.append(xi + g + rng.normal(0, NOISE_SD, xi.shape).astype(np.float32))
                 yb.append(Y[i][k:])
                 wb.append(W[i][k:])
+            if not xb:  # Work E crop mix: every copy of this (small, last) batch had no window left
+                continue
             x = torch.tensor(pad(xb), device=DEV)
             y = torch.tensor(pad([v[:, None] for v in yb], -1)[..., 0], device=DEV).long()
             w = torch.tensor(pad([v[:, None] for v in wb])[..., 0], device=DEV)
