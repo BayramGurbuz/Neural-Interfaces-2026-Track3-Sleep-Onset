@@ -877,3 +877,22 @@ M = w · ctx_c2 (α 0.5) + (1 − w) · ctx_c3 (α 0.4); ortak HGB(ctx) ve GRU(c
 
 **Kural (D altında Δ ≤ −0.10 ve ≥ 7/10) GEÇİLMEDİ → ZIP yok.** Karışım her dağılımda yalnız ≈ −0.05 (gürültü düzeyi). D altında ctx_c2 ctx_c3'ten
 +0.04 kötü (mühürlü −0.03 ile uyumlu: ikisi eşit). Bu koşu İş E'nin referansıdır: ctx_c3 tarifi D altında 35.89.
+
+## 18 Kasım — İş E sonucu: D ile yeniden eğitim, kaymalı çift CV (`shift_cv.py`, `OUT/shiftcv_d_mix_e.{json,log}`)
+
+Kırpma E: dizi modellerinde her epoch ve kayıtta %10 yok / %50 U[2,5] dk / %40 U[0,10] dk; HGB'de kayıt başına 2 kopya (U[2,5], U[0,10]) + %10.1 özgün
+satır (916 kopya, 99 573 + 11 148 satır; fold başına ≈ 1420 s, toplam 10 840 s). Ağaç sayısı / epoch eşdeğer kırpmalı tariflerin kat seçimleri.
+Held-out akışlar İş F ile aynı örneklerden; α iç içe LOFO (bütün satırlarda tüm-kat seçimi 0.4). Δ ctx_c3 tarifine (ilk satır) göre, (iyi kat).
+
+| satır | D = U[2,5] | D' = U[0,8] | U[1,6] (bilgi) | kural |
+|---|---|---|---|---|
+| ctx_c3 tarifi (HGB ctx + GRU ctx) | 35.91 | 35.68 | 35.99 | ref |
+| ctx_c2 tarifi | +0.01 (5) | −0.02 (6) | −0.00 (6) | – |
+| **E, ctx_c3 seti (HGB E + GRU E)** | **−0.22 (8/10)** | **−0.21 (7)** | −0.23 (7) | **GEÇTİ** |
+| E, ctx_c2 seti (HGB E + GRU/TCN/GRU-emb E) | −0.19 (6/10) | −0.15 (6) | −0.19 (7) | kat sayısı (6/10) → GEÇMEDİ |
+| bilgi: HGB E + eski GRU ctx | −0.19 (7) | −0.18 (7) | −0.25 (9) | – |
+| bilgi: eski HGB ctx + GRU E | −0.12 (8) | −0.08 (7) | −0.13 (9) | – |
+| bilgi: HGB E + ctx_c2'nin eski dizi seti (GRU ctx, TCN, GRU-emb) | −0.22 (8) | **−0.31 (8)** | −0.28 (7) | (tanımlı aday değil) |
+
+Okuma: kazancın çoğu HGB tarafından (HGB E tek başına −0.19), GRU E ek −0.03…−0.04. TCN / GRU-emb'i kırpma E ile eğitmek yine yardım etmiyor
+(İş B bulgusuyla aynı): E c2 seti, aynı HGB ile eski dizi setinden her dağılımda kötü (−0.19 ↔ −0.22, −0.15 ↔ −0.31).

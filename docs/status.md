@@ -14,10 +14,10 @@
   Ayrıntı B raporu 18 Kasım İş D.
 - **İş F bitti (18:47): GEÇMEDİ, ZIP yok.** D altında iç içe w Δ −0.04 (6/10), en iyi sabit w 0.5 −0.07; D' −0.07 (7/10). ctx_c3 tarifi D altında 35.89
   (= İş E referansı), ctx_c2 35.94.
-- **İş E çalışıyor** (kullanıcı onayı 18 Kasım: kırpma %10 yok / %50 U[2,5] / %40 U[0,10]; HGB kayıt başına 2 kopya + ~%10 özgün satır; kabul D altında
-  ctx_c3 tarifine göre Δ ≤ −0.15 ve ≥ 7/10 VE D' altında Δ ≤ 0; iki bileşen seti ayrı). Dizi CV'leri bitti (TCN boş-batch hatası 72b25ae ile
-  düzeltildi, yeniden koşuldu); HGB CV CPU'da (≈ 22:45), sonra karışım satırları (`worke_cpu_chain.sh`), HGB finalleri (`worke_final_chain.sh`).
-  GPU finalleri hazır: gru_ctxE_{all,tv}, mix3cropE{_all,} (TCN 15 / kodlayıcı 12 / GRU-emb 7 epoch).
+- **İş E bitti (21:58):** kaymalı çift CV, ctx_c3 tarifine göre (D / D' / U[1,6]): **E c3 seti −0.22 (8/10) / −0.21 / −0.23 → GEÇTİ**; E c2 seti
+  −0.19 (6/10) / −0.15 / −0.19 → kat sayısında kaldı. Bilgi: HGB E + eski dizi seti (GRU ctx + TCN + GRU-emb) −0.22 (8/10) / −0.31 / −0.28.
+  Ayrıntı B raporu 18 Kasım İş E. Finaller: GPU hazır (gru_ctxE_{all,tv}, mix3cropE{_all,}); HGB E 540 + tv CPU'da (21:59 →). Sonraki: ZIP ctxE_c3_540
+  (HGB E + GRU E, α 0.4) + testler, 19 Kasım öğleden sonra.
 
 ## Önceki (18 Kasım sabahı)
 - **İş C adayları hazır, gönderilmedi:** ctx_c2_540 (aday 2'nin seti, α 0.5; SHA-256 e5bc61df…5ce0) ve ctx_c3_540 (yalnız GRU, α 0.4;
