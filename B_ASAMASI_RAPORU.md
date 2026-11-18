@@ -812,3 +812,23 @@ Yaklaşım: kırpılmış kopyaların ilk 5 penceresinde yakınlık kırpma önc
   **çift CV 38.97** — aday 2'nin HGB'sine (39.59) göre **Δ −0.62, 8/10** (katkılar [0,40) −0.15, [40,90) +0.03, [90,300) −0.45,
   [300,600] −0.06). B2 n_iter görülmemiş 125–150, görülmüş 225–300. Gece zinciri bilgisayar molası için durduruldu; kalan: k=0 karışım CV,
   HGB finalleri, kaymalı CV, kaymalı karışım (`ctx_night_chain.sh`, kaldığı yerden).
+
+## 18 Kasım — İş C seçimi: bağlamlı dedektörlü karışımlar (k=0 çift CV, kaymalı çift CV, kaymalı 40 test)
+
+HGB = HGB(c) 4 üye kırpma + bağlamlı yakınlık (38.97). Satırlar: **c3ctx** = HGB + yalnız GRU(kırpma + bağlamlı yakınlık) (cand3'ün seti),
+**c2ctx** = HGB + GRU(bağlamlı) + eski TCN + eski GRU-emb (aday 2'nin seti). Bilgi satırları: GRU girdisi eski dedektörden (iki dedektör
+gerekir) — bağlamlı GRU ile ±0.04 aynı, gerek yok.
+
+| ölçüt | aday 2 | cand3 (wb5) | c3ctx | c2ctx |
+|---|---|---|---|---|
+| k=0 çift CV (α) | 38.49 (0.6) | 38.67 (0.5) | 38.36 (0.4), −0.13, 4/10 | **38.20** (0.5), **−0.29, 8/10** |
+| kaymalı çift CV, Δ aday 2 (9 dağılım) | 38.25–38.59 | +0.07 … +0.11 | −0.23 … −0.36 (6–8/10) | **−0.30 … −0.44 (7–9/10)** |
+| kaymalı 40 test, Δ aday 2 (İş A dağılımları) | 42.5–44.4 | −0.6 … −1.2 | **−1.1 … −2.8** | −0.7 … −2.4 |
+| dayanıklılık 40 test k6 / k12 / k24 / k60 / geniş | 44.37 / 42.64 / 41.35 / 37.45 / 40.81 | −1.12 / −0.82 / −0.73 / −0.91 / −2.79 | −1.94 / −1.96 / −1.59 / −1.72 / −4.07 | −1.25 / −1.37 / −1.17 / −1.61 / −2.34 |
+
+(Kaymalı çift CV: k0 −0.23 / −0.30, k1 −0.27 / −0.35, k2 −0.36 / −0.44, k3 −0.34 / −0.39, U[0,6] −0.34 / −0.40, U[0,12] −0.36 / −0.42.)
+Seçim kuralı (birincil kaymalı çift CV + kaymalı 40 test; k=0'da aday 2'den kötü değil): **iki satır da GEÇİYOR**. Aralarında CV c2ctx'i
+(≈ −0.07, 500 kayıt), 40 test c3ctx'i (≈ −0.45, ≈ 1 SE içinde) öne koyuyor. Bileşen seti kullanıcı kararı (cand3 mühürlü sonucu kuralı).
+Notlar: kaymalı çift CV'de kaydırılmış akışın ilk 5 penceresi kırpma öncesi bağlamla (yaklaşık); 40 test kırpma-kesin.
+HGB finalleri: ens_c_all_ctx_crop (n_iter 125/175/300/200; 1853 s), ens_c_tv_ctx_crop (test örneklem dışı HGB 42.30; aday 2'nin
+HGB tv: 43.4 civarı). Paketler: ctx_c2_540 (α 0.5), ctx_c3_540 (α 0.4, seq_comps ("gru",)).

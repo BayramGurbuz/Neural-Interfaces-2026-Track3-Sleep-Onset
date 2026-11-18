@@ -47,7 +47,7 @@ meta = pd.DataFrame({"timeline": zb["timeline"][mt], "stop": zb["stop"][mt]})
 d_te = meta.merge(load_window_table(), on=["timeline", "stop"], how="left", validate="1:1")
 
 model = sub.HGBStreamModel(sb.get("model"), 128.0, sb.get("bin_edges"), sb, ch_names)
-print(f"{name}: kind {sb['kind']}, alpha {sb.get('mix_alpha')}, n2det {'yes' if sb.get('n2det_state') is not None else 'no'}"
+print(f"{name}: kind {sb['kind']}, alpha {sb.get('mix_alpha')}, n2det {'ctx' if sb.get('n2det_ctx_states') is not None else 'multi' if sb.get('n2det_states') is not None else 'binary' if sb.get('n2det_state') is not None else 'no'}"
       f" (into {tuple(sb.get('n2det_into', ()))}), GRID_ON {sub.GRID_ON}, groups {tuple(sb.get('groups', ()))}, "
       f"window groups {tuple(sb.get('window_groups', ()))}, {len(sb.get('feature_names', []))} HGB features")
 stream_pred = np.empty(len(meta))
@@ -110,7 +110,9 @@ def weighted_grid(P):
 
 
 n2v = None  # per-window detector output for all 540 rows (final model, as the wrapper computes it)
-if b.get("n2det_states") is not None:
+if b.get("n2det_ctx_states") is not None:  # context detector, context from the recording start (= L = 6 row)
+    n2v = np.load(SAVE / "n2det_ctx_final" / "close_full.npy").astype(np.float64)
+elif b.get("n2det_states") is not None:
     n2v = np.load(SAVE / "n2det_final" / "close_full.npy").astype(np.float64)
 elif b.get("n2det_state") is not None:
     n2v = np.load(SAVE / "n2det_final" / "p_full.npy").astype(np.float64)
