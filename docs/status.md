@@ -1,6 +1,11 @@
-# Proje durumu (son güncelleme: 2026-11-17)
+# Proje durumu (son güncelleme: 2026-11-18)
 
-## ŞU AN (17 Kasım sabahı)
+## ŞU AN (18 Kasım sabahı)
+- **İş C adayları hazır, gönderilmedi:** ctx_c2_540 (aday 2'nin seti, α 0.5; SHA-256 e5bc61df…5ce0) ve ctx_c3_540 (yalnız GRU, α 0.4;
+  416a9dfd…90ad). İkisi de seçim kuralını geçti (k=0 38.20 / 38.36; kaymalı çift CV −0.30…−0.44 / −0.23…−0.36; kaymalı 40 test
+  −0.7…−2.4 / −1.1…−2.8, aday 2'ye göre). Tüm testler + Docker ×2 PASS; süre aday 1'in 1.15–1.30 / 0.88'i. Bileşen seti kullanıcı kararı.
+
+## Önceki (17 Kasım sabahı)
 - **İş A** bitti (küçük kaymalar, k ≈ 0–3 pencere en iyi uyum). **İş B** bitti: kaymalı çift CV'de aday 2 9 dağılımın hepsinde en iyi;
   en yakın satır 5 (yalnız GRU) +0.07 … +0.11; 40 test kaydında ise satır 5 −0.6 … −1.2 (≈ 1 SE). TCN / GRU-emb kırpması yardım etmiyor.
 - **Aday 3 adayı hazır, gönderilmedi:** `submissions/cand3_gru_540.zip` (satır 5, α 0.5; tüm testler + Docker ×2 PASS, süre aday 1'in

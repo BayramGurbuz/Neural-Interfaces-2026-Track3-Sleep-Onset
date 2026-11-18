@@ -116,6 +116,15 @@ elif b.get("n2det_states") is not None:
     n2v = np.load(SAVE / "n2det_final" / "close_full.npy").astype(np.float64)
 elif b.get("n2det_state") is not None:
     n2v = np.load(SAVE / "n2det_final" / "p_full.npy").astype(np.float64)
+if n2v is not None and b.get("n2det_ctx_states") is not None and "--cpu-det" in sys.argv:
+    # 18 Nov: the context detector's test-row outputs recomputed on the CPU with the training forward path (n2det_ctx.batched_closeness)
+    # instead of the GPU-computed close_full (differences ~3e-5 can flip an HGB split right at a bin edge)
+    from n2det_ctx import batched_closeness  # noqa: E402
+    n2v = n2v.copy()
+    g_te = np.flatnonzero(mt)
+    for r in te_recs:
+        n2v[g_te[r]] = batched_closeness(b["n2det_ctx_states"], X_te[r], int(b["n2det_ctx_n"]), float(b["n2det_scale"]), float(b["n2det_clip"]))
+    print("context detector reference: CPU training forward path", flush=True)
 n2_te = None if n2v is None else summaries(n2v[mt], te_recs)  # (test rows, 5), per recording from its first window
 Pg = seq_probs("gru", b["gru_states"], b["gru_mu"], b["gru_sd"], CONFIGS["uw"], extra=n2_te if "gru" in tuple(b.get("n2det_into", ())) else None)
 comps = tuple(b.get("seq_comps", ("gru", "tcn", "gemb")))  # 17 Nov: subsets (candidate 3: GRU only)

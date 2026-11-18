@@ -321,3 +321,26 @@ büyük kazandırdı (gridpi'nin 37.49 → 39.20 düşüşüyle tutarlı). Bunda
 - ZIP `submissions/cand3_gru_540.zip`, 8.89 MB, SHA-256 `6059fe7099f3cb92e00ecc4f81031e110ad33a7ba9eb22a1a67ce9e0b7de6fc0`.
 - Beklenen mühürlü: kaymalı çift CV'ye göre aday 2 ≈ +0.1 (≈ 34.5), 40 teste göre −0.6 … −1.2 (≈ 33.2–33.8); final sıralama takımın en iyi
   mühürlü skoru olduğu için kötü sonuç 34.41'i bozmaz, yalnız bir hak harcar.
+
+## İş C adayları (18 Kasım): ctx_c2_540 ve ctx_c3_540 — HAZIR, GÖNDERİLMEDİ (bileşen seti kullanıcı kararı)
+- Ortak: HGB(c) 4 üye kırpma + **bağlamlı dedektör** yakınlık özetleri (ens_c_all_ctx_crop; n_iter 125/175/300/200 = CV medyanları),
+  bağlamlı dedektör (son 6 pencere, 3 tohum, epoch 18/12/16; n2det_ctx_final), GRU kırpma + bağlamlı yakınlık (gru_ctx_all, 10 tohum,
+  20 epoch). Kırpılmış eğitim akışlarında dedektör yalnız kırpma sonrası pencereleri görüyor (close_oof_L, kırpma-kesin). Hepsi deterministik.
+  - **ctx_c2_540** = + eski TCN + eski GRU-emb (mix3det_all; aday 2'nin seti), α 0.5.
+  - **ctx_c3_540** = yalnız GRU (cand3'ün seti), α 0.4 (seq_comps ("gru",)).
+- Seçim ölçütleri (B raporu 18 Kasım): k=0 çift CV 38.20 / 38.36 (aday 2 38.49); kaymalı çift CV Δ −0.30 … −0.44 / −0.23 … −0.36;
+  kaymalı 40 test Δ −0.7 … −2.4 / −1.1 … −2.8. İkisi de kuralı geçiyor.
+- Komutlar (`scripts/`): `n2det_ctx_inner.py 6 0|1|2` (CV) → `train_n2det_final.py detctx` → `train_gru_n2c.py --det=ctx` →
+  `train_n2det_final.py hgbmc --det=ctx` → `train_n2det_final.py mix --alpha=0.5 --ens=ens_c_all_ctx_crop --seq=mix3det_all
+  --gru-from=gru_ctx_all --out=ctx_c2_all` (c3: aynı + α 0.4, seq_comps ("gru",), TCN/GRU-emb anahtarları çıkarıldı → ctx_c3_all) →
+  `build_hgb_submission.py --model ~/neuralbench/save/ctx_<c>_all/model.joblib --name ctx_<c>_540 --smooth-a 0`.
+- Kontroller (`scripts/ctx_build_tests.sh`, loglar `~/neuralbench/save/ctx_build[2].log`, `ctx_docker.log`):
+  - Bileşen kimliği: HGB 25.0725 (CPU dedektörle 25.0722), TCN 40.3806, GRU-emb 49.0675 = eğitim logları; GRU+bağlamlı yakınlık 32.11.
+  - Akış ↔ toplu: GPU'da hesaplanmış dedektör referansıyla 4 pencerede > 0.5 s (maks 2.0 / 2.3 s; HGB bölme eşiğinde ~3e-5 GPU/CPU farkı);
+    referans dedektör CPU'da eğitim ileri yoluyla hesaplanınca (`--cpu-det`) maks |Δ| **0.027 / 0.030 s**, > 0.5 s yok → PASS (sarmalayıcı CPU'da).
+  - `n2det_clean_test.py` PASS, `extra_faults.py` 9 senaryo PASS (bağlam tamponu n2_buf dahil durumlarda NaN/inf yok),
+    `ctx_wrapper_test.py` (a) reset PASS, (b) bağlam < 6 akış başlangıçları maks |Δ| 1.2e-7 (CPU) / 2.8e-5 (GPU) PASS. Import satırları aday 2 ile aynı.
+  - Docker v3 ×2: ctx_c2 **28.20569984992941** ikisinde, 265.8 / 235.5 s; ctx_c3 **26.705727309192987** ikisinde, 180.9 / 179.6 s;
+    aynı oturumda aday 1 204.9 s (31.883341811607796, öncekiyle aynı) → oran ctx_c2 **1.15–1.30**, ctx_c3 **0.88** (kural ≤ 1.50 ✓).
+- ZIP: `submissions/ctx_c2_540.zip` 13.25 MB, SHA-256 `e5bc61dfb0140af4d69afd8fe568815fece2f703d24c6b6c129026cff0015ce0`;
+  `submissions/ctx_c3_540.zip` 9.05 MB, SHA-256 `416a9dfd35e44748ee40777a8f7060483c83677fb14cce4bcdc41076f17c90ad`.
