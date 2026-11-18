@@ -831,4 +831,4 @@ Seçim kuralı (birincil kaymalı çift CV + kaymalı 40 test; k=0'da aday 2'den
 (≈ −0.07, 500 kayıt), 40 test c3ctx'i (≈ −0.45, ≈ 1 SE içinde) öne koyuyor. Bileşen seti kullanıcı kararı (cand3 mühürlü sonucu kuralı).
 Notlar: kaymalı çift CV'de kaydırılmış akışın ilk 5 penceresi kırpma öncesi bağlamla (yaklaşık); 40 test kırpma-kesin.
 HGB finalleri: ens_c_all_ctx_crop (n_iter 125/175/300/200; 1853 s), ens_c_tv_ctx_crop (test örneklem dışı HGB 42.30; aday 2'nin
-HGB tv: 43.4 civarı). Paketler: ctx_c2_540 (α 0.5), ctx_c3_540 (α 0.4, seq_comps ("gru",)).
+HGB tv: 46.26). Paketler: ctx_c2_540 (α 0.5), ctx_c3_540 (α 0.4, seq_comps ("gru",)).
