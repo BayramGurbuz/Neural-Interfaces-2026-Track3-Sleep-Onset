@@ -863,3 +863,17 @@ Okuma:
    aile "≈ 1–2 dk'dan 5–8 dk'ya tekdüze". Sabit kayma 1 kez bile ilk 3'te baskın değil.
 **Seçim: D = U[2,5] dk (pencere 24–60); genişletilmiş D' = U[0,8] dk (pencere 0–96).** İş F kaymalı çift CV (`workf_chain.sh`): W24-60, W0-96,
 W12-72 (bilgi), 3 çekiliş, düşürme kuralı; `shift_cv.py` yeni sözdizimi Wa-b / Fk ve `fmix` bölümü (k2 doğrulaması: w = 1 → c2ctx 38.13 ✓).
+
+## 18 Kasım — İş F sonucu: ctx_c2 + ctx_c3 karar öncesi karışımı (`shift_cv.py fmix`, `OUT/shiftcv_d_fmix.{json,log}`)
+
+M = w · ctx_c2 (α 0.5) + (1 − w) · ctx_c3 (α 0.4); ortak HGB(ctx) ve GRU(ctx) dosyaları, ctx_c2 ek olarak TCN ve GRU-emb. Kaymalı çift CV,
+3 çekiliş, kısa kayıtlar düşer; w iç içe LOFO (0…1, 0.1 adım). Δ ctx_c3'e (w = 0) göre.
+
+| dağılım | ctx_c3 (w=0) | ctx_c2 (w=1) | iç içe w | Δ (iyi kat) | en iyi sabit w (iç içe değil) |
+|---|---|---|---|---|---|
+| **D = U[2,5] dk (W24-60)** | 35.89 | 35.94 (+0.04, 2/10) | 0.3–0.6 (tümü 0.5) | **−0.04 (6/10)** | w 0.5: −0.07 |
+| D' = U[0,8] dk (W0-96) | 35.66 | 35.65 (−0.01) | 0.4–0.6 | −0.07 (7/10) | w 0.5: −0.08 |
+| U[1,6] dk (W12-72, bilgi) | 35.95 | 36.00 (+0.05) | 0.2–0.6 | −0.02 (6/10) | w 0.5: −0.06 |
+
+**Kural (D altında Δ ≤ −0.10 ve ≥ 7/10) GEÇİLMEDİ → ZIP yok.** Karışım her dağılımda yalnız ≈ −0.05 (gürültü düzeyi). D altında ctx_c2 ctx_c3'ten
++0.04 kötü (mühürlü −0.03 ile uyumlu: ikisi eşit). Bu koşu İş E'nin referansıdır: ctx_c3 tarifi D altında 35.89.

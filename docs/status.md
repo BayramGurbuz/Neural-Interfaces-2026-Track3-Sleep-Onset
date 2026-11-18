@@ -9,9 +9,15 @@
 - Plan (kullanıcı, 18 Kasım): **İş D** kayma kalibrasyonu (8 gönderimin train+val karşılıkları, sabit 1–10 dk ve tekdüze [a, b] dk
   kaymalar, mühürlü FARKLARLA eşleme) → **İş F** ctx_c2 + ctx_c3 dağılım topluluğu (kaymalı CV, Δ ≤ −0.10, ≥ 7/10) → **İş E** D ile
   yeniden eğitim (gece 18→19; ZIP 19 akşamı / 20 Kasım; Δ ≤ −0.15, ≥ 7/10 ctx_c3'e göre). Son ZIP en geç 21 Kasım öğlen.
-- **İş D bitti (16:20):** en iyi uyum **U[2,5] dk** (RMSE 2.76; aday 1 hariç 1.24), sonra U[0,8] dk (2.84), 4 dk sabit (2.98). Kayma merkezi
+- **İş D bitti (≈ 15:00):** en iyi uyum **U[2,5] dk** (RMSE 2.76; aday 1 hariç 1.24), sonra U[0,8] dk (2.84), 4 dk sabit (2.98). Kayma merkezi
   ≈ 3–4 dk, değişken (gridpi cezası sabiti dışlıyor); aday 1 her dağılımda +6.6 artık. D = U[2,5] (W24-60), D' = U[0,8] (W0-96).
-  Ayrıntı B raporu 18 Kasım İş D. **İş F kaymalı çift CV çalışıyor** (`scripts/workf_chain.sh`, HGB CPU ≈ 5 sa + dizi GPU, sonra fmix).
+  Ayrıntı B raporu 18 Kasım İş D.
+- **İş F bitti (18:47): GEÇMEDİ, ZIP yok.** D altında iç içe w Δ −0.04 (6/10), en iyi sabit w 0.5 −0.07; D' −0.07 (7/10). ctx_c3 tarifi D altında 35.89
+  (= İş E referansı), ctx_c2 35.94.
+- **İş E çalışıyor** (kullanıcı onayı 18 Kasım: kırpma %10 yok / %50 U[2,5] / %40 U[0,10]; HGB kayıt başına 2 kopya + ~%10 özgün satır; kabul D altında
+  ctx_c3 tarifine göre Δ ≤ −0.15 ve ≥ 7/10 VE D' altında Δ ≤ 0; iki bileşen seti ayrı). Dizi CV'leri bitti (TCN boş-batch hatası 72b25ae ile
+  düzeltildi, yeniden koşuldu); HGB CV CPU'da (≈ 22:45), sonra karışım satırları (`worke_cpu_chain.sh`), HGB finalleri (`worke_final_chain.sh`).
+  GPU finalleri hazır: gru_ctxE_{all,tv}, mix3cropE{_all,} (TCN 15 / kodlayıcı 12 / GRU-emb 7 epoch).
 
 ## Önceki (18 Kasım sabahı)
 - **İş C adayları hazır, gönderilmedi:** ctx_c2_540 (aday 2'nin seti, α 0.5; SHA-256 e5bc61df…5ce0) ve ctx_c3_540 (yalnız GRU, α 0.4;
