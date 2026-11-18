@@ -9,6 +9,9 @@
 - Plan (kullanıcı, 18 Kasım): **İş D** kayma kalibrasyonu (8 gönderimin train+val karşılıkları, sabit 1–10 dk ve tekdüze [a, b] dk
   kaymalar, mühürlü FARKLARLA eşleme) → **İş F** ctx_c2 + ctx_c3 dağılım topluluğu (kaymalı CV, Δ ≤ −0.10, ≥ 7/10) → **İş E** D ile
   yeniden eğitim (gece 18→19; ZIP 19 akşamı / 20 Kasım; Δ ≤ −0.15, ≥ 7/10 ctx_c3'e göre). Son ZIP en geç 21 Kasım öğlen.
+- **İş D bitti (16:20):** en iyi uyum **U[2,5] dk** (RMSE 2.76; aday 1 hariç 1.24), sonra U[0,8] dk (2.84), 4 dk sabit (2.98). Kayma merkezi
+  ≈ 3–4 dk, değişken (gridpi cezası sabiti dışlıyor); aday 1 her dağılımda +6.6 artık. D = U[2,5] (W24-60), D' = U[0,8] (W0-96).
+  Ayrıntı B raporu 18 Kasım İş D. **İş F kaymalı çift CV çalışıyor** (`scripts/workf_chain.sh`, HGB CPU ≈ 5 sa + dizi GPU, sonra fmix).
 
 ## Önceki (18 Kasım sabahı)
 - **İş C adayları hazır, gönderilmedi:** ctx_c2_540 (aday 2'nin seti, α 0.5; SHA-256 e5bc61df…5ce0) ve ctx_c3_540 (yalnız GRU, α 0.4;

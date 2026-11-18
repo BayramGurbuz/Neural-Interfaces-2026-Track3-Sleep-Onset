@@ -17,6 +17,9 @@ Work C (17 Nov): `hgb --det=ctx` = HGB(c) with the context detector's closeness 
   Approximation: the outer-fold context detectors are not saved, so a shifted stream's first 5 windows keep the closeness computed
   with the pre-shift context (the stream-from-window-2 check moved Spearman by 0.002); exact in the finals and the 40-test runs.
 
+Work D/F (18 Nov): distributions Wa-b (uniform windows a..b) and Fk (fixed k) DROP a recording with no window left (the other
+  distributions clamp to the last window); part `fmix` = Work F mixes w * ctx_c2 + (1 - w) * ctx_c3 -> OUT/shiftcv<T>_fmix.json.
+
 Usage: python scripts/shift_cv.py hgb|seq NAME|mix ROWS --dists=k0,U24 [--draws=2] [--tag=T] [--det=ctx]
   -> OUT/shiftcv<T>_hgb_<proto>.npz, OUT/shiftcv<T>_seq_<NAME>_<proto>.npz, OUT/shiftcv<T>_mix.json
 """
@@ -82,6 +85,13 @@ def sample_k(dist, rng, r):
         k = 0 if rng.random() < float(p) else int(rng.integers(0, int(K) + 1))
     elif dist.startswith("U"):
         k = int(rng.integers(0, int(dist[1:]) + 1))
+    elif dist.startswith("W"):  # Work D (18 Nov): uniform windows a..b; no window left -> recording not delivered (None)
+        a, b_ = map(int, dist[1:].split("-"))
+        k = int(rng.integers(a, b_ + 1))
+        return k if k <= n - 1 else None
+    elif dist.startswith("F"):  # fixed k, drop convention
+        k = int(dist[1:])
+        return k if k <= n - 1 else None
     else:
         k = int(dist[1:])
     return min(k, n - 1)
@@ -94,7 +104,9 @@ def shifted(proto, k_fold, dist):
     for j in range(1 if dist == "k0" else DRAWS):
         rng = np.random.default_rng([sum(map(ord, proto)), k_fold, j, sum(map(ord, dist))])  # no hash(): randomised per process
         for i in np.unique(rec_of[te]):
-            out.append((int(i), sample_k(dist, rng, recs[i]), j))
+            kk = sample_k(dist, rng, recs[i])
+            if kk is not None:
+                out.append((int(i), kk, j))
     return out
 
 
@@ -244,7 +256,72 @@ def part_mix(rows_arg):
     path.write_text(json.dumps(old, indent=2, default=float))
 
 
+def part_fmix():
+    """Work F (18 Nov): w * ctx_c2 + (1 - w) * ctx_c3 pre-decision mixes (shared HGB ctx and GRU ctx; ctx_c2 adds TCN and GRU-emb),
+    alpha fixed at the packages' values (0.5 / 0.4); w nested LOFO over 0..1 (0.1 steps); Δ vs w = 0 (ctx_c3)."""
+    from decision_layer import slot_median, to_slots
+    onset = rec_onsets(d)
+    H = {p: np.load(OUT / f"shiftcv{TAG}_hgbctx_{p}.npz") for p in protocols}
+    names = ["uw_n10_ctx6_crop", "tcn_n10", "cnn3_emb"]
+    Z = {s: {p: np.load(OUT / f"shiftcv{TAG}_seq_{s}_{p}.npz") for p in protocols} for s in names}
+    W_GRID = [round(0.1 * i, 1) for i in range(11)]
+
+    def pred_w(f, w, chunk=4096):
+        c_h, c_g, c_o = 0.5 * w + 0.6 * (1 - w), w * 0.5 / 3 + 0.4 * (1 - w), w * 0.5 / 3
+        out = np.empty(len(f["t"]))
+        ws, wh = f["w_old"]
+        for i0 in range(0, len(out), chunk):
+            sl = slice(i0, i0 + chunk)
+            t = f["t"][sl]
+            q = [(x * ws) / (x * ws).sum(1, keepdims=True) for x in (to_slots(y[sl], t, 0.0) for y in f["seq"])]
+            h = to_slots(f["hgb"][sl], t, 0.0) * wh
+            M = c_h * h / h.sum(1, keepdims=True) + c_g * q[0] + c_o * (q[1] + q[2])
+            out[sl] = slot_median(M)
+        return out
+
+    out = {}
+    for dist in DISTS:
+        folds = []
+        for proto, splits in protocols.items():
+            for k, (tr, _) in enumerate(splits):
+                items = shifted(proto, k, dist)
+                idx = np.concatenate([recs[i][kk:] for i, kk, _ in items])
+                dte = d.iloc[idx].reset_index(drop=True).copy()
+                dte["timeline"] = np.concatenate([[f"{d.timeline[recs[i][0]]}#{j}"] * (len(recs[i]) - kk) for i, kk, j in items])
+                dtr = d[tr].reset_index(drop=True)
+                _, ob = class_stats(dtr, B)
+                folds.append(dict(proto=proto, k=k, dte=dte, t=dte.stop.to_numpy().astype(np.float64),
+                                  seq=[to_grid(Z[s][proto][f"{dist}_f{k}"].astype(np.float64), B) @ FINE for s in names],
+                                  hgb=H[proto][f"{dist}_f{k}"].astype(np.float64) @ FINE,
+                                  w_old=old_slot_weights(ob, grid_omega(dtr)), D=onset.loc[d.timeline.to_numpy()[idx]].to_numpy()))
+        cand = {w: [pred_w(f, w) for f in folds] for w in W_GRID}
+        res = {}
+        for w in W_GRID:  # fixed-w rows
+            e = evaluate(folds, cand[w])
+            res[f"w={w}"] = e
+        p, ch, wa = select(folds, cand)
+        res["nested"] = evaluate(folds, p)
+        r0 = res["w=0.0"]
+        rows = {}
+        for key, e in res.items():
+            du = np.array(e["unseen"]["folds"]) - np.array(r0["unseen"]["folds"])
+            ds = np.array(e["seen"]["folds"]) - np.array(r0["seen"]["folds"])
+            rows[key] = dict(unseen=e["unseen"]["mean"], seen=e["seen"]["mean"], macro=e["macro"]["mean"],
+                             delta=e["macro"]["mean"] - r0["macro"]["mean"], better=int((du < -1e-9).sum() + (ds < -1e-9).sum()),
+                             d_unseen=du.tolist(), d_seen=ds.tolist(), contrib=e["macro"]["contrib"])
+        rows["nested"].update(w_folds=ch, w_all=wa)
+        out[dist] = rows
+        print(f"\n== {dist} (Δ vs w = 0, ctx_c3; w = 1 is ctx_c2); nested w per fold {ch}, all-fold {wa}")
+        for key, v in rows.items():
+            print(f"  {key:8s} unseen {v['unseen']:6.2f} seen {v['seen']:6.2f} dual {v['macro']:6.2f} Δ {v['delta']:+6.2f} {v['better']:2d}/10 | "
+                  f"folds Δ {np.round(v['d_unseen'], 2).tolist()} {np.round(v['d_seen'], 2).tolist()}", flush=True)
+    path = OUT / f"shiftcv{TAG}_fmix.json"
+    old = json.loads(path.read_text()) if path.exists() else {}
+    old.update(out)
+    path.write_text(json.dumps(old, indent=2, default=float))
+
+
 if __name__ == "__main__":
     t0 = time.perf_counter()
-    {"hgb": lambda: part_hgb(), "seq": lambda: part_seq(POS[1]), "mix": lambda: part_mix(POS[1])}[PART]()
+    {"hgb": lambda: part_hgb(), "seq": lambda: part_seq(POS[1]), "mix": lambda: part_mix(POS[1]), "fmix": lambda: part_fmix()}[PART]()
     print(f"{PART} done ({time.perf_counter() - t0:.0f} s)")

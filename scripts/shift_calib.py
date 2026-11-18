@@ -17,6 +17,7 @@ Output per model: S[rec, k] for k = 0..K_MAX (cap: at least one window left), an
 recording (uniform in [0, (onset - 60 s) / 5], seeds 0, 1, 2), k_rand[rec, j].
 
 Usage: python scripts/shift_calib.py MODEL [MODEL ...] [--alpha-MODEL=A]   -> OUT/shift_calib_<MODEL>.npz (resumable per model)
+       --kmax=120 (Work D, 18 Nov): extend the cached k = 0..60 run to k = 0..120 -> OUT/shift_calib120_<MODEL>.npz
 """
 import importlib.util
 import sys
@@ -186,8 +187,30 @@ if __name__ == "__main__":
     for a in sys.argv[1:]:
         if a.startswith("--alpha-"):
             MODELS[a[8:].split("=")[0]]["alpha"] = float(a.split("=")[1])
+    KMAX = int(next((a.split("=")[1] for a in sys.argv[1:] if a.startswith("--kmax=")), K_MAX))
     for name in [a for a in sys.argv[1:] if not a.startswith("--")]:
         path = OUT / f"shift_calib_{name}.npz"
+        if KMAX != K_MAX:  # Work D (18 Nov): extend a cached k = 0..60 run to k = 0..KMAX (only the new k are computed)
+            path_x = OUT / f"shift_calib{KMAX}_{name}.npz"
+            if path_x.exists():
+                print(f"{name}: cached (kmax {KMAX})", flush=True)
+                continue
+            t0 = time.perf_counter()
+            z = dict(np.load(path))
+            run = Runner(MODELS[name])
+            S = np.full((len(recs), KMAX + 1), np.nan)
+            S[:, :K_MAX + 1] = z["S"]
+            chk = []
+            for i, r in enumerate(recs):
+                for k in (0, min(K_MAX, len(r) - 1)):  # reproduction check against the cache
+                    chk.append(abs(run.score(r, k) - z["S"][i, k]))
+                for k in range(K_MAX + 1, min(KMAX, len(r) - 1) + 1):
+                    S[i, k] = run.score(r, k)
+            z["S"] = S
+            np.savez(path_x, **z)
+            print(f"{name}: reproduction max |d| {max(chk):.2e}; k=72 {np.nanmean(S[:, 72]):.2f}, k=120 {np.nanmean(S[:, 120]):.2f} "
+                  f"({time.perf_counter() - t0:.0f} s)", flush=True)
+            continue
         if path.exists():
             print(f"{name}: cached", flush=True)
             continue

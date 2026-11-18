@@ -832,3 +832,34 @@ Seçim kuralı (birincil kaymalı çift CV + kaymalı 40 test; k=0'da aday 2'den
 Notlar: kaymalı çift CV'de kaydırılmış akışın ilk 5 penceresi kırpma öncesi bağlamla (yaklaşık); 40 test kırpma-kesin.
 HGB finalleri: ens_c_all_ctx_crop (n_iter 125/175/300/200; 1853 s), ens_c_tv_ctx_crop (test örneklem dışı HGB 42.30; aday 2'nin
 HGB tv: 46.26). Paketler: ctx_c2_540 (α 0.5), ctx_c3_540 (α 0.4, seq_comps ("gru",)).
+
+## 18 Kasım — İş D: 16 Kasım mühürlü kurgusuna kayma kalibrasyonu (`scripts/shift_calib.py --kmax=120`, `scripts/shift_fit_d.py`; `OUT/shift_calib120_*.npz`, `OUT/shift_fit_d.{json,log}`)
+
+8 gönderimin train+val karşılıkları (final540 → mix_uw_n10, mix3_540 → mix3, gridpi → mix3 + π(D), aday 1 → cand1_tv, cand2 → cand2_tv,
+cand3 → wb5 α 0.5, ctx_c2 → c2ctx α 0.5, ctx_c3 → c3ctx α 0.4), 40 test kaydı, akış k. pencereden (k = 0…120; 61…120 yeni, k = 0 ve 60
+önbellekle birebir). Kısa kayıtlar: pencere kalmayan kayıt düşer, (kayıt, k) çiftleri havuzlanır (birincil); "sabitle" ikincil.
+Uyum: mühürlü = sabit + test (eğim 1), yalnız farklar.
+
+| dağılım | final540 | mix3 | gridpi | aday1 | cand2 | cand3 | ctx_c2 | ctx_c3 | RMSE (8) | RMSE (aday1 hariç) | dayanıklı 4 RMSE | serbest eğim |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| **mühürlü** | 87.99 | 62.02 | 64.96 | 47.42 | 34.41 | 33.72 | 33.12 | 33.09 | – | – | – | – |
+| **U[2,5] dk** | 91.02 | 65.96 | 67.93 | 44.55 | 40.40 | 39.57 | 38.83 | 38.42 | **2.76** | **1.24** | 0.25 | 1.03 |
+| U[0,8] dk | 90.31 | 67.81 | 69.91 | 45.15 | 41.01 | 39.92 | 39.47 | 38.79 | 2.84 | 1.36 | 0.33 | 1.03 |
+| 4 dk sabit | 90.13 | 67.62 | 67.44 | 44.92 | 41.10 | 40.06 | 39.35 | 38.75 | 2.98 | 1.75 | 0.37 | 1.05 |
+| U[1,6] dk | 88.39 | 66.40 | 68.37 | 44.57 | 40.60 | 39.68 | 39.05 | 38.54 | 3.03 | – | 0.27 | 1.07 |
+| 3 dk sabit | 89.94 | 64.84 | 65.04 | 43.19 | 39.79 | 39.14 | 38.14 | 37.94 | 3.16 | 1.92 | 0.24 | 1.05 |
+| k = 0 | 46.91 | 47.06 | 46.39 | 45.11 | 44.38 | 43.23 | 42.07 | 41.58 | 17.33 | – | 0.56 | 8.12 |
+
+Farklar (mühürlü ↔ U[2,5]): cand2→final540 +53.6 ↔ +50.6; cand2→mix3 +27.6 ↔ +25.6; mix3→gridpi +2.94 ↔ +1.97; cand2→aday1 +13.0 ↔ +4.2;
+cand2→cand3 −0.69 ↔ −0.83; cand2→ctx_c2 −1.29 ↔ −1.57; cand2→ctx_c3 −1.32 ↔ −1.98; ctx_c2→ctx_c3 −0.03 ↔ −0.41.
+Okuma:
+1. Kayma merkezi ≈ 3–4 dk; sabit 1–2 dk ve 6–10 dk, k = 0 ve [0, ≤ 5] dk dağılımları dışlanıyor (RMSE ≥ 6.6).
+2. **Değişken kayma sabitten iyi:** sabit tam dakikalarda 30 sn ızgarası hizalı kalıyor (gridpi ≈ mix3, +0.2 / −0.2), mühürlüde gridpi +2.94 kötü
+   → tekdüze dağılımlar (+1.8 … +2.3) uyuyor.
+3. **aday 1 her dağılımda +6.6 s artık** (İş A'da da uymayan nokta): aday 1'e özgü bir zayıflık (HGB'si kırpmasız, ikili dedektör), kaymayla
+   açıklanmıyor. Hariç tutulunca sıralama aynı (U[2,5] 1.24, U[1,8] 1.27, U[0,8] 1.36).
+4. Test, ctx_c3'ün ctx_c2'ye üstünlüğünü abartıyor (−0.41 ↔ mühürlü −0.03); 40 kayıt gürültüsüyle tutarlı (İş B/C notları).
+5. Bootstrap (1000, kayıtlar): ilk 3 sıklığı dağınık (U[0,8] %27, U[0,10] %23, U[1,6] / U[1,8] / U[0,6] / U[2,5] %18–20) → biçim kesin değil,
+   aile "≈ 1–2 dk'dan 5–8 dk'ya tekdüze". Sabit kayma 1 kez bile ilk 3'te baskın değil.
+**Seçim: D = U[2,5] dk (pencere 24–60); genişletilmiş D' = U[0,8] dk (pencere 0–96).** İş F kaymalı çift CV (`workf_chain.sh`): W24-60, W0-96,
+W12-72 (bilgi), 3 çekiliş, düşürme kuralı; `shift_cv.py` yeni sözdizimi Wa-b / Fk ve `fmix` bölümü (k2 doğrulaması: w = 1 → c2ctx 38.13 ✓).
