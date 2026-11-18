@@ -51,6 +51,27 @@ Son gönderim en geç 20 Kasım, 21 Kasım yedek gün.
 | 3 | 2026-11-12 | mix3_540_gridpi.zip | **37.49** | 37.78 | 105.48 | 213.98 | 2762.79 s | kaydedilmedi |
 | 4 | 2026-11-15 | mix3_n2det_cropg_540.zip | **37.09** (güncel skorlama) | 37.33 | 92.96 | 181.64 | 1526.6 s | 27. |
 | 5 | 2026-11-16 | cand2_cropGc_540.zip | **34.41** | 34.23 | 94.93 | 175.06 | 1292 s | 12. / 160 |
+| 6 | ≤ 2026-11-17 | cand3_gru_540.zip | **33.72** | – | – | – | – | – |
+| 7 | 2026-11-18 08:08 | ctx_c2_540.zip | **33.12** | – | – | – | – | – |
+| 8 | 2026-11-18 08:08 | ctx_c3_540.zip | **33.09** | – | – | – | – | 16. / 183 |
+
+**16 Kasım mühürlü güncellemesi sonrası skorlar (18 Kasım 14:15, kullanıcı; bütün gönderimler yeniden koşuldu):**
+mühürlü kayıtların açılış dakikaları artık modele verilmiyor (FAQ "Sealed evaluation update · November 16"); geçen süre ilk verilen
+pencereden. Hak 12 toplam / günde 3; 8 kullanıldı, **4 kaldı**.
+
+| # | ZIP | Mühürlü (13 Kasım skorlaması) | **Mühürlü (16 Kasım, güncel)** |
+|---|---|---|---|
+| 1 | final540 | 38.74 | **87.99** |
+| 2 | mix3_540 | 37.79 | **62.02** |
+| 3 | mix3_540_gridpi | 39.20 | **64.96** |
+| 4 | mix3_n2det_cropg_540 (aday 1) | 37.09 | **47.42** |
+| 5 | cand2_cropGc_540 | – | **34.41** |
+| 6 | cand3_gru_540 | – | **33.72** |
+| 7 | ctx_c2_540 | – | **33.12** |
+| 8 | ctx_c3_540 | – | **33.09** (en iyi, 16. / 183) |
+
+İlk 3 = 31.96 / 32.10 / 32.29; 10. = 32.77. Artırmasız modellerin büyük düşüşü (final540 +49, mix3 +24, aday 1 +10) → mühürlü
+akışlar kaydın ortasından başlıyor; aday 2 zaten bu kurguda skorlanmıştı (34.41 değişmedi). Kalibrasyon: İş D.
 
 **Güncel mühürlü skorlar (My Submissions, 15 Kasım; 13 Kasım yeniden skorlamasından sonra):**
 

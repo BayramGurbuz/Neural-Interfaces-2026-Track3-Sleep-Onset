@@ -66,10 +66,13 @@ Track 03 (Sleep Onset) yarışması için model geliştirme deposudur.
 - Track 03 sealed final AÇIK: 10 Kasım 2026'da açıldı (organizatör maili; yarışma deposu commit
   79b4453 "Track 03 is now open!"). Bitiş 21 Kasım 23:59 CET = 22 Kasım 01:59 Türkiye saati (GMT+3).
   Kesin başlangıç saati için Codabench Phases sekmesi geçerli. Kayıtlar kapandı. Diğer track'ler 5–21 Kasım.
-- Gönderim hakkı: toplam 7 (13 Kasım teknik güncellemesiyle 5'ten 7'ye), günde en fazla 1. Güncel mühürlü skorlar:
-  #1 final540 38.74, #2 mix3_540 37.79, #3 mix3_540_gridpi 39.20 (ızgara mühürlüde zararlı ve yasak), #4 mix3_n2det_cropg_540
-  37.09, #5 cand2_cropGc_540 **34.41** (16 Kasım, EN İYİ, 12./160; ilk 3: 32.03 / 32.63 / 32.75; 10.: 33.81).
-  7 hakkın 5'i kullanıldı, KALAN 2 (19 Kasım aday 3; 21 Kasım son hak).
+- 16 KASIM MÜHÜRLÜ GÜNCELLEMESİ (FAQ "Sealed evaluation update · November 16"): mühürlü kayıtların açılış dakikaları (başlık
+  otururken) artık modele VERİLMİYOR; geçen süre ilk verilen pencereden ölçülüyor. Bütün gönderimler yeniden skorlandı; mühürlü veride
+  başka değişiklik planlanmıyor. Hak: toplam 12, günde en fazla 3 (takım ortak). Bitiş 21 Kasım 23:59 CET (yaml 22:59 UTC).
+- Güncel mühürlü skorlar (18 Kasım, 16 Kasım yeniden skorlaması sonrası): #1 final540 87.99, #2 mix3_540 62.02, #3 gridpi 64.96,
+  #4 aday1 47.42, #5 cand2 34.41, #6 cand3_gru 33.72, #7 ctx_c2 33.12, #8 ctx_c3 **33.09** (EN İYİ, 16./183; ilk 3: 31.96 / 32.10 /
+  32.29; 10.: 32.77). 12 hakkın 8'i kullanıldı, KALAN 4. Kırpmaya duyarlı (artırmasız) modellerin çöküşü → mühürlü akışlar kaydın
+  ortasından başlıyor; seçim KAYMALI değerlendirmeyle (İş D kalibrasyonu, İş E/F).
 - 16 KASIM BULGUSU: aday 1 → aday 2 yerelde −0.37, mühürlüde −2.68 → mühürlü akışlar büyük olasılıkla kaydın başından
   başlamıyor. SEÇİM ARTIK k=0 ÇİFT CV'YE DEĞİL KAYMALI DEĞERLENDİRMEYE dayanır (İş A kayma kalibrasyonu; aday 3 kuralı:
   kaymalı test + kaymalı çift CV birincil, k=0 çift CV'de aday 2'ye göre en fazla +0.3 kötüleşme).
@@ -82,7 +85,7 @@ Track 03 (Sleep Onset) yarışması için model geliştirme deposudur.
 - Final sıralama bu aşamadan alınır: takımın en iyi geçerli (eligible) sealed skoru, otomatik;
   ilk 3 takım 22–30 Kasım'da tekrarlanabilirlik denetiminden geçer (eğitim yeniden çalıştırılır,
   skor ±2σ içinde kalmalı).
-- Gönderim limiti: takım başına (Codabench organizasyonu, tüm üyeler ortak) toplam 5, günde en fazla 1.
+- Gönderim limiti: takım başına (Codabench organizasyonu, tüm üyeler ortak) toplam 12, günde en fazla 3 (16 Kasım).
   Failed gönderim hakkı yemez; kuyruğa giren/çalışan hak ayırır.
 - Sealed'da çalışma log'ları, tahmin dosyaları ve skorlama çıktısı GİZLİ; yalnız durum ve skor görünür.
   Hata ayıklama ancak yerelde yapılabilir.
@@ -95,9 +98,13 @@ Track 03 (Sleep Onset) yarışması için model geliştirme deposudur.
   Görülmemiş kişi CV = train+val üzerinde kişi bazlı 5 katlı GroupKFold. Görülmüş kişi CV = birden
   fazla gecesi olan kişilerin birer gecesi dışarıda, kalan geceleri eğitimde. Açık test setine
   (40 kayıt) sadece son kontrol için bakılır; test'e bakarak seçim/ayar yapılmaz.
-- Gönderim planı: #5 cand2_cropGc_540 (34.41) şu anki en iyi; 7 hakkın 5'i kullanıldı, kalan 2 (aday 3: 19 Kasım;
-  21 Kasım son hak). Kalan haklar YALNIZCA kabul kuralını geçen, ızgarasız
-  yeni modeller için; son gönderim en geç 20 Kasım, 21 Kasım yedek gün. Ayrıntı: docs/status.md, docs/submissions_log.md.
+- Gönderim planı (18 Kasım): #8 ctx_c3_540 (33.09) şu anki en iyi; 12 hakkın 8'i kullanıldı, kalan 4: İş F topluluğu (geçerse 18–19 Kasım),
+  İş E'nin iki bileşen seti (19–20 Kasım), gerekirse bir yedek. Son ZIP en geç 21 Kasım öğlen hazır. Kullanıcı gönderir.
+  Ayrıntı: docs/status.md, docs/submissions_log.md.
+- 18 KASIM KABUL KURALLARI (kullanıcı): BİRİNCİL ölçüt İş D'nin en iyi kayma dağılımı D ile kaymalı CV (dışarıdaki kayıtlar D'den
+  örneklenen kaymayla, sabit tohum, 3 tekrar); k=0 yalnız bilgi. İş E (D ile yeniden eğitim): ctx_c3 tarifine göre Δ ≤ −0.15 ve ≥ 7/10 kat.
+  İş F (ctx_c2 + ctx_c3 karar öncesi dağılım karışımı): ctx_c3'e göre Δ ≤ −0.10 ve ≥ 7/10. Süre: aday 1 × 1.5. Testler: akış ↔ toplu
+  (CPU dedektör referansı), NaN / düz kanal, bağlam testleri, Docker ×2, süre.
 - ADAY 2 KABULÜ (15 Kasım): referans aday 1 (çift CV 38.86, HGB(n2det) + yalnız GRU artırmalı, α 0.6; Δ'lar hem 39.40'a hem
   38.86'ya göre verilir); 38.86'ya göre Δ ≤ −0.15 ve ≥ 7/10 kat VE k=6 karışım zararı < +1.0. Tüm bileşenler --deterministic.
 - KABUL KURALI (14 Kasım): karışım çift CV makro Δ ≤ −0.5 (ref IZGARASIZ mix3 tarifi 39.40 ↔ mühürlü 37.79) VE 10 katın

@@ -1,6 +1,16 @@
 # Proje durumu (son güncelleme: 2026-11-18)
 
-## ŞU AN (18 Kasım sabahı)
+## ŞU AN (18 Kasım 14:15)
+- **16 Kasım mühürlü güncellemesi** (FAQ "Sealed evaluation update · November 16"): mühürlü kayıtların açılış dakikaları artık modele
+  verilmiyor; geçen süre ilk verilen pencereden. Yeniden skorlama tamam, başka değişiklik planlanmıyor. Hak 12 toplam / günde 3.
+- **8 gönderim yapıldı, 4 hak kaldı.** ctx_c2_540 ve ctx_c3_540 kullanıcı tarafından 18 Kasım 08:08'de gönderildi.
+  Güncel mühürlü: final540 87.99, mix3_540 62.02, gridpi 64.96, aday1 47.42, cand2 34.41, cand3_gru 33.72, ctx_c2 33.12,
+  **ctx_c3 33.09 (en iyi, 16./183)**; ilk 3 31.96 / 32.10 / 32.29, 10. 32.77.
+- Plan (kullanıcı, 18 Kasım): **İş D** kayma kalibrasyonu (8 gönderimin train+val karşılıkları, sabit 1–10 dk ve tekdüze [a, b] dk
+  kaymalar, mühürlü FARKLARLA eşleme) → **İş F** ctx_c2 + ctx_c3 dağılım topluluğu (kaymalı CV, Δ ≤ −0.10, ≥ 7/10) → **İş E** D ile
+  yeniden eğitim (gece 18→19; ZIP 19 akşamı / 20 Kasım; Δ ≤ −0.15, ≥ 7/10 ctx_c3'e göre). Son ZIP en geç 21 Kasım öğlen.
+
+## Önceki (18 Kasım sabahı)
 - **İş C adayları hazır, gönderilmedi:** ctx_c2_540 (aday 2'nin seti, α 0.5; SHA-256 e5bc61df…5ce0) ve ctx_c3_540 (yalnız GRU, α 0.4;
   416a9dfd…90ad). İkisi de seçim kuralını geçti (k=0 38.20 / 38.36; kaymalı çift CV −0.30…−0.44 / −0.23…−0.36; kaymalı 40 test
   −0.7…−2.4 / −1.1…−2.8, aday 2'ye göre). Tüm testler + Docker ×2 PASS; süre aday 1'in 1.15–1.30 / 0.88'i. Bileşen seti kullanıcı kararı.
