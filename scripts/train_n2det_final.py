@@ -254,7 +254,9 @@ def stage_hgbmc():
     ens_crop_cv.py ctx6 -> SAVE/ens_c_{all,tv}_ctx_crop
     --cropE (18 Nov, Work E; with --det=ctx): 2 copies per recording, k ~ U[2,5] min and U[0,10] min (empty copy dropped), original
     rows subsampled to ~10 % of the table (seed 0; as shift_cv.py hgb --crop=E), crop-exact closeness; n_iter as --det=ctx
-    -> SAVE/ens_c_{all,tv}_ctxE_crop"""
+    -> SAVE/ens_c_{all,tv}_ctxE_crop
+    --seeds=0,1,2 (19 Nov, Work G): every member fitted once per random_state; the bundle's models = members x seeds (the wrapper's plain
+    mean = mean over members of the seed means) -> SAVE/ens_c_{all,tv}_<det>_s<n>_crop"""
     import hgb_crop_precheck as pc
     from n2det_feats import crop_closeness, summaries
     tv = "--trainval" in sys.argv
@@ -305,15 +307,18 @@ def stage_hgbmc():
     Xb = apply_bin_edges(Xtr, bins)
     models, info = [], {}
     t_all = time.perf_counter()
+    seeds = [int(x) for x in next((a.split("=", 1)[1] for a in sys.argv if a.startswith("--seeds=")), "0").split(",")]  # Work G
     for name, (edges, params, _) in MEMBERS.items():
         it = np.load(OUT / f"ens_dyn_maxmin_spec_eye_n2{'ctx6' if ctx else 'c'}_crop_{name}.npz", allow_pickle=True)["n_iter"].item()
         n_iter = int(25 * round(np.median(list(it["unseen"]) + list(it["seen"])) / 25))
-        t0 = time.perf_counter()
-        clf = HistGradientBoostingClassifier(max_iter=n_iter, max_features=0.5, early_stopping=False, random_state=0, **params)
-        clf.fit(Xb, to_class(ytr, edges))
-        info[name] = dict(n_iter=n_iter, lofo=it, fit_s=time.perf_counter() - t0)
-        print(f"{name}: {n_iter} iters, fit {info[name]['fit_s']:.0f} s", flush=True)
-        models.append((clf, edges))
+        for sd_ in seeds:
+            t0 = time.perf_counter()
+            clf = HistGradientBoostingClassifier(max_iter=n_iter, max_features=0.5, early_stopping=False, random_state=sd_, **params)
+            clf.fit(Xb, to_class(ytr, edges))
+            key = name if len(seeds) == 1 else f"{name}_s{sd_}"
+            info[key] = dict(n_iter=n_iter, lofo=it, fit_s=time.perf_counter() - t0, seed=sd_)
+            print(f"{key}: {n_iter} iters, fit {info[key]['fit_s']:.0f} s", flush=True)
+            models.append((clf, edges))
     omega = grid_omega(d)  # class weights from the original rows (as the CV: fold training rows)
     mt = (df.split == "test").to_numpy()
     d_te = df[mt].reset_index(drop=True)
@@ -324,6 +329,7 @@ def stage_hgbmc():
     print(f"test ({'out-of-sample' if tv else 'in-sample'}) hgb_c+n2c+crop {score['wbmae']:.4f}  " + " ".join(f"{r} {score[r]:.1f}" for r in RANGE_NAMES)
           + f"; total fit {time.perf_counter() - t_all:.0f} s, {Xtr.shape[1]} features, {len(Xtr)} rows ({len(c_rows)} cropped)")
     tg = ("ctx" if ctx else "n2c") + ("E" if crop_e else "")
+    tg += "" if len(seeds) == 1 else f"_s{len(seeds)}"  # Work G: e.g. ens_c_all_ctxE_s3_crop (members x seeds, plain mean)
     out = SAVE / (f"ens_c_tv_{tg}_crop" if tv else f"ens_c_all_{tg}_crop")
     out.mkdir(exist_ok=True)
     wg, sg, _ = ABLATIONS[FEAT_SET]
