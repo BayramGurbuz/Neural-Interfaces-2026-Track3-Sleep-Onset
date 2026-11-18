@@ -365,3 +365,24 @@ büyük kazandırdı (gridpi'nin 37.49 → 39.20 düşüşüyle tutarlı). Bunda
     aynı oturumda aday 1 204.9 s (31.883341811607796, öncekiyle aynı) → oran ctx_c2 **1.15–1.30**, ctx_c3 **0.88** (kural ≤ 1.50 ✓).
 - ZIP: `submissions/ctx_c2_540.zip` 13.25 MB, SHA-256 `e5bc61dfb0140af4d69afd8fe568815fece2f703d24c6b6c129026cff0015ce0`;
   `submissions/ctx_c3_540.zip` 9.05 MB, SHA-256 `416a9dfd35e44748ee40777a8f7060483c83677fb14cce4bcdc41076f17c90ad`.
+
+## İş E adayları (19 Kasım 00:20): ctxE_c3_540 ve ctxE_c2h_540 — HAZIR, GÖNDERİLMEDİ (kullanıcı ikisini 19 Kasım'da birlikte gönderecek)
+- **ctxE_c3_540** (ana aday, önceden tanımlı ctx_c3 seti): HGB(c) kırpma E + bağlamlı yakınlık (`ens_c_all_ctxE_crop`, 12 068 özgün + 107 573
+  kırpılmış satır, 988 kopya, n_iter 200/200/300/200) + GRU kırpma E + bağlamlı yakınlık (`gru_ctxE_all`), α 0.4.
+  Kaymalı çift CV (ctx_c3 tarifine göre): D = U[2,5] dk −0.22 (8/10), D' = U[0,8] dk −0.21 (7/10), U[1,6] −0.23 (7/10) → kural GEÇTİ.
+- **ctxE_c2h_540 (HİBRİT — SONRADAN SEÇİLDİ, önceden tanımlı aday DEĞİL):** aynı HGB E + ctx_c2'nin eski dizi seti (GRU ctx `gru_ctx_all`,
+  TCN + GRU-emb `mix3det_all`), α 0.4. İş E tablosundaki bilgi satırlarından biri olarak sonuç görüldükten sonra seçildi: D −0.22 (8/10),
+  D' −0.31 (8/10), U[1,6] −0.28 (7/10). Önceden tanımlı ctx_c2 seti (hepsi kırpma E) D'de 6/10 ile kuralda kaldı. Amaç: iki dizi setinin
+  mühürlüde taşınmasını ölçmek (kullanıcı kararı).
+- Paketleme: `train_n2det_final.py mix` (yöntem ctx_c2_all'ın yeniden üretimiyle doğrulandı: bütün anahtarlar aynı) → c3 için seq_comps ("gru",).
+  Paketleyici regresyonu: ctx_c3_540 yeni paketleyiciyle (isteğe bağlı seq_weights) → akış tahminleri gönderilen paketle **bit düzeyinde aynı**.
+- Kontroller (`scripts/ctxE_build_tests.sh`, loglar `~/neuralbench/save/ctxE_build.log`, `ctxE_docker.log`):
+  - Bileşen kimliği (toplu, açık test, örneklem içi, CPU dedektör referansı): HGB E 29.5816 (eğitim logu ✓); c2h TCN 40.3806, GRU-emb 49.0675 ✓;
+    GRU E 37.23, GRU ctx 32.11.
+  - Akış ↔ toplu: c3 maks |Δ| 0.0139 s, c2h 0.0118 s; > 0.5 s pencere yok; 31.6951 ↔ 31.6951, 30.4092 ↔ 30.4091 → PASS.
+  - `n2det_clean_test.py` PASS, `extra_faults.py` 9 senaryo PASS, `ctx_wrapper_test.py` (a) reset (b) bağlam < 6 başlangıçları PASS (ikisinde de).
+  - Docker v3 ×2: ctxE_c3 **31.695066336152696** ikisinde, 201.0 / 188.6 s; ctxE_c2h **30.409171256671726** ikisinde, 244.2 / 246.4 s; aynı
+    oturumda aday 1 215.3 s (31.883341811607796, öncekiyle aynı) → **oran c3 0.88–0.93, c2h 1.13–1.14** (sınır 1.50 ✓). Import satırları değişmedi.
+- ZIP: `submissions/ctxE_c3_540.zip` 8.72 MB, SHA-256 `f853d9fcdc79b9367bd867ee135f351c3c3f1aeec2b8392fee0cc43ceaa5c5b5`;
+  `submissions/ctxE_c2h_540.zip` 12.93 MB, SHA-256 `5816a944c841f3318482c7485607bec2255f8cafbd8cd5e6e1c8b6b9449f2bff`.
+- Train+val HGB E (`ens_c_tv_ctxE_crop`, açık test örneklem dışı 42.65) ve GRU E / mix3cropE train+val dosyaları kaymalı 40 test kontrolü için hazır.

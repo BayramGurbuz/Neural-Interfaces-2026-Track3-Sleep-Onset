@@ -1,6 +1,10 @@
 # Proje durumu (son güncelleme: 2026-11-18)
 
-## ŞU AN (18 Kasım 14:15)
+## ŞU AN (19 Kasım 00:20)
+- **İki ZIP hazır, gönderilmedi (kullanıcı 19 Kasım'da birlikte gönderecek):** ctxE_c3_540 (SHA-256 f853d9fc…c5b5, süre oranı 0.88–0.93) ve
+  ctxE_c2h_540 (hibrit, SONRADAN seçildi; 5816a944…2bff, 1.13–1.14). Tüm testler + Docker ×2 PASS. Sonraki: İş G (HGB tohum ortalaması, ön kontrol B üyesi).
+
+## Önceki (18 Kasım 14:15)
 - **16 Kasım mühürlü güncellemesi** (FAQ "Sealed evaluation update · November 16"): mühürlü kayıtların açılış dakikaları artık modele
   verilmiyor; geçen süre ilk verilen pencereden. Yeniden skorlama tamam, başka değişiklik planlanmıyor. Hak 12 toplam / günde 3.
 - **8 gönderim yapıldı, 4 hak kaldı.** ctx_c2_540 ve ctx_c3_540 kullanıcı tarafından 18 Kasım 08:08'de gönderildi.

@@ -73,3 +73,31 @@
 - **Deterministik:** bütün sinir ağı bileşenleri `repro.set_deterministic` ile (cuDNN deterministic, sabit tohumlar); HGB random_state 0.
 - Seçim, komutlar, kontroller, SHA-256: `docs/submissions_log.md` "cand2_cropGc_540"; seçim tabloları `B_ASAMASI_RAPORU.md` 16 Kasım.
 - **Beklenen mühürlü skor ≈ 36.7–36.9** (yerel 38.49).
+
+## İş E adayları (19 Kasım): ctxE_c3_540 ve ctxE_c2h_540 — 16 Kasım mühürlü kurgusuna göre kırpma (ızgarasız)
+- **Mühürlü kurgu (16 Kasım FAQ):** kayıtların açılış dakikaları modele verilmiyor; geçen süre ilk verilen pencereden. Kayma dağılımı,
+  gönderilmiş 8 modelin mühürlü skor FARKLARININ 40 açık test kaydında yeniden üretilmesiyle seçildi (İş D, `scripts/shift_fit_d.py`):
+  D = tekdüze U[2,5] dk. Bu yalnız eğitim artırmasının dağılımını belirler; çıkarımda kayma bilgisi, kayıt uzunluğu veya kayıt sonu kullanılmaz.
+- **Bağlamlı N2 dedektörü (İş C):** pencere başına CNN gömmesi (Aday 1–2'deki kodlayıcı), son 6 pencerenin gömmesi üzerinde GRU(32), 5 sınıflı
+  "yakınlık" çıkışı, 3 tohum ortalaması; akış başlangıcından önceki konumlar sıfır dolgu (yalnız akışın gördüğü pencereler). Eğitim
+  pencereleri ve sızıntı kuralı yukarıdaki dedektörle aynı (fold-dışı çıktılar kişi bazlı iç katlardan).
+- **Kırpma E (eğitim artırması):** dizi modellerinde her epoch ve kayıtta başlangıç k: %10 kırpmasız, %50 U[24,60] pencere (2–5 dk), %40
+  U[0,120] pencere (0–10 dk); HGB tablosunda kayıt başına 2 kopya (U[2,5] dk ve U[0,10] dk) + özgün satırların rastgele ~%10'u (seed 0).
+  Pencere kalmayan kopya atılır. Her kopyada bütün nedensel öznitelikler kırpılan başlangıçtan yeniden akıtılır (ilk-2-dk tabanı, EMA'lar,
+  koşan ekstremumlar, geçen süre, dedektör özetleri); finallerde dedektör bağlamı da kırpmadan başlar (kırpma-kesin `close_oof_L`).
+  CV'de dış-kat bağlamlı dedektörler saklanmadığı için kırpılmış kopyanın ilk 5 penceresinde bağlam kırpma öncesini görür (bilinen yaklaşım).
+- **ctxE_c3_540** = HGB(c) 4 üye kırpma E + bağlamlı yakınlık (`ens_c_all_ctxE_crop`, n_iter 200 / 200 / 300 / 200) + GRU-uw 10 tohum kırpma E +
+  bağlamlı yakınlık girdisi (`gru_ctxE_all`, 20 epoch), α 0.4. Önceden tanımlanmış iki bileşen setinden biri (ctx_c3 seti); kabul kuralını geçti
+  (kaymalı çift CV, ctx_c3 tarifine göre D −0.22, 8/10; D' = U[0,8] dk −0.21).
+- **ctxE_c2h_540 (HİBRİT, SONRADAN SEÇİLDİ)** = aynı HGB E + ctx_c2'nin eski dizi seti: GRU-uw kırpma (eski 50/35/15 karışımı) + bağlamlı
+  yakınlık (`gru_ctx_all`), TCN 10 tohum ve GRU-emb 3 tohum (`mix3det_all`, artırmasız); α 0.4 (iç içe LOFO). **Bu satır önceden tanımlanmış
+  aday değildi**: İş E karışım tablosundaki 5 bilgi satırından biriydi ve sonuçlar görüldükten sonra seçildi (D −0.22, 8/10; D' −0.31, 8/10).
+  Önceden tanımlanmış ctx_c2 seti (TCN / GRU-emb da kırpma E ile) kat sayısında kaldı (D −0.19, 6/10). Bu seçim yanlılık taşır; kullanıcı
+  iki dizi setinin mühürlüde taşınmasını ölçmek için iki paketi birlikte gönderdi.
+- Ağaç sayısı / epoch: İş E tarifleri için ayrı k=0 seçimi yapılmadı; eşdeğer kırpmalı tariflerin kat seçimleri (CV) ve medyanları (final):
+  HGB ctx6 kırpma, GRU 20, TCN 15, GRU-emb 7 (kırpma E finallerinde; c2h'de TCN / GRU-emb eski 10 / 10 epoch'lu dosyalar).
+- Komutlar (`scripts/`): `shift_fit_d.py`; CV `shift_cv.py hgb --det=ctx [--crop=E]`, `shift_cv.py seq uw_n10_ctx6_cropE|tcn_n10_cropE|
+  cnn3_emb_cropE`, `shift_cv.py mix ...` (`worke_*_chain.sh`); finaller `train_n2det_final.py hgbmc --det=ctx --cropE`, `train_gru_n2c.py
+  --det=ctx --cropE`, `train_n2det_final.py mix --alpha=0.4 --ens=ens_c_all_ctxE_crop --seq=mix3det_all --gru-from=gru_ctxE_all|gru_ctx_all`
+  (c3: seq_comps ("gru",), TCN / GRU-emb anahtarları çıkarılır), `build_hgb_submission.py --name ctxE_c3_540|ctxE_c2h_540 --smooth-a 0`.
+  Bütün bileşenler deterministik (`--deterministic` / repro; HGB random_state 0).
