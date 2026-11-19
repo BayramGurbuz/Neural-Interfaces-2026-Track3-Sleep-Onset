@@ -25,6 +25,9 @@ Work D/F (18 Nov): distributions Wa-b (uniform windows a..b) and Fk (fixed k) DR
 Work G (19 Nov): `hgb ... --members=B --seeds=0,1,2` refits only those members, once per seed -> keys <dist>_f<k>_s<seed> in
   shiftcv<T>_hgbctx<crop>_<members>_s<seeds>_<proto>.npz; part `seedeval` (same flags) = HGB-only decision, single seed vs seed mean.
 
+Work I (19 Nov): part `imix` = fixed-weight package mixes (M = ctx_c3 / 2 + ctxE_c2hs3p / 2, M', Work J rows), no selection, needs the
+  Work I HGB E runs (scripts/worki_chain.sh) -> OUT/shiftcv_i_mix.json.
+
 Usage: python scripts/shift_cv.py hgb|seq NAME|mix ROWS --dists=k0,U24 [--draws=2] [--tag=T] [--det=ctx]
   -> OUT/shiftcv<T>_hgb_<proto>.npz, OUT/shiftcv<T>_seq_<NAME>_<proto>.npz, OUT/shiftcv<T>_mix.json
 """
@@ -366,6 +369,102 @@ def part_fmix():
     path.write_text(json.dumps(old, indent=2, default=float))
 
 
+def part_imix():
+    """Work I (19 Nov): fixed-weight mixes of whole packages (no selection), pre-decision metric-weighted distributions averaged, then the
+    continuous weighted median. Package = coefficients on the normalised HGB sets (ctx; E single seed; E with B and B_h2 x 3 seeds) and the
+    normalised sequence components (GRU ctx, TCN, GRU-emb). E pieces: Work E single-seed file under the W distributions; k0 rebuilt from the
+    Work I runs (0.5 * mean(B, B_h2) seed 0 + 0.5 * mean(B_h1, B2) seed 0, checked against the Work E file under W24-60);
+    E-s3p = E single seed + 0.5 * (seed mean - seed 0) of mean(B, B_h2) (= members weighted 1/12 x3, 1/4, 1/12 x3, 1/4).
+    k0 inputs of HGB ctx and the sequence models from the untagged Work C files, W from the Work F files (tag _d)."""
+    from decision_layer import slot_median, to_slots
+    onset = rec_onsets(d)
+    names = ["uw_n10_ctx6_crop", "tcn_n10", "cnn3_emb"]
+    R1 = {p: np.load(OUT / f"shiftcv_i_hgbctxE_B+B_h2_s012_{p}.npz") for p in protocols}
+    R2 = {p: np.load(OUT / f"shiftcv_i_hgbctxE_B_h1+B2_s0_{p}.npz") for p in protocols}
+    Ed = {p: np.load(OUT / f"shiftcv_d_hgbctxE_{p}.npz") for p in protocols}
+    src = {t: {"hctx": {p: np.load(OUT / f"shiftcv{t}_hgbctx_{p}.npz") for p in protocols},
+               **{s: {p: np.load(OUT / f"shiftcv{t}_seq_{s}_{p}.npz") for p in protocols} for s in names}} for t in ("", "_d")}
+    g3 = 0.4 / 3
+    PK = {  # (HGB ctx, HGB E s0, HGB E s3p, GRU ctx, TCN, GRU-emb)
+        "ctx_c3": (0.6, 0, 0, 0.4, 0, 0), "ctx_c2": (0.5, 0, 0, 0.5 / 3, 0.5 / 3, 0.5 / 3),
+        "ctxE_c2h": (0, 0.6, 0, g3, g3, g3), "ctxE_c2hs3p": (0, 0, 0.6, g3, g3, g3)}
+    ROWS = {"ctx_c3": {"ctx_c3": 1.0}, "ctxE_c2hs3p": {"ctxE_c2hs3p": 1.0}, "ctxE_c2h": {"ctxE_c2h": 1.0}, "ctx_c2": {"ctx_c2": 1.0},
+            "M = c3/2 + c2hs3p/2": {"ctx_c3": 0.5, "ctxE_c2hs3p": 0.5}, "M' = c3/2 + c2h/2": {"ctx_c3": 0.5, "ctxE_c2h": 0.5},
+            "J = (c3 + c2 + c2hs3p)/3": {"ctx_c3": 1 / 3, "ctx_c2": 1 / 3, "ctxE_c2hs3p": 1 / 3},
+            "J' = (c3 + c2 + c2h)/3": {"ctx_c3": 1 / 3, "ctx_c2": 1 / 3, "ctxE_c2h": 1 / 3}}
+    COEF = {r: np.sum([w * np.asarray(PK[pk]) for pk, w in mix.items()], axis=0) for r, mix in ROWS.items()}
+
+    def pred(f, c, chunk=4096):
+        out = np.empty(len(f["t"]))
+        ws, wh = f["w_old"]
+        for i0 in range(0, len(out), chunk):
+            sl = slice(i0, i0 + chunk)
+            t = f["t"][sl]
+            M = 0.0
+            for ci, x in zip(c[:3], f["hgb"]):
+                if ci:
+                    h = to_slots(x[sl], t, 0.0) * wh
+                    M = M + ci * h / h.sum(1, keepdims=True)
+            for ci, x in zip(c[3:], f["seq"]):
+                if ci:
+                    q = to_slots(x[sl], t, 0.0) * ws
+                    M = M + ci * q / q.sum(1, keepdims=True)
+            out[sl] = slot_median(M)
+        return out
+
+    out = {}
+    for dist in DISTS:
+        t = "" if dist == "k0" else "_d"
+        folds, dev = [], 0.0
+        for proto, splits in protocols.items():
+            for k, (tr, _) in enumerate(splits):
+                r1 = [R1[proto][f"{dist}_f{k}_s{s}"].astype(np.float64) for s in (0, 1, 2)]
+                if dist == "k0":
+                    e0 = 0.5 * r1[0] + 0.5 * R2[proto][f"k0_f{k}_s0"].astype(np.float64)
+                else:
+                    e0 = Ed[proto][f"{dist}_f{k}"].astype(np.float64)
+                    if dist == "W24-60":  # composition check
+                        dev = max(dev, float(np.abs(0.5 * r1[0] + 0.5 * R2[proto][f"W24-60_f{k}_s0"] - e0).max()))
+                es3 = e0 + 0.5 * (np.mean(r1, axis=0) - r1[0])
+                items = shifted(proto, k, dist)
+                idx = np.concatenate([recs[i][kk:] for i, kk, _ in items])
+                dte = d.iloc[idx].reset_index(drop=True).copy()
+                dte["timeline"] = np.concatenate([[f"{d.timeline[recs[i][0]]}#{j}"] * (len(recs[i]) - kk) for i, kk, j in items])
+                dtr = d[tr].reset_index(drop=True)
+                _, ob = class_stats(dtr, B)
+                folds.append(dict(proto=proto, k=k, dte=dte, t=dte.stop.to_numpy().astype(np.float64),
+                                  hgb=[x @ FINE for x in (src[t]["hctx"][proto][f"{dist}_f{k}"].astype(np.float64), e0, es3)],
+                                  seq=[to_grid(src[t][s][proto][f"{dist}_f{k}"].astype(np.float64), B) @ FINE for s in names],
+                                  w_old=old_slot_weights(ob, grid_omega(dtr)), D=onset.loc[d.timeline.to_numpy()[idx]].to_numpy()))
+        E = {r: evaluate(folds, [pred(f, c) for f in folds]) for r, c in COEF.items()}
+        rows = {}
+        for r, e in E.items():
+            rows[r] = dict(unseen=e["unseen"]["mean"], seen=e["seen"]["mean"], macro=e["macro"]["mean"], coef=COEF[r].tolist(),
+                           folds_unseen=list(e["unseen"]["folds"]), folds_seen=list(e["seen"]["folds"]))
+        for r in rows:
+            for ref in ("ctx_c3", "ctxE_c2hs3p", "ctxE_c2h"):
+                du = np.array(rows[r]["folds_unseen"]) - np.array(rows[ref]["folds_unseen"])
+                ds = np.array(rows[r]["folds_seen"]) - np.array(rows[ref]["folds_seen"])
+                rows[r][f"d_{ref}"] = rows[r]["macro"] - rows[ref]["macro"]
+                rows[r][f"better_{ref}"] = int((du < -1e-9).sum() + (ds < -1e-9).sum())
+        out[dist] = dict(rows=rows, e_composition_maxdev=dev if dist == "W24-60" else None)
+        print(f"\n== {dist}" + (f" (E composition check vs Work E file: max |Δ| {dev:.2e})" if dist == "W24-60" else ""))
+        for r, v in rows.items():
+            print(f"  {r:28s} unseen {v['unseen']:6.2f} seen {v['seen']:6.2f} dual {v['macro']:6.3f} | Δ c3 {v['d_ctx_c3']:+6.3f} "
+                  f"({v['better_ctx_c3']:2d}/10)  Δ c2hs3p {v['d_ctxE_c2hs3p']:+6.3f} ({v['better_ctxE_c2hs3p']:2d}/10)  "
+                  f"Δ c2h {v['d_ctxE_c2h']:+6.3f}", flush=True)
+    for key, a, b_ in (("M = c3/2 + c2hs3p/2", "ctx_c3", "ctxE_c2hs3p"), ("M' = c3/2 + c2h/2", "ctx_c3", "ctxE_c2h"),
+                       ("J = (c3 + c2 + c2hs3p)/3", "ctx_c3", "ctxE_c2hs3p")):
+        worst = max(max(out[x]["rows"][key][f"d_{a}"], out[x]["rows"][key][f"d_{b_}"]) for x in DISTS)
+        extra = (f", Δ ctx_c2 max {max(out[x]['rows'][key]['macro'] - out[x]['rows']['ctx_c2']['macro'] for x in DISTS):+.3f}"
+                 if key.startswith("J") else "")
+        print(f"sanity {key}: worst Δ vs its components over {DISTS} = {worst:+.3f} -> {'PASS' if worst <= 0.1 else 'FAIL'} (rule ≤ +0.10){extra}")
+    path = OUT / "shiftcv_i_mix.json"
+    old = json.loads(path.read_text()) if path.exists() else {}
+    old.update(out)
+    path.write_text(json.dumps(old, indent=2, default=float))
+
+
 def part_seedeval():
     """Work G (19 Nov): HGB-only decision of the member subset, single seed (the first) vs the mean of the seeds, per distribution."""
     from decision_layer import slot_median, to_slots
@@ -422,5 +521,5 @@ def part_seedeval():
 if __name__ == "__main__":
     t0 = time.perf_counter()
     {"hgb": lambda: part_hgb(), "seq": lambda: part_seq(POS[1]), "mix": lambda: part_mix(POS[1]), "fmix": lambda: part_fmix(),
-     "seedeval": lambda: part_seedeval()}[PART]()
+     "seedeval": lambda: part_seedeval(), "imix": lambda: part_imix()}[PART]()
     print(f"{PART} done ({time.perf_counter() - t0:.0f} s)")
