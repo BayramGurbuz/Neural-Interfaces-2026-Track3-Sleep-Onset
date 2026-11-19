@@ -56,6 +56,8 @@ Son gönderim en geç 20 Kasım, 21 Kasım yedek gün.
 | 8 | 2026-11-18 08:08 | ctx_c3_540.zip | **33.09** | – | – | – | – | 16. / 183 |
 | 9 | 2026-11-19 | ctxE_c3s3_540.zip | **33.29** | – | – | – | – | – |
 | 10 | 2026-11-19 | ctxE_c2hs3p_540.zip | **33.13** | – | – | – | – | – |
+| 9 | 2026-11-19 | ctxE_c3s3_540.zip | **33.29** | – | – | – | – | – |
+| 10 | 2026-11-19 | ctxE_c2hs3p_540.zip | **33.13** | – | – | – | – | – |
 
 **19 Kasım sonuçları (kullanıcı):** ctxE_c3s3_540 33.29, ctxE_c2hs3p_540 33.13 → en iyi hâlâ ctx_c3_540 (33.09). **12 hakkın 10'u
 kullanıldı, 2 kaldı.** Okuma: HGB E mühürlüde nötr (ctx_c2 33.12 ↔ c2hs3p 33.13), GRU E zararlı (c3s3 33.29 ↔ ctx_c3 33.09); kaymalı
@@ -412,3 +414,11 @@ büyük kazandırdı (gridpi'nin 37.49 → 39.20 düşüşüyle tutarlı). Bunda
   **1.30–1.37**. 15.14 MB, SHA-256 `821ae6bd6eab1bcaec9c9a23ac6fe6853e83f0dcdb22ce264526e9dfdeddf1ee`.
 - Yerel Docker süreleri oturumlar arasında dalgalı (aday 1: 148–216 s); oranlar aynı oturumdaki komşu aday 1 koşularına göre. Mühürlü süre tahmini
   (aday 1 1526.6 s): c3s3 ≈ 2080–2230 s, c2hs3p ≈ 1990–2090 s (sınır 3600 s).
+
+## Gönderim #9–#10 sonucu (19 Kasım): İş E / İş G taşınmadı
+- **ctxE_c3s3_540 33.29, ctxE_c2hs3p_540 33.13**; en iyi hâlâ **ctx_c3_540 33.09**. Hak: 12'nin **10'u kullanıldı, 2 kaldı**. Tek tohumlu ctxE_c3_540 ve
+  ctxE_c2h_540 GÖNDERİLMEDİ (kullanıcı tohum ortalamalı sürümleri gönderdi).
+- Okuma (kullanıcı): HGB E mühürlüde nötr (ctx_c2 33.12 ↔ ctxE_c2hs3p 33.13; aynı dizi seti, HGB ctx → HGB E + kısmi 3 tohum); GRU E zararlı
+  (ctx_c3 33.09 → ctxE_c3s3 33.29: HGB E + GRU E + 3 tohum). Kaymalı CV'nin öngördüğü −0.22 taşınmadı (yerelde c2h −0.22, mühürlüde +0.01 / +0.04).
+  **Bundan sonra 0.2 s altındaki yerel farklara güvenilmez; kararlar mühürlüde kanıtlanmış modellere dayanır.** İş H (GRU E içeriyordu) iptal.
+- Sonraki: İş I = 0.5 · ctx_c3_540 + 0.5 · ctxE_c2hs3p_540 (yeniden eğitim yok, w sabit); İş J yedek = (ctx_c3 + ctx_c2 + ctxE_c2hs3p) / 3.
