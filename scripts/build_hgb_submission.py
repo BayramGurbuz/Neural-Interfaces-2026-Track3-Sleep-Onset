@@ -285,6 +285,14 @@ class HGBStreamModel:
             assert self.member_w is None or (len(self.member_w) == len(self.member_trees) and abs(self.member_w.sum() - 1) < 1e-9)
             self.grid = np.asarray(bundle["grid"], dtype=np.float64)
             self.grid_omega = np.asarray(bundle["grid_omega"], dtype=np.float64)
+            # 19 Nov (Work I): optional second HGB set (own bin edges, members, weights, grid omega); the two metric-weighted, normalised
+            # HGB distributions are averaged with weight hgb2_weight on the second; absent -> unchanged path
+            self.hgb2 = None
+            if bundle.get("hgb2_trees") is not None:
+                self.hgb2 = dict(trees=bundle["hgb2_trees"], padded=bundle["hgb2_padded_edges"],
+                                 edges=[np.asarray(e, dtype=np.float64) for e in bundle["hgb2_member_edges"]],
+                                 w=None if bundle.get("hgb2_member_weights") is None else np.asarray(bundle["hgb2_member_weights"], np.float64),
+                                 omega=np.asarray(bundle["hgb2_grid_omega"], dtype=np.float64), weight=float(bundle["hgb2_weight"]))
         if self.kind == "dist":
             self.reps = np.asarray(bundle["reps"], dtype=np.float64)
             self.omega = np.asarray(bundle["omega"], dtype=np.float64)
@@ -568,6 +576,7 @@ class HGBStreamModel:
         if self.n2det is not None:  # P(N2) of the cleaned windows + causal summaries -> extra HGB (and sequence) inputs
             n2 = self._n2det_rows(x)
             rows = np.concatenate([rows, n2], axis=1)
+        raw_rows = rows
         if self.padded is not None:
             rows = apply_padded_edges(rows, *self.padded)
         elif self.bin_edges is not None:
@@ -596,6 +605,14 @@ class HGBStreamModel:
             Ps = self._mix3_probs(f32, x, n2)
             Wh = Ph * self.grid_omega
             Wh /= Wh.sum(axis=1, keepdims=True)
+            if self.hgb2 is not None:
+                g2 = self.hgb2
+                rows2 = apply_padded_edges(raw_rows, *g2["padded"])
+                P2 = [to_grid(hgb_predict_proba(t, rows2), e, self.grid) for t, e in zip(g2["trees"], g2["edges"])]
+                P2 = np.mean(P2, axis=0) if g2["w"] is None else sum(w * p for w, p in zip(g2["w"], P2))
+                W2 = P2 * g2["omega"]
+                W2 /= W2.sum(axis=1, keepdims=True)
+                Wh = (1.0 - g2["weight"]) * Wh + g2["weight"] * W2
             if self.seq_w is None:
                 W = self.alpha * sum(self._grid_q(P) for P in Ps) / float(len(Ps)) + (1.0 - self.alpha) * Wh
             else:
@@ -663,7 +680,8 @@ keep = {k: bundle[k] for k in ("model", "feature_names", "bin_edges", "kind", "g
                                "tcn_states", "tcn_mu", "tcn_sd", "tcn_dilations", "cnn_states", "cnn_scale",
                                "cnn_clip", "cnn_emb", "gemb_states", "gemb_mu", "gemb_sd",
                                "n2det_state", "n2det_scale", "n2det_clip", "n2det_emb", "n2det_into",
-                               "n2det_states", "n2det_ncls", "n2det_first_pos", "seq_comps", "n2det_ctx_states", "n2det_ctx_n", "seq_weights", "member_weights")
+                               "n2det_states", "n2det_ncls", "n2det_first_pos", "seq_comps", "n2det_ctx_states", "n2det_ctx_n", "seq_weights", "member_weights",
+                               "hgb2_member_edges", "hgb2_member_weights", "hgb2_grid_omega", "hgb2_weight")
         if k in bundle}
 for comp, ks in (("tcn", ("tcn_states", "tcn_mu", "tcn_sd", "tcn_dilations")),
                  ("gemb", ("cnn_states", "cnn_scale", "cnn_clip", "cnn_emb", "gemb_states", "gemb_mu", "gemb_sd"))):
@@ -679,6 +697,9 @@ if not args.sklearn_trees:
         keep["member_trees"] = [export_hgb(m) for m in bundle["models"]]
     if keep.get("bin_edges") is not None:
         keep["padded_edges"] = pad_bin_edges(keep["bin_edges"])
+    if bundle.get("hgb2_models") is not None:  # Work I: second HGB set
+        keep["hgb2_trees"] = [export_hgb(m) for m in bundle["hgb2_models"]]
+        keep["hgb2_padded_edges"] = pad_bin_edges(bundle["hgb2_bin_edges"])
 joblib.dump(keep, out / "model.joblib")
 if args.no_zip:
     print("wrote", out, "(no zip)")

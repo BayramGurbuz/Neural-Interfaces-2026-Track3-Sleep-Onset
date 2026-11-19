@@ -153,10 +153,21 @@ Xb = apply_bin_edges(Xt, b["bin_edges"])
 Wh = (np.mean([to_grid(m.predict_proba(Xb), e) for m, e in zip(b["models"], b["member_edges"])], axis=0) if b.get("member_weights") is None
       else sum(w * to_grid(m.predict_proba(Xb), e) for w, m, e in zip(b["member_weights"], b["models"], b["member_edges"]))) * b["grid_omega"]
 Wh /= Wh.sum(1, keepdims=True)
+extra_h = {}
+if b.get("hgb2_models") is not None:  # 19 Nov (Work I): second HGB set with its own bin edges, averaged after normalisation
+    Xb2 = apply_bin_edges(Xt, b["hgb2_bin_edges"])
+    P2 = [to_grid(m.predict_proba(Xb2), e) for m, e in zip(b["hgb2_models"], b["hgb2_member_edges"])]
+    W2 = (np.mean(P2, axis=0) if b.get("hgb2_member_weights") is None else sum(w * p for w, p in zip(b["hgb2_member_weights"], P2))) \
+        * b["hgb2_grid_omega"]
+    W2 /= W2.sum(1, keepdims=True)
+    extra_h = {"hgb1": Wh, "hgb2": W2}
+    Wh = (1 - float(b["hgb2_weight"])) * Wh + float(b["hgb2_weight"]) * W2
 alpha = float(b["mix_alpha"])
 ones = np.ones(len(GRID) - 1)
 qs = {k: weighted_grid(P) for k, P in (("gru", Pg), ("tcn", Pt), ("gemb", Pe)) if k in comps}
-cands = {**qs, "hgb": Wh, "mix": alpha * sum(qs[k] for k in comps) / len(comps) + (1 - alpha) * Wh}
+sw = (np.ones(len(comps)) / len(comps) if b.get("seq_weights") is None
+      else np.asarray(b["seq_weights"], np.float64) / np.sum(b["seq_weights"]))  # Work F/I: per-component weights
+cands = {**qs, **extra_h, "hgb": Wh, "mix": alpha * sum(w * qs[k] for w, k in zip(sw, comps)) + (1 - alpha) * Wh}
 ok = True
 for k, W in cands.items():
     s = summarize(dd, decide(W, None, ones, True, GRID))["wbmae"]
