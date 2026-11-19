@@ -150,7 +150,8 @@ if n2v is not None:
     assert np.abs(n2[dmt] - n2_te).max() < 1e-6
     Xt = np.concatenate([Xt, n2[dmt]], axis=1)
 Xb = apply_bin_edges(Xt, b["bin_edges"])
-Wh = np.mean([to_grid(m.predict_proba(Xb), e) for m, e in zip(b["models"], b["member_edges"])], axis=0) * b["grid_omega"]
+Wh = (np.mean([to_grid(m.predict_proba(Xb), e) for m, e in zip(b["models"], b["member_edges"])], axis=0) if b.get("member_weights") is None
+      else sum(w * to_grid(m.predict_proba(Xb), e) for w, m, e in zip(b["member_weights"], b["models"], b["member_edges"]))) * b["grid_omega"]
 Wh /= Wh.sum(1, keepdims=True)
 alpha = float(b["mix_alpha"])
 ones = np.ones(len(GRID) - 1)

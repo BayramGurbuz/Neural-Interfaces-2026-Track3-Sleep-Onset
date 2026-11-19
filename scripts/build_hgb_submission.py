@@ -280,6 +280,9 @@ class HGBStreamModel:
         if self.kind in ("ens_grid", "mix", "mix3"):  # several distribution members averaged on a common grid
             self.member_trees = bundle["member_trees"]
             self.member_edges = [np.asarray(e, dtype=np.float64) for e in bundle["member_edges"]]
+            # 19 Nov (Work G): optional per-model weights (e.g. 3 seeds of some members); absent -> plain mean (unchanged path)
+            self.member_w = None if bundle.get("member_weights") is None else np.asarray(bundle["member_weights"], np.float64)
+            assert self.member_w is None or (len(self.member_w) == len(self.member_trees) and abs(self.member_w.sum() - 1) < 1e-9)
             self.grid = np.asarray(bundle["grid"], dtype=np.float64)
             self.grid_omega = np.asarray(bundle["grid_omega"], dtype=np.float64)
         if self.kind == "dist":
@@ -584,8 +587,12 @@ class HGBStreamModel:
             W = self.alpha * q + (1.0 - self.alpha) * Wh
             pred = decide(W, None, np.ones(W.shape[1]), self.grid)
         elif self.kind == "mix3":
-            Ph = np.mean([to_grid(hgb_predict_proba(t, rows), e, self.grid)
-                          for t, e in zip(self.member_trees, self.member_edges)], axis=0)
+            if self.member_w is None:
+                Ph = np.mean([to_grid(hgb_predict_proba(t, rows), e, self.grid)
+                              for t, e in zip(self.member_trees, self.member_edges)], axis=0)
+            else:
+                Ph = sum(w * to_grid(hgb_predict_proba(t, rows), e, self.grid)
+                         for w, t, e in zip(self.member_w, self.member_trees, self.member_edges))
             Ps = self._mix3_probs(f32, x, n2)
             Wh = Ph * self.grid_omega
             Wh /= Wh.sum(axis=1, keepdims=True)
@@ -656,7 +663,7 @@ keep = {k: bundle[k] for k in ("model", "feature_names", "bin_edges", "kind", "g
                                "tcn_states", "tcn_mu", "tcn_sd", "tcn_dilations", "cnn_states", "cnn_scale",
                                "cnn_clip", "cnn_emb", "gemb_states", "gemb_mu", "gemb_sd",
                                "n2det_state", "n2det_scale", "n2det_clip", "n2det_emb", "n2det_into",
-                               "n2det_states", "n2det_ncls", "n2det_first_pos", "seq_comps", "n2det_ctx_states", "n2det_ctx_n", "seq_weights")
+                               "n2det_states", "n2det_ncls", "n2det_first_pos", "seq_comps", "n2det_ctx_states", "n2det_ctx_n", "seq_weights", "member_weights")
         if k in bundle}
 for comp, ks in (("tcn", ("tcn_states", "tcn_mu", "tcn_sd", "tcn_dilations")),
                  ("gemb", ("cnn_states", "cnn_scale", "cnn_clip", "cnn_emb", "gemb_states", "gemb_mu", "gemb_sd"))):
