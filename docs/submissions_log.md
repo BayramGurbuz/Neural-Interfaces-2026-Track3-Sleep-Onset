@@ -386,3 +386,22 @@ büyük kazandırdı (gridpi'nin 37.49 → 39.20 düşüşüyle tutarlı). Bunda
 - ZIP: `submissions/ctxE_c3_540.zip` 8.72 MB, SHA-256 `f853d9fcdc79b9367bd867ee135f351c3c3f1aeec2b8392fee0cc43ceaa5c5b5`;
   `submissions/ctxE_c2h_540.zip` 12.93 MB, SHA-256 `5816a944c841f3318482c7485607bec2255f8cafbd8cd5e6e1c8b6b9449f2bff`.
 - Train+val HGB E (`ens_c_tv_ctxE_crop`, açık test örneklem dışı 42.65) ve GRU E / mix3cropE train+val dosyaları kaymalı 40 test kontrolü için hazır.
+
+## İş G (19 Kasım): HGB tohum ortalamalı sürümler — HAZIR, GÖNDERİLMEDİ
+- Ön kontrol (`shift_cv.py hgb --det=ctx --crop=E --members=B --seeds=0,1,2`, `seedeval`; yalnız B üyesi, yalnız HGB kararı, kaymalı çift CV):
+  3 tohum ortalaması tohum 0'a göre D −0.18 (9/10), D' −0.18 (9/10) → kural (D altında Δ ≤ −0.10, ≥ 7/10) GEÇTİ. Paket düzeyinde etki ÖLÇÜLMEDİ
+  (tam CV yok); HGB zaten 4 üye ortalaması ve karışımda 0.6 ağırlıklı → kazanç daha küçük beklenir.
+- 540 HGB E, 4 üye × 3 tohum (`train_n2det_final.py hgbmc --det=ctx --cropE --seeds=0,1,2` → `ens_c_all_ctxE_s3_crop`, 4765 s); tohum 0 modelleri ve bin
+  sınırları tek tohumlu finalle birebir aynı.
+- **ctxE_c3s3_540** = ctxE_c3 + 12 HGB modeli (düz ortalama). HGB 29.4903 (eğitim logu ✓), akış ↔ toplu maks |Δ| 0.0135 s, 31.6827 ↔ 31.6827; temizlik,
+  9 arıza, bağlam testleri PASS; Docker ×2 31.6827174743059 ikisinde. Süre: gece oturumu 286.7 / 283.2 s (aday 1 199.9) → 1.42–1.43; aralıklı
+  ölçüm (10:26–10:48) 217.2 / 221.3 s (aday 1 166.9 / 151.8 / 151.0) → **1.36–1.46** (sınır 1.50, kenarda). 16.42 MB,
+  SHA-256 `1722ad753e24efe291d9411ac1a3e81024d416021d85dde1f4f8d44c9f2ccc64`.
+- ctxE_c2hs3_540 (hibrit + 12 HGB modeli): testler PASS ama süre 1.67–1.69 → sınırı aşıyor, KULLANILMAYACAK (SHA-256 97139a9c…bdd49).
+- **ctxE_c2hs3p_540** (kullanıcı seçimi): hibrit + yalnız B ve B_h2 × 3 tohum (üye maliyeti B 1.27, B_h1 2.27, B_h2 0.87, B2 2.54 ms/pencere);
+  ağırlıklar 1/12 ×3, 1/4, 1/12 ×3, 1/4 (her üye 1/4; sarmalayıcı isteğe bağlı `member_weights`, yoksa eski yol: ctxE_c2h_540 yeniden kurulup akış
+  tahminleri bit düzeyinde aynı). HGB 29.5489 (bağımsız eğitim-yolu hesabı ✓), TCN 40.3806, GRU-emb 49.0675 ✓; akış ↔ toplu maks |Δ| 0.0122 s,
+  30.4004 ↔ 30.4003; temizlik, 9 arıza, bağlam testleri PASS; Docker 30.400400883297824 (4 koşuda aynı). Süre aralıklı ölçümde 207.2 / 206.9 s →
+  **1.30–1.37**. 15.14 MB, SHA-256 `821ae6bd6eab1bcaec9c9a23ac6fe6853e83f0dcdb22ce264526e9dfdeddf1ee`.
+- Yerel Docker süreleri oturumlar arasında dalgalı (aday 1: 148–216 s); oranlar aynı oturumdaki komşu aday 1 koşularına göre. Mühürlü süre tahmini
+  (aday 1 1526.6 s): c3s3 ≈ 2080–2230 s, c2hs3p ≈ 1990–2090 s (sınır 3600 s).

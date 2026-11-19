@@ -1,6 +1,11 @@
 # Proje durumu (son güncelleme: 2026-11-18)
 
-## ŞU AN (19 Kasım 00:20)
+## ŞU AN (19 Kasım 10:50)
+- **Hazır ZIP'ler (hiçbiri gönderilmedi):** ctxE_c3_540 (f853d9fc…, 0.88–0.93), ctxE_c2h_540 (hibrit, sonradan seçildi; 5816a944…, 1.13–1.14),
+  **İş G** tohum ortalamalı: ctxE_c3s3_540 (1722ad75…, 1.36–1.46, kenarda), ctxE_c2hs3p_540 (B + B_h2 × 3; 821ae6bd…, 1.30–1.37). ctxE_c2hs3_540
+  sınırı aştı (1.67–1.69), kullanılmayacak. Plan (kullanıcı): bugün c3 + c2h; kalan 2 hak 20–21 Kasım, mühürlü sonuca ve İş G'ye göre.
+
+## Önceki (19 Kasım 00:20)
 - **İki ZIP hazır, gönderilmedi (kullanıcı 19 Kasım'da birlikte gönderecek):** ctxE_c3_540 (SHA-256 f853d9fc…c5b5, süre oranı 0.88–0.93) ve
   ctxE_c2h_540 (hibrit, SONRADAN seçildi; 5816a944…2bff, 1.13–1.14). Tüm testler + Docker ×2 PASS. Sonraki: İş G (HGB tohum ortalaması, ön kontrol B üyesi).
 

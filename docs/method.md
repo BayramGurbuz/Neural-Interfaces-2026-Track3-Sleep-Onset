@@ -101,3 +101,8 @@
   --det=ctx --cropE`, `train_n2det_final.py mix --alpha=0.4 --ens=ens_c_all_ctxE_crop --seq=mix3det_all --gru-from=gru_ctxE_all|gru_ctx_all`
   (c3: seq_comps ("gru",), TCN / GRU-emb anahtarları çıkarılır), `build_hgb_submission.py --name ctxE_c3_540|ctxE_c2h_540 --smooth-a 0`.
   Bütün bileşenler deterministik (`--deterministic` / repro; HGB random_state 0).
+
+## İş G (19 Kasım): HGB tohum ortalaması
+- HGB üyeleri (random_state 0 / 1 / 2, `max_features` 0.5 nedeniyle farklı) aynı kırpma E tablosuyla eğitilir, olasılıklar ortalanır. Ön kontrol yalnız
+  B üyesinde (kaymalı çift CV, D −0.18, 9/10). ctxE_c3s3_540: 4 üye × 3 tohum. ctxE_c2hs3p_540: süre sınırı nedeniyle yalnız B ve B_h2 × 3 tohum,
+  üye ağırlıkları eşit (1/4) tutulur. Diğer bileşenler İş E paketleriyle aynı dosyalar.
