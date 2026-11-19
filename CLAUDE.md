@@ -69,10 +69,12 @@ Track 03 (Sleep Onset) yarışması için model geliştirme deposudur.
 - 16 KASIM MÜHÜRLÜ GÜNCELLEMESİ (FAQ "Sealed evaluation update · November 16"): mühürlü kayıtların açılış dakikaları (başlık
   otururken) artık modele VERİLMİYOR; geçen süre ilk verilen pencereden ölçülüyor. Bütün gönderimler yeniden skorlandı; mühürlü veride
   başka değişiklik planlanmıyor. Hak: toplam 12, günde en fazla 3 (takım ortak). Bitiş 21 Kasım 23:59 CET (yaml 22:59 UTC).
-- Güncel mühürlü skorlar (18 Kasım, 16 Kasım yeniden skorlaması sonrası): #1 final540 87.99, #2 mix3_540 62.02, #3 gridpi 64.96,
+- Güncel mühürlü skorlar (19 Kasım, 16 Kasım yeniden skorlaması sonrası): #1 final540 87.99, #2 mix3_540 62.02, #3 gridpi 64.96,
   #4 aday1 47.42, #5 cand2 34.41, #6 cand3_gru 33.72, #7 ctx_c2 33.12, #8 ctx_c3 **33.09** (EN İYİ, 16./183; ilk 3: 31.96 / 32.10 /
-  32.29; 10.: 32.77). 12 hakkın 8'i kullanıldı, KALAN 4. Kırpmaya duyarlı (artırmasız) modellerin çöküşü → mühürlü akışlar kaydın
-  ortasından başlıyor; seçim KAYMALI değerlendirmeyle (İş D kalibrasyonu, İş E/F).
+  32.29; 10.: 32.77), #9 ctxE_c3s3 33.29, #10 ctxE_c2hs3p 33.13. 12 hakkın 10'u kullanıldı, KALAN 2. Kırpmaya duyarlı (artırmasız)
+  modellerin çöküşü → mühürlü akışlar kaydın ortasından başlıyor; seçim KAYMALI değerlendirmeyle (İş D kalibrasyonu, İş E/F).
+- 19 KASIM OKUMASI (kullanıcı): HGB E mühürlüde nötr (ctx_c2 33.12 ↔ c2hs3p 33.13), GRU E zararlı (c3s3 33.29); kaymalı CV'nin öngördüğü
+  −0.22 taşınmadı. 0.2 s altındaki yerel farklara GÜVENİLMEZ; kararlar mühürlüde kanıtlanmış modellere dayanır. İş H iptal (GRU E içeriyor).
 - 16 KASIM BULGUSU: aday 1 → aday 2 yerelde −0.37, mühürlüde −2.68 → mühürlü akışlar büyük olasılıkla kaydın başından
   başlamıyor. SEÇİM ARTIK k=0 ÇİFT CV'YE DEĞİL KAYMALI DEĞERLENDİRMEYE dayanır (İş A kayma kalibrasyonu; aday 3 kuralı:
   kaymalı test + kaymalı çift CV birincil, k=0 çift CV'de aday 2'ye göre en fazla +0.3 kötüleşme).
@@ -98,8 +100,12 @@ Track 03 (Sleep Onset) yarışması için model geliştirme deposudur.
   Görülmemiş kişi CV = train+val üzerinde kişi bazlı 5 katlı GroupKFold. Görülmüş kişi CV = birden
   fazla gecesi olan kişilerin birer gecesi dışarıda, kalan geceleri eğitimde. Açık test setine
   (40 kayıt) sadece son kontrol için bakılır; test'e bakarak seçim/ayar yapılmaz.
-- Gönderim planı (18 Kasım): #8 ctx_c3_540 (33.09) şu anki en iyi; 12 hakkın 8'i kullanıldı, kalan 4: İş F topluluğu (geçerse 18–19 Kasım),
-  İş E'nin iki bileşen seti (19–20 Kasım), gerekirse bir yedek. Son ZIP en geç 21 Kasım öğlen hazır. Kullanıcı gönderir.
+- Gönderim planı (19 Kasım): #8 ctx_c3_540 (33.09) şu anki en iyi; 12 hakkın 10'u kullanıldı, kalan 2. İş I: M = 0.5 · ctx_c3_540 +
+  0.5 · ctxE_c2hs3p_540 (yeniden eğitim yok; karar öncesi metrik ağırlıklı dağılımlar ortalanır, sonra sürekli ağırlıklı medyan; ortak
+  bileşenler bir kez; w = 0.5 SABİT, CV'den seçilmez). Akıl sağlığı: k=0 ve kaymalı çift CV (D, D', U[1,6]) hiçbir dağılımda M ikisinden
+  de > 0.1 kötü olmasın. Süre: tahmini mühürlü ≤ 3000 s; aşarsa M' = 0.5 · ctx_c3 + 0.5 · ctxE_c2h (bildir). ZIP 19 akşamı / 20 sabahı.
+  İş J (yedek, İş I'dan sonra, süre kalırsa): (ctx_c3 + ctx_c2 + ctxE_c2hs3p) / 3, aynı kural ve testler; 21 Kasım son hakkı için,
+  gönderim kararı İş I'nın mühürlü sonucuna göre kullanıcıda. Son gönderim 21 Kasım akşamı (sınır 22 Kasım 01:59 TR). Kullanıcı gönderir.
   Ayrıntı: docs/status.md, docs/submissions_log.md.
 - 18 KASIM KABUL KURALLARI (kullanıcı): BİRİNCİL ölçüt İş D'nin en iyi kayma dağılımı D ile kaymalı CV (dışarıdaki kayıtlar D'den
   örneklenen kaymayla, sabit tohum, 3 tekrar); k=0 yalnız bilgi. İş E (D ile yeniden eğitim): ctx_c3 tarifine göre Δ ≤ −0.15 ve ≥ 7/10 kat.

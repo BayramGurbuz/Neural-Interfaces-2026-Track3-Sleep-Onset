@@ -54,6 +54,13 @@ Son gönderim en geç 20 Kasım, 21 Kasım yedek gün.
 | 6 | ≤ 2026-11-17 | cand3_gru_540.zip | **33.72** | – | – | – | – | – |
 | 7 | 2026-11-18 08:08 | ctx_c2_540.zip | **33.12** | – | – | – | – | – |
 | 8 | 2026-11-18 08:08 | ctx_c3_540.zip | **33.09** | – | – | – | – | 16. / 183 |
+| 9 | 2026-11-19 | ctxE_c3s3_540.zip | **33.29** | – | – | – | – | – |
+| 10 | 2026-11-19 | ctxE_c2hs3p_540.zip | **33.13** | – | – | – | – | – |
+
+**19 Kasım sonuçları (kullanıcı):** ctxE_c3s3_540 33.29, ctxE_c2hs3p_540 33.13 → en iyi hâlâ ctx_c3_540 (33.09). **12 hakkın 10'u
+kullanıldı, 2 kaldı.** Okuma: HGB E mühürlüde nötr (ctx_c2 33.12 ↔ c2hs3p 33.13), GRU E zararlı (c3s3 33.29 ↔ ctx_c3 33.09); kaymalı
+çift CV'nin öngördüğü −0.22 (İş E) taşınmadı. Bundan sonra 0.2 s altındaki yerel farklara güvenilmiyor; kararlar mühürlüde kanıtlanmış
+modellere dayanır. İş H (GRU E içeriyordu) iptal. Sonraki: İş I (ctx_c3 + ctxE_c2hs3p karışımı, yeniden eğitim yok), yedek İş J.
 
 **16 Kasım mühürlü güncellemesi sonrası skorlar (18 Kasım 14:15, kullanıcı; bütün gönderimler yeniden koşuldu):**
 mühürlü kayıtların açılış dakikaları artık modele verilmiyor (FAQ "Sealed evaluation update · November 16"); geçen süre ilk verilen

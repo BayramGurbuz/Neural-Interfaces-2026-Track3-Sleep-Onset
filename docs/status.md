@@ -1,6 +1,22 @@
-# Proje durumu (son güncelleme: 2026-11-18)
+# Proje durumu (son güncelleme: 2026-11-19)
 
-## ŞU AN (19 Kasım 10:50)
+## ŞU AN (19 Kasım 21:30)
+- **Mühürlü sonuçlar (19 Kasım):** #9 ctxE_c3s3_540 **33.29**, #10 ctxE_c2hs3p_540 **33.13**. En iyi hâlâ **ctx_c3_540 33.09**.
+  **12 hakkın 10'u kullanıldı, 2 kaldı.** (ctxE_c3_540 ve ctxE_c2h_540 gönderilmedi.)
+- **Okuma (kullanıcı):** HGB E mühürlüde nötr (ctx_c2 33.12 ↔ c2hs3p 33.13), GRU E zararlı (c3s3 33.29). Kaymalı CV'nin öngördüğü −0.22
+  taşınmadı. Bundan sonra 0.2 s altındaki yerel farklara güvenilmiyor; kararlar mühürlüde kanıtlanmış modellere dayanacak.
+  **İş H iptal** (GRU E içeriyor).
+- **İş I (şimdi):** M = 0.5 · ctx_c3_540 + 0.5 · ctxE_c2hs3p_540, yeniden eğitim yok. İki paketin karar öncesi metrik ağırlıklı dağılımları
+  ortalanır, sonra mevcut karar kuralı (sürekli ağırlıklı medyan); ortak bileşenler (bağlamlı dedektör, öznitelik akışı, GRU ctx) bir kez.
+  Eşdeğer biçim: 0.4 · (⅔ GRU ctx + ⅙ TCN + ⅙ GRU-emb) + 0.6 · (½ HGB ctx + ½ HGB E-s3p), her HGB seti kendi bin sınırları ve kendi
+  normalleştirmesiyle. w = 0.5 SABİT. (1) Akıl sağlığı: k=0 ve kaymalı çift CV (D = W24-60, D' = W0-96, U[1,6] = W12-72); kabul yalnız:
+  M hiçbir dağılımda ikisinden de 0.1'den fazla kötü değil. (2) Paket + testler (akış ↔ toplu CPU referansı, NaN / düz kanal, bağlam,
+  reset, Docker ×2). (3) Süre: tahmini mühürlü ≤ 3000 s; aşarsa M' = 0.5 · ctx_c3 + 0.5 · ctxE_c2h (tek tohum) ve bildirilir.
+  ZIP 19 akşamı / 20 Kasım sabahı.
+- **İş J (yedek, İş I'dan sonra, süre kalırsa):** (ctx_c3 + ctx_c2 + ctxE_c2hs3p) / 3, aynı kural ve testler; 21 Kasım'daki son hak için,
+  gönderim kararı İş I'nın mühürlü sonucuna göre kullanıcıda. Son gönderim 21 Kasım akşamı (sınır 22 Kasım 01:59 TR).
+
+## Önceki (19 Kasım 10:50)
 - **Hazır ZIP'ler (hiçbiri gönderilmedi):** ctxE_c3_540 (f853d9fc…, 0.88–0.93), ctxE_c2h_540 (hibrit, sonradan seçildi; 5816a944…, 1.13–1.14),
   **İş G** tohum ortalamalı: ctxE_c3s3_540 (1722ad75…, 1.36–1.46, kenarda), ctxE_c2hs3p_540 (B + B_h2 × 3; 821ae6bd…, 1.30–1.37). ctxE_c2hs3_540
   sınırı aştı (1.67–1.69), kullanılmayacak. Plan (kullanıcı): bugün c3 + c2h; kalan 2 hak 20–21 Kasım, mühürlü sonuca ve İş G'ye göre.
