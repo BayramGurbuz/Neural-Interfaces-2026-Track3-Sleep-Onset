@@ -1,6 +1,22 @@
 # Proje durumu (son güncelleme: 2026-11-20)
 
-## ŞU AN (20 Kasım 14:50)
+## ŞU AN (20 Kasım 17:50) — İş K ve İş J ZIP'leri HAZIR, gönderilmedi (kullanıcı gönderecek)
+- **Önerilen son gönderim: `submissions/mixK_540.zip`** (24.66 MB, SHA-256 `81ed44667826be2f2f3194e25ac29d2155de3cfa37b066f1c2b8170c7c2e16c9`)
+  = mixI + GRU ctx tohum 10–19 (20 tohum) + HGB ctx B / B_h2 tohum 1–2 (her üye ¼). Öncelik 3 (HGB E B_h1 / B2 tohum 1–2, mixK3_540) süre
+  kuralını GEÇMEDİ → kullanılmayacak.
+- **Yedek: `submissions/mixJ_540.zip`** (20.24 MB, SHA-256 `76a2f730f44f20afd6130b024863ddb836758d597efed2251771f1a0b0ab6d77`)
+  = (ctx_c3 + ctx_c2 + ctxE_c2hs3p) / 3; K Failed (zaman aşımı) olursa.
+- Kanıtlar: tohum 0 yeniden eğitimleri bit düzeyinde aynı (GRU ctx; HGB ctx B, B_h2 bütün düğüm alanları + bin sınırları); ek tohum ağırlıkları 0 →
+  K0 ve K30 akış tahminleri mixI_540 ile bit düzeyinde aynı; paketleyici regresyonu (mixI_540 yeniden kurulur → bit-aynı); J eşdeğerlik (W farkı
+  2.2e-16, tahminler %100 aynı); K / K3 / J akış ↔ toplu (CPU dedektör), temizlik, 9 arıza, bağlam + reset PASS; Docker ×2 aynı skor.
+- Süre (17:00–17:43, boş makine, Docker v3, aday 1 149 / 156 / 135 s): mixI 224 / 220 (1.47–1.51), **K 264 / 263 (1.73–1.81; tek komşu en kötü
+  1.95)**, K3 363 / 322 (2.21–2.38), J 224 / 220. Tahmini mühürlü: K ×0.82 2165–2265 s (en kötü 2440), ×1.0 2640–2760 (en kötü 2975) ✓; mixI tabanlı
+  (gerçek 2178.67 × K/mixI 1.18–1.20) ≈ **2570–2610 s**. K3 ×0.82 en kötü 2980 > 2900, ×1.0 3635 > 3500 ✗. Bu oturumda mixI'nin yerel oranı
+  gerçeğe (1.43) yakın → ×0.82 iyimser, mixI tabanlı tahmin daha gerçekçi.
+- Ayrıntı: `docs/submissions_log.md` "İş K / İş J paketleri (20 Kasım)". Sonraki: kullanıcı 21 Kasım 15:00'e kadar mixK_540'ı gönderir; 22 Kasım
+  docs/method.md son hali.
+
+## Önceki (20 Kasım 14:50)
 - **Gönderim #11 sonucu: mixI_540 mühürlü 32.92** (W-bMAE 33.58, bMAE 100.64, MAE 191.61), süre **2178.67 s**; sıra **20 / 198**.
   10. sıra 32.16, ilk 3 31.59 / 31.70 / 31.84. **EN İYİ gönderimimiz** (ctx_c3 33.09'dan −0.17, ctxE_c2hs3p 33.13'ten −0.21).
   **Hak: 12'nin 11'i kullanıldı, 1 kaldı.**

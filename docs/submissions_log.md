@@ -454,3 +454,38 @@ büyük kazandırdı (gridpi'nin 37.49 → 39.20 düşüşüyle tutarlı). Bunda
 - **mixI_540.zip** 20.24 MB, SHA-256 `5ece144bfffd28c67e1b554b2ce7c48d27958525ac817732914c9b16cb2c1a5a`.
 - **Gönderim #11 (20 Kasım): mühürlü 32.92** (W-bMAE 33.58, bMAE 100.64, MAE 191.61), süre 2178.67 s (tahmin 2530–2790 s; gerçek oran 1.43), sıra 20 / 198.
 
+## İş K / İş J paketleri (20 Kasım): mixK_540 (öneri), mixJ_540 (yedek) — HAZIR, GÖNDERİLMEDİ
+- **İş K tarifi** = mixI ile aynı (α 0.4; HGB ½ HGB ctx + ½ HGB E-s3p, her set kendi bin sınırları ve ω normalleştirmesi; dizi ⅔ GRU ctx + ⅙ TCN + ⅙
+  GRU-emb); yeni bileşen yok, yalnız tohum ortalamaları: (1) GRU ctx tohum 10–19 (aynı tarif: kırpma 50/35/15, bağlamlı yakınlık, 20 epoch,
+  deterministik, 540 kayıt; `train_gru_n2c.py --det=ctx --seeds=0,10,…,19 --out=gru_ctx_k_all`, 152 s); GRU ctx = iki 10'luk grubun ½ / ½ ortalaması
+  (= 20 tohum ortalaması; sarmalayıcıda isteğe bağlı `gru_group_sizes` / `gru_group_weights`, yoksa eski yol). (2) HGB ctx B ve B_h2 × random_state
+  0, 1, 2 (aynı tablo 80 975 + 64 935 kırpılmış satır, aynı bin sınırları, n_iter 200 / 300; `train_n2det_final.py hgbmc --det=ctx --seeds=0,1,2
+  --members=B,B_h2` → `ens_c_all_ctx_s3p_crop`, 2392 s); hgb2 seti B s0–2, B_h1 s0, B_h2 s0–2, B2 s0, ağırlıklar 1/12 ×3, ¼, 1/12 ×3, ¼ (her üye ¼).
+  (3) HGB E B_h1 / B2 tohum 1–2 (Work G modelleri, `ens_c_all_ctxE_s3_crop`, 12 model 1/12) → mixK3_540: süre kuralını geçmedi, kullanılmayacak.
+- **İş J** = (ctx_c3_540 + ctx_c2_540 + ctxE_c2hs3p_540) / 3, mixI bileşenleriyle: α 13/30, dizi ağırlıkları 7 : 3 : 3 (GRU ctx, TCN, GRU-emb), HGB ctx
+  payı 11/17 (ctx_c2 = α 0.5, (GRU + TCN + GRU-emb)/3, HGB ctx; bileşen dosyaları diğer iki paketinkilerle aynı). Akıl sağlığı (İş I tablosu) PASS.
+- Paketleme: `scripts/workk_bundle.py K|K3|K0|K30|J` (SAVE/mixI_all + yeni modeller → SAVE/mix<V>_all) → `build_hgb_submission.py --model
+  …/mix<V>_all/model.joblib --name mix<V>_540 --smooth-a 0`. Test zinciri `scripts/workk_tests.sh` (loglar `~/neuralbench/save/workk_build[_<V>].log`),
+  Docker / süre `scripts/workk_docker.sh` (`workk_docker.log`).
+- Kontroller:
+  - Tohum 0: yeniden eğitilen GRU ctx tohum 0 durum sözlüğü, μ / σ / ω_B mevcut `gru_ctx_all` ile bit düzeyinde aynı; HGB ctx B_s0 ve B_h2_s0
+    `ens_c_all_ctx_crop` modelleriyle bit düzeyinde aynı (her ağacın ham düğüm dizisi bütün alanlarıyla, baseline, dışa aktarılan diziler; bin
+    sınırları ve ω aynı); mixI'nin 8 HGB E modeli Work G s3 modelleriyle aynı.
+  - Sıfır ağırlık: K0 (GRU grupları 1 / 0, eklenen HGB ctx modelleri 0) ve K30 (+ eklenen 4 HGB E modeli 0, diğerleri mixI'nin ağırlıkları) akış
+    tahminleri **mixI_540 ile bit düzeyinde aynı** (maks |Δ| 0.0). Paketleyici regresyonu: mixI_540 yeni paketleyiciyle → bit-aynı. Kaynak klasörler == ZIP.
+  - Akış ↔ toplu (CPU dedektör referansı): K maks |Δ| < 0.5 s PASS (28.3633 ↔ 28.3632; TCN 40.3806, GRU-emb 49.0675, HGB E 29.5489 eğitim loglarıyla
+    aynı; GRU ctx 20 tohum 32.2559, HGB ctx 25.0142, örneklem içi); K3 PASS (HGB E 12 model 29.4902 ↔ ctxE_c3s3 29.4903); J PASS (maks 0.018 s,
+    bütün bileşenler eşleşiyor). J eşdeğerlik: W farkı 2.2e-16, tahminler float32 referansla %100 aynı; kaynak paket akışları kayıtlı koşularla aynı.
+  - Temizlik (`n2det_clean_test.py`), 9 arıza (`extra_faults.py`), bağlam + reset (`ctx_wrapper_test.py`): K, K3, J PASS.
+  - Bilgi: mixI'ya göre akış farkı K ort. 2.80 s (p95 10.6), K3 2.95 s, J 4.79 s (p95 18.4).
+  - Docker v3 ×2 (aynı skor, bit düzeyinde): K **28.363290692306**, K3 28.35185822403627, J **28.217146331932202**; mixI 28.300361165769242 ve aday 1
+    31.883341811607796 öncekiyle aynı.
+- Süre (20 Kasım 17:00–17:43, boş makine, sıra aday1 I K K3 J aday1 K3 K I J aday1): aday 1 149 / 156 / 135 s; mixI 224 / 220; K 264 / 263; K3 363 / 322;
+  J 224 / 220. Komşu aday 1 ortalamasına göre oran: mixI 1.47–1.51, **K 1.73–1.81** (tek komşu 1.69–1.95), K3 2.21–2.38, J 1.47–1.51. Mühürlü tahmin
+  (1526.6 × oran × 0.82): K 2165–2265 s (en kötü 2440), ×1.0 2640–2760 (en kötü 2975) → kural (≤ 2900 / ≤ 3500) ✓; mixI tabanlı 2178.67 × (K/mixI
+  1.18–1.20) ≈ 2570–2610 s. K3: ×0.82 2770–2980, ×1.0 3375–3635 → ✗. J ≈ mixI ≈ 2180 s. Bu oturumda mixI'nin yerel oranı (1.47–1.51) gerçeğe (1.43)
+  yakın → ×0.82 iyimser; mixI tabanlı tahmin daha gerçekçi.
+- **mixK_540.zip** 24.66 MB, SHA-256 `81ed44667826be2f2f3194e25ac29d2155de3cfa37b066f1c2b8170c7c2e16c9`.
+- **mixJ_540.zip** 20.24 MB, SHA-256 `76a2f730f44f20afd6130b024863ddb836758d597efed2251771f1a0b0ab6d77`.
+- mixK3_540.zip (kullanılmayacak) 30.15 MB, SHA-256 `24eb0e5c62033393cab4cbc16b6a852a4c75ba5c217957b3a3d39161eeee1e67`.
+

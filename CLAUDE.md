@@ -107,6 +107,8 @@ Track 03 (Sleep Onset) yarışması için model geliştirme deposudur.
   tohum 10–19 → HGB ctx B/B_h2 tohum 1–2 → bütçe kalırsa HGB E B_h1/B2 tohum 1–2; kontroller: tohum 0 bit-aynı, ek tohum ağırlığı 0 → mixI ile
   bit-aynı akış, tam test zinciri, Docker ×2, karışık sıralı süre). İş J yedek = (ctx_c3 + ctx_c2 + ctxE_c2hs3p) / 3. ZIP'ler en geç 21 Kasım
   10:00; kullanıcı 21 Kasım 15:00'e kadar K'yı gönderir, Failed olursa J. 22 Kasım: docs/method.md son hali + tek son commit.
+  DURUM (20 Kasım 17:50): mixK_540.zip (öncelik 1+2; SHA-256 81ed4466…16c9, tahmini mühürlü ≈ 2570–2610 s) ve yedek mixJ_540.zip (76a2f730…6d77,
+  ≈ 2180 s) HAZIR, bütün testler + Docker ×2 PASS. Öncelik 3 (mixK3_540) süre kuralını geçmedi, kullanılmaz.
 - Eski gönderim planı (19 Kasım): #8 ctx_c3_540 (33.09) o zamanki en iyi; 12 hakkın 10'u kullanıldı, kalan 2. İş I: M = 0.5 · ctx_c3_540 +
   0.5 · ctxE_c2hs3p_540 (yeniden eğitim yok; karar öncesi metrik ağırlıklı dağılımlar ortalanır, sonra sürekli ağırlıklı medyan; ortak
   bileşenler bir kez; w = 0.5 SABİT, CV'den seçilmez). Akıl sağlığı: k=0 ve kaymalı çift CV (D, D', U[1,6]) hiçbir dağılımda M ikisinden
