@@ -64,7 +64,9 @@ W = wa * W_a + (1 - wa) * W_b
 grid = np.asarray(joblib.load(ROOT / "submissions" / pa / "model.joblib")["grid"], np.float64)
 p_ref = np.clip(np.array([float(dec(W[i:i + 1], None, np.ones(W.shape[1]), grid)[0]) for i in range(len(W))]), 0, 600)
 dW = np.abs(W_mix - W).max()
-dp = np.abs(p_mix - p_ref)
+p_ref32 = p_ref.astype(np.float32).astype(np.float64)  # the wrapper returns float32 (resolution <= 6.1e-5 s below 600 s)
+dp = np.abs(p_mix - p_ref32)
 print(f"pre-decision distributions: max |W_mix - ({wa} W_{pa} + {1 - wa:.2f} W_{pb})| = {dW:.2e}")
-print(f"predictions: max |Δ| {dp.max():.2e} s, mean {dp.mean():.2e} s, > 0.01 s in {(dp > 0.01).sum()} windows")
-print("PASS" if dW < 1e-9 and dp.max() < 1e-6 else "FAIL")
+print(f"predictions vs float32-rounded reference: max |Δ| {dp.max():.2e} s, identical in {(dp == 0).mean():.4%} of windows, "
+      f"> 0.01 s in {(dp > 0.01).sum()} windows")
+print("PASS" if dW < 1e-9 and dp.max() <= 6.2e-5 else "FAIL")
