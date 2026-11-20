@@ -1,5 +1,21 @@
 # Proje durumu (son güncelleme: 2026-11-20)
 
+## Araştırma (20 Kasım akşamı): 0.72 kazanç arayışı — İş K yedekte tutuluyor (kullanıcı kararı: son ana kadar)
+- Kullanıcı: son hak ancak ≥ 0.72 kazanç beklenen bir yöntemle kullanılacak; mixK_540 son ana kadar yedek.
+- Hata anatomisi (`shift_cv.py diag`, M = mixI tarifi, D = W24-60, 3 çekiliş; M 35.604 = İş I tablosu): katkılar [0,40) 7.68, [40,90) 7.55,
+  [90,300) 11.82, [300,600] 8.55; ortalama tahmin / işaretli hata: 27.2 / +9.4, 53.9 / −8.8, 135.4 / −52.9, 232.1 / −272.6 s → uzak pencerelerde
+  sistematik ~270 s eksik tahmin (metrik ağırlıklı medyan yakın aralıklara karşı korunuyor). M ≥ 250 s olan pencere oranı: [0,40) 0, [40,90)
+  0.002, [90,300) 0.10, [300,600] 0.42.
+- Geri sayım süzgeci (önceki pencerenin dağılımı 5 s kaydırılıp birleştirilir; yeniden eğitim yok): karışım biçimi her ayarda kötü (+0.08 …
+  +1.25); çarpım biçimi [300,600] katkısını 8.55 → 5.6'ya indiriyor ama [40,90) / [90,300) daha çok bozuluyor (+0.73 … +37); kapılı çarpım
+  (yalnız M ≥ θ, θ 200–350, a 0.2–0.7) en iyi Δ +0.001 → uzak kanıt biriktirmek hatayı yalnız uzaktan ortaya taşıyor; karar kuralı dengeyi zaten
+  en iyi noktada kuruyor. SONUÇ: mevcut dağılımlar üzerinde son işlemle kazanç yok; kalan hata bilgi sınırı ([90,300) ↔ [300,600] ayrımı).
+- Literatür (Li ve ark. 2025, Nat Neurosci, "Falling asleep follows a predictable bifurcation dynamic"): uyku uzaklığı onset'ten ~10 dk öncesine
+  kadar düz, kritik geçiş ~2–5 dk önce, kritik yavaşlama (5 dk varyans / lag-1 otokorelasyon) ~4 dk önce; gerçek zamanlı tahmin yalnız kişi içi
+  (önceki gecenin uyku-sonrası merkezi gerekiyor) → bizim kurguda doğrudan uygulanamaz, [300,600]'ün EEG'den az bilgi taşıdığını doğruluyor.
+- Not: ilk diag sürümü bütün fold'ların 601 hücreli dağılımlarını bellekte tuttu (~10 GB) → WSL bellek darlığı, VS Code sunucusu kapandı;
+  düzeltildi (fold başına, ızgara düzeyinde saklama; 2.5 GB).
+
 ## ŞU AN (20 Kasım 17:50) — İş K ve İş J ZIP'leri HAZIR, gönderilmedi (kullanıcı gönderecek)
 - **Önerilen son gönderim: `submissions/mixK_540.zip`** (24.66 MB, SHA-256 `81ed44667826be2f2f3194e25ac29d2155de3cfa37b066f1c2b8170c7c2e16c9`)
   = mixI + GRU ctx tohum 10–19 (20 tohum) + HGB ctx B / B_h2 tohum 1–2 (her üye ¼). Öncelik 3 (HGB E B_h1 / B2 tohum 1–2, mixK3_540) süre

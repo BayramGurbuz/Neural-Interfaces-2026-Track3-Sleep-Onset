@@ -369,6 +369,71 @@ def part_fmix():
     path.write_text(json.dumps(old, indent=2, default=float))
 
 
+IMIX_SEQ = ["uw_n10_ctx6_crop", "tcn_n10", "cnn3_emb"]
+_G3 = 0.4 / 3
+IMIX_PK = {  # (HGB ctx, HGB E s0, HGB E s3p, GRU ctx, TCN, GRU-emb)
+    "ctx_c3": (0.6, 0, 0, 0.4, 0, 0), "ctx_c2": (0.5, 0, 0, 0.5 / 3, 0.5 / 3, 0.5 / 3),
+    "ctxE_c2h": (0, 0.6, 0, _G3, _G3, _G3), "ctxE_c2hs3p": (0, 0, 0.6, _G3, _G3, _G3)}
+
+
+def imix_folds(dist, lazy=False):
+    """Work I fold inputs under one distribution (factored out of part_imix on 20 Nov, unchanged): per fold the held-out stream table, the
+    fine (601-cell) distributions of the 3 HGB sets and 3 sequence components, the old slot weights. Returns (folds, E composition max dev)."""
+    onset = rec_onsets(d)
+    t = "" if dist == "k0" else "_d"
+    R1 = {p: np.load(OUT / f"shiftcv_i_hgbctxE_B+B_h2_s012_{p}.npz") for p in protocols}
+    R2 = {p: np.load(OUT / f"shiftcv_i_hgbctxE_B_h1+B2_s0_{p}.npz") for p in protocols}
+    Ed = {p: np.load(OUT / f"shiftcv_d_hgbctxE_{p}.npz") for p in protocols}
+    src = {"hctx": {p: np.load(OUT / f"shiftcv{t}_hgbctx_{p}.npz") for p in protocols},
+           **{s: {p: np.load(OUT / f"shiftcv{t}_seq_{s}_{p}.npz") for p in protocols} for s in IMIX_SEQ}}
+    folds, dev = [], 0.0
+    for proto, splits in protocols.items():
+        for k, (tr, _) in enumerate(splits):
+            r1 = [R1[proto][f"{dist}_f{k}_s{s}"].astype(np.float64) for s in (0, 1, 2)]
+            if dist == "k0":
+                e0 = 0.5 * r1[0] + 0.5 * R2[proto][f"k0_f{k}_s0"].astype(np.float64)
+            else:
+                e0 = Ed[proto][f"{dist}_f{k}"].astype(np.float64)
+                if dist == "W24-60":  # composition check
+                    dev = max(dev, float(np.abs(0.5 * r1[0] + 0.5 * R2[proto][f"W24-60_f{k}_s0"] - e0).max()))
+            es3 = e0 + 0.5 * (np.mean(r1, axis=0) - r1[0])
+            items = shifted(proto, k, dist)
+            idx = np.concatenate([recs[i][kk:] for i, kk, _ in items])
+            dte = d.iloc[idx].reset_index(drop=True).copy()
+            dte["timeline"] = np.concatenate([[f"{d.timeline[recs[i][0]]}#{j}"] * (len(recs[i]) - kk) for i, kk, j in items])
+            dtr = d[tr].reset_index(drop=True)
+            _, ob = class_stats(dtr, B)
+            folds.append(dict(proto=proto, k=k, dte=dte, t=dte.stop.to_numpy().astype(np.float64), tr=tr,
+                              hgb_g=[src["hctx"][proto][f"{dist}_f{k}"].astype(np.float64), e0, es3],
+                              seq_g=[to_grid(src[s][proto][f"{dist}_f{k}"].astype(np.float64), B) for s in IMIX_SEQ],
+                              w_old=old_slot_weights(ob, grid_omega(dtr)), D=onset.loc[d.timeline.to_numpy()[idx]].to_numpy()))
+            if not lazy:  # 20 Nov: lazy=True keeps only the 25-cell grid arrays (fine 601-cell arrays of all folds need ~10 GB)
+                fl = folds[-1]
+                fl["hgb"], fl["seq"] = [x @ FINE for x in fl["hgb_g"]], [x @ FINE for x in fl["seq_g"]]
+    return folds, dev
+
+
+def imix_pred(f, c, chunk=4096):
+    """Fixed-coefficient package mix of one fold -> point predictions (continuous weighted median of the metric-weighted mix)."""
+    from decision_layer import slot_median, to_slots
+    out = np.empty(len(f["t"]))
+    ws, wh = f["w_old"]
+    for i0 in range(0, len(out), chunk):
+        sl = slice(i0, i0 + chunk)
+        t = f["t"][sl]
+        M = 0.0
+        for ci, x in zip(c[:3], f["hgb"]):
+            if ci:
+                h = to_slots(x[sl], t, 0.0) * wh
+                M = M + ci * h / h.sum(1, keepdims=True)
+        for ci, x in zip(c[3:], f["seq"]):
+            if ci:
+                q = to_slots(x[sl], t, 0.0) * ws
+                M = M + ci * q / q.sum(1, keepdims=True)
+        out[sl] = slot_median(M)
+    return out
+
+
 def part_imix():
     """Work I (19 Nov): fixed-weight mixes of whole packages (no selection), pre-decision metric-weighted distributions averaged, then the
     continuous weighted median. Package = coefficients on the normalised HGB sets (ctx; E single seed; E with B and B_h2 x 3 seeds) and the
@@ -376,66 +441,17 @@ def part_imix():
     Work I runs (0.5 * mean(B, B_h2) seed 0 + 0.5 * mean(B_h1, B2) seed 0, checked against the Work E file under W24-60);
     E-s3p = E single seed + 0.5 * (seed mean - seed 0) of mean(B, B_h2) (= members weighted 1/12 x3, 1/4, 1/12 x3, 1/4).
     k0 inputs of HGB ctx and the sequence models from the untagged Work C files, W from the Work F files (tag _d)."""
-    from decision_layer import slot_median, to_slots
-    onset = rec_onsets(d)
-    names = ["uw_n10_ctx6_crop", "tcn_n10", "cnn3_emb"]
-    R1 = {p: np.load(OUT / f"shiftcv_i_hgbctxE_B+B_h2_s012_{p}.npz") for p in protocols}
-    R2 = {p: np.load(OUT / f"shiftcv_i_hgbctxE_B_h1+B2_s0_{p}.npz") for p in protocols}
-    Ed = {p: np.load(OUT / f"shiftcv_d_hgbctxE_{p}.npz") for p in protocols}
-    src = {t: {"hctx": {p: np.load(OUT / f"shiftcv{t}_hgbctx_{p}.npz") for p in protocols},
-               **{s: {p: np.load(OUT / f"shiftcv{t}_seq_{s}_{p}.npz") for p in protocols} for s in names}} for t in ("", "_d")}
-    g3 = 0.4 / 3
-    PK = {  # (HGB ctx, HGB E s0, HGB E s3p, GRU ctx, TCN, GRU-emb)
-        "ctx_c3": (0.6, 0, 0, 0.4, 0, 0), "ctx_c2": (0.5, 0, 0, 0.5 / 3, 0.5 / 3, 0.5 / 3),
-        "ctxE_c2h": (0, 0.6, 0, g3, g3, g3), "ctxE_c2hs3p": (0, 0, 0.6, g3, g3, g3)}
+    PK = IMIX_PK
     ROWS = {"ctx_c3": {"ctx_c3": 1.0}, "ctxE_c2hs3p": {"ctxE_c2hs3p": 1.0}, "ctxE_c2h": {"ctxE_c2h": 1.0}, "ctx_c2": {"ctx_c2": 1.0},
             "M = c3/2 + c2hs3p/2": {"ctx_c3": 0.5, "ctxE_c2hs3p": 0.5}, "M' = c3/2 + c2h/2": {"ctx_c3": 0.5, "ctxE_c2h": 0.5},
             "J = (c3 + c2 + c2hs3p)/3": {"ctx_c3": 1 / 3, "ctx_c2": 1 / 3, "ctxE_c2hs3p": 1 / 3},
             "J' = (c3 + c2 + c2h)/3": {"ctx_c3": 1 / 3, "ctx_c2": 1 / 3, "ctxE_c2h": 1 / 3}}
     COEF = {r: np.sum([w * np.asarray(PK[pk]) for pk, w in mix.items()], axis=0) for r, mix in ROWS.items()}
-
-    def pred(f, c, chunk=4096):
-        out = np.empty(len(f["t"]))
-        ws, wh = f["w_old"]
-        for i0 in range(0, len(out), chunk):
-            sl = slice(i0, i0 + chunk)
-            t = f["t"][sl]
-            M = 0.0
-            for ci, x in zip(c[:3], f["hgb"]):
-                if ci:
-                    h = to_slots(x[sl], t, 0.0) * wh
-                    M = M + ci * h / h.sum(1, keepdims=True)
-            for ci, x in zip(c[3:], f["seq"]):
-                if ci:
-                    q = to_slots(x[sl], t, 0.0) * ws
-                    M = M + ci * q / q.sum(1, keepdims=True)
-            out[sl] = slot_median(M)
-        return out
+    pred = imix_pred
 
     out = {}
     for dist in DISTS:
-        t = "" if dist == "k0" else "_d"
-        folds, dev = [], 0.0
-        for proto, splits in protocols.items():
-            for k, (tr, _) in enumerate(splits):
-                r1 = [R1[proto][f"{dist}_f{k}_s{s}"].astype(np.float64) for s in (0, 1, 2)]
-                if dist == "k0":
-                    e0 = 0.5 * r1[0] + 0.5 * R2[proto][f"k0_f{k}_s0"].astype(np.float64)
-                else:
-                    e0 = Ed[proto][f"{dist}_f{k}"].astype(np.float64)
-                    if dist == "W24-60":  # composition check
-                        dev = max(dev, float(np.abs(0.5 * r1[0] + 0.5 * R2[proto][f"W24-60_f{k}_s0"] - e0).max()))
-                es3 = e0 + 0.5 * (np.mean(r1, axis=0) - r1[0])
-                items = shifted(proto, k, dist)
-                idx = np.concatenate([recs[i][kk:] for i, kk, _ in items])
-                dte = d.iloc[idx].reset_index(drop=True).copy()
-                dte["timeline"] = np.concatenate([[f"{d.timeline[recs[i][0]]}#{j}"] * (len(recs[i]) - kk) for i, kk, j in items])
-                dtr = d[tr].reset_index(drop=True)
-                _, ob = class_stats(dtr, B)
-                folds.append(dict(proto=proto, k=k, dte=dte, t=dte.stop.to_numpy().astype(np.float64),
-                                  hgb=[x @ FINE for x in (src[t]["hctx"][proto][f"{dist}_f{k}"].astype(np.float64), e0, es3)],
-                                  seq=[to_grid(src[t][s][proto][f"{dist}_f{k}"].astype(np.float64), B) @ FINE for s in names],
-                                  w_old=old_slot_weights(ob, grid_omega(dtr)), D=onset.loc[d.timeline.to_numpy()[idx]].to_numpy()))
+        folds, dev = imix_folds(dist)
         E = {r: evaluate(folds, [pred(f, c) for f in folds]) for r, c in COEF.items()}
         rows = {}
         for r, e in E.items():
@@ -463,6 +479,101 @@ def part_imix():
     old = json.loads(path.read_text()) if path.exists() else {}
     old.update(out)
     path.write_text(json.dumps(old, indent=2, default=float))
+
+
+def countdown(x, starts, lens, mode, a, hz):
+    """20 Nov research probe: countdown filter on fine (601-cell) remaining-time distributions, per stream, causal. The previous window's
+    belief shifted by one 5-s step (cells < 5 s dropped: the stream would have ended; a fraction hz of the >= 600 point mass moves into
+    [595, 600) uniformly), renormalised, then combined with the current distribution: 'mix' b = (1 - a) p + a shift(b_prev),
+    'prod' b ∝ p * (shift(b_prev) + 1e-6)^a. a: scalar or per-row array (gate; a = 0 -> the row's own distribution, the
+    accumulation restarts there). Vectorised over streams by within-stream step."""
+    a = np.broadcast_to(np.asarray(a, np.float64), (len(x),))
+    if not a.any():
+        return x
+    y = np.empty_like(x)
+    y[starts] = x[starts]
+    for j in range(1, int(lens.max())):
+        live = lens > j
+        cur, prv = starts[live] + j, starts[live] + j - 1
+        b = y[prv]
+        p = np.zeros_like(b)
+        p[:, :595] = b[:, 5:600]
+        p[:, 595:600] = (hz * b[:, 600] / 5)[:, None]
+        p[:, 600] = (1 - hz) * b[:, 600]
+        tot = p.sum(1, keepdims=True)
+        p = np.where(tot > 1e-12, p / np.maximum(tot, 1e-300), x[cur])
+        ac = a[cur][:, None]
+        z = (1 - ac) * x[cur] + ac * p if mode == "mix" else x[cur] * (p + 1e-6) ** ac
+        y[cur] = z / z.sum(1, keepdims=True)
+    return y
+
+
+def part_diag():
+    """20 Nov research: error anatomy of M (= mixI recipe) under the shifted dual CV (range contributions, signed bias per range, by
+    elapsed-since-stream-start) and countdown-filter probes on the existing out-of-fold distributions (no retraining; a = 0 == M).
+    Memory-light: folds keep 25-cell grid arrays, the fine arrays are built per fold and dropped. --probes=gated (default) runs the
+    gated product filter (active only where M's own prediction >= theta), --probes=none only the anatomy."""
+    from stream_utils import RANGE_NAMES, range_index
+    cM = 0.5 * np.asarray(IMIX_PK["ctx_c3"]) + 0.5 * np.asarray(IMIX_PK["ctxE_c2hs3p"])
+    onset = rec_onsets(d)
+    which_probes = ARG.get("--probes", "gated")
+    path = OUT / f"shiftcv_diag{TAG}.json"
+    out = json.loads(path.read_text()) if path.exists() else {}
+
+    def run(f, filt=None):
+        h, s = [x @ FINE for x in f["hgb_g"]], [x @ FINE for x in f["seq_g"]]
+        if filt is not None:
+            h, s = filt(f, h, s)
+        return imix_pred(dict(f, hgb=h, seq=s), cM)
+
+    for dist in DISTS:
+        t0 = time.perf_counter()
+        folds, _ = imix_folds(dist, lazy=True)
+        base = [run(f) for f in folds]
+        E0 = evaluate(folds, base)
+        res = dict(macro=E0["macro"]["mean"], contrib=dict(zip(RANGE_NAMES, E0["macro"]["contrib"])))
+        y = np.concatenate([f["dte"].target.to_numpy() for f in folds])
+        p = np.concatenate(base)
+        el = np.concatenate([f["dte"].groupby("timeline", sort=False).cumcount().to_numpy() * 5.0 + 5.0 for f in folds])
+        ri = range_index(y)
+        res["bias"] = {RANGE_NAMES[r]: dict(mean_err=float((p - y)[ri == r].mean()), mae=float(np.abs(p - y)[ri == r].mean()),
+                                            mean_pred=float(p[ri == r].mean()), n=int((ri == r).sum())) for r in range(len(RANGE_NAMES))}
+        print(f"\n== {dist}: M dual {res['macro']:.3f}  contrib " + " ".join(f"{k} {v:.2f}" for k, v in res["contrib"].items()), flush=True)
+        for k, v in res["bias"].items():
+            print(f"   {k:10s} mean pred {v['mean_pred']:7.1f}  mean err {v['mean_err']:+7.2f} s  MAE {v['mae']:7.2f}  n {v['n']}", flush=True)
+        for th in (150, 250, 350):
+            for r in range(len(RANGE_NAMES)):
+                m_ = ri == r
+                print(f"   P(M pred >= {th}) in {RANGE_NAMES[r]}: {float((p[m_] >= th).mean()):.3f}", flush=True)
+        for f in folds:
+            tl = f["dte"].timeline.to_numpy()
+            ch = np.flatnonzero(np.r_[True, tl[1:] != tl[:-1]])
+            f["starts"], f["lens"] = ch, np.diff(np.r_[ch, len(tl)])
+            dtr = d[f["tr"]]
+            rem = onset.loc[dtr.timeline.to_numpy()].to_numpy() - dtr.stop.to_numpy()
+            f["hz"] = float(((rem >= 600) & (rem < 605)).sum() / max((rem >= 600).sum(), 1))
+        probes = {}
+        settings = [] if which_probes == "none" else [(a_, th) for th in (200, 250, 300, 350) for a_ in (0.2, 0.4, 0.7)]
+        for a_, th in settings:
+            preds = []
+            for f, pb in zip(folds, base):
+                gate = a_ * (pb >= th)
+                preds.append(run(f, lambda f_, h, s, g=gate: ([countdown(x, f_["starts"], f_["lens"], "prod", g, f_["hz"]) for x in h],
+                                                              [countdown(x, f_["starts"], f_["lens"], "prod", g, f_["hz"]) for x in s])))
+            E = evaluate(folds, preds)
+            du = np.array(E["unseen"]["folds"]) - np.array(E0["unseen"]["folds"])
+            ds = np.array(E["seen"]["folds"]) - np.array(E0["seen"]["folds"])
+            key = f"prod a={a_} gate M>={th}"
+            probes[key] = dict(macro=E["macro"]["mean"], d=E["macro"]["mean"] - res["macro"], better=int((du < 0).sum() + (ds < 0).sum()),
+                               folds_unseen=list(E["unseen"]["folds"]), folds_seen=list(E["seen"]["folds"]),
+                               contrib=dict(zip(RANGE_NAMES, E["macro"]["contrib"])))
+            print(f"   probe {key:24s} dual {E['macro']['mean']:.3f}  Δ {probes[key]['d']:+.3f} ({probes[key]['better']}/10)  contrib "
+                  + " ".join(f"{v:.2f}" for v in E["macro"]["contrib"]), flush=True)
+        res["folds_unseen"], res["folds_seen"] = list(E0["unseen"]["folds"]), list(E0["seen"]["folds"])
+        res["probes"], res["time_s"] = probes, time.perf_counter() - t0
+        out[dist] = res
+        path.write_text(json.dumps(out, indent=2, default=float))
+        del folds, base
 
 
 def part_seedeval():
@@ -521,5 +632,5 @@ def part_seedeval():
 if __name__ == "__main__":
     t0 = time.perf_counter()
     {"hgb": lambda: part_hgb(), "seq": lambda: part_seq(POS[1]), "mix": lambda: part_mix(POS[1]), "fmix": lambda: part_fmix(),
-     "seedeval": lambda: part_seedeval(), "imix": lambda: part_imix()}[PART]()
+     "seedeval": lambda: part_seedeval(), "imix": lambda: part_imix(), "diag": lambda: part_diag()}[PART]()
     print(f"{PART} done ({time.perf_counter() - t0:.0f} s)")
