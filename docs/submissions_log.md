@@ -57,6 +57,7 @@ Son gönderim en geç 20 Kasım, 21 Kasım yedek gün.
 | 9 | 2026-11-19 | ctxE_c3s3_540.zip | **33.29** | – | – | – | – | – |
 | 10 | 2026-11-19 | ctxE_c2hs3p_540.zip | **33.13** | – | – | – | – | – |
 | 11 | 2026-11-20 | mixI_540.zip | **32.92** (en iyi) | 33.58 | 100.64 | 191.61 | 2178.67 s | 20 / 198 |
+| 12 | 2026-11-20 ~19:50 | mixK_540.zip | _bekleniyor_ | – | – | – | – | – |
 
 **20 Kasım sonucu (kullanıcı):** mixI_540 **32.92**, sıra 20 / 198; 10. sıra 32.16, ilk 3 31.59 / 31.70 / 31.84. **12 hakkın 11'i kullanıldı, 1 kaldı.**
 Okuma: iki mühürlü modelin (33.09 / 33.13) yarı yarıya karışımı ikisinden de iyi (−0.17 / −0.21) → mühürlüde güvenilir biçimde işe yarayan tek şey

@@ -1,9 +1,13 @@
 # Proje durumu (son güncelleme: 2026-11-20)
 
-## KARAR (20 Kasım 22:00): son hak = mixK_540.zip (kullanıcı: "önerin neyse onu yap")
+## ŞU AN (20 Kasım 19:52) — #12 mixK_540 GÖNDERİLDİ (kullanıcı), sonuç bekleniyor
+- 12 hakkın 12'si kullanıldı (bugün #11 mixI + #12 mixK). Failed olursa (hak yemez) yedek `submissions/mixJ_540.zip` gönderilebilir
+  (sınır 22 Kasım 01:59 TR). Beklenen çalışma süresi ≈ 2600 s + kuyruk. Sonuç gelince bu dosyaya ve submissions_log.md'ye işlenecek.
+
+## KARAR (20 Kasım ~19:45): son hak = mixK_540.zip (kullanıcı: "önerin neyse onu yap")
 - Araştırma (geri sayım süzgeci, uçtan uca CNN → GRU) 0.72 hedefine yaklaşan bir yol vermedi → öneri uygulanıyor: son hakta
   **`submissions/mixK_540.zip`** (SHA-256 `81ed44667826be2f2f3194e25ac29d2155de3cfa37b066f1c2b8170c7c2e16c9`, 24.66 MB) gönderilir.
-  Final sıralama en iyi skordan alındığı için 32.92 korunur; risk yok. Son doğrulama 20 Kasım 22:00: ZIP sağlam, düz yapı, import satırları aynı.
+  Final sıralama en iyi skordan alındığı için 32.92 korunur; risk yok. Son doğrulama 20 Kasım ~19:45: ZIP sağlam, düz yapı, import satırları aynı.
 - Zamanlama: 21 Kasım en geç ~18:00 TR (tahmini mühürlü süre ≈ 2600 s + kuyruk; Failed olursa — Failed hak yemez — yedek
   `submissions/mixJ_540.zip` (`76a2f730…6d77`, ≈ 2180 s) için sınır olan 22 Kasım 01:59'a kadar zaman kalsın).
 - 22 Kasım: docs/method.md en iyi mühürlü gönderimin tam üretim zinciriyle son hali + tek son commit.
