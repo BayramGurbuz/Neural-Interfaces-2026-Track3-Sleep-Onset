@@ -13,6 +13,13 @@
 - Literatür (Li ve ark. 2025, Nat Neurosci, "Falling asleep follows a predictable bifurcation dynamic"): uyku uzaklığı onset'ten ~10 dk öncesine
   kadar düz, kritik geçiş ~2–5 dk önce, kritik yavaşlama (5 dk varyans / lag-1 otokorelasyon) ~4 dk önce; gerçek zamanlı tahmin yalnız kişi içi
   (önceki gecenin uyku-sonrası merkezi gerekiyor) → bizim kurguda doğrudan uygulanamaz, [300,600]'ün EEG'den az bilgi taşıdığını doğruluyor.
+- **İş L (yol B, kullanıcı seçimi): ham EEG'den uçtan uca CNN → GRU** (`scripts/e2e.py`; kodlayıcı + GRU birlikte eğitilir, girdi düzeni
+  sarmalayıcıdaki GRU-emb ile aynı → paketlemede sarmalayıcı değişmezdi; kırpma 50/35/15, kanal kazancı ham + öznitelikte tutarlı, 3 tohum,
+  epoch 6/10/14/18, iç içe LOFO; aynı kayma örnekleri; fold başına ~30 s / tohum). Kabul (kullanıcı): D altında M'ye göre Δ ≤ −0.40 ve ≥ 8/10.
+  Sonuç (`shift_cv.py e2emix`): D R1 (GRU-emb → E2E) 35.599 Δ −0.005 (6/10), R2 (E2E çift ağırlık) 35.589 **Δ −0.015 (6/10) → GEÇMEDİ**;
+  k0 R2 −0.117 (7/10), D' +0.028 (6/10); E2E tek başına D 39.79 (eski iki aşamalı CNN ~50'den çok iyi) ama karışıma bilgi eklemiyor.
+  SONUÇ: hem son işlem (Δ +0.001) hem yeni ham-EEG bilgi kaynağı (Δ −0.015) kalan hatayı azaltmıyor; 0.72 için gerçekçi yol bulunamadı.
+  Son hak kararı kullanıcıda (mixK_540 son anda ya da kullanılmaz).
 - Not: ilk diag sürümü bütün fold'ların 601 hücreli dağılımlarını bellekte tuttu (~10 GB) → WSL bellek darlığı, VS Code sunucusu kapandı;
   düzeltildi (fold başına, ızgara düzeyinde saklama; 2.5 GB).
 
