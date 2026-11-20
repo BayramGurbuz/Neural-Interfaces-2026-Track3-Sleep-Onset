@@ -56,8 +56,12 @@ Son gönderim en geç 20 Kasım, 21 Kasım yedek gün.
 | 8 | 2026-11-18 08:08 | ctx_c3_540.zip | **33.09** | – | – | – | – | 16. / 183 |
 | 9 | 2026-11-19 | ctxE_c3s3_540.zip | **33.29** | – | – | – | – | – |
 | 10 | 2026-11-19 | ctxE_c2hs3p_540.zip | **33.13** | – | – | – | – | – |
-| 9 | 2026-11-19 | ctxE_c3s3_540.zip | **33.29** | – | – | – | – | – |
-| 10 | 2026-11-19 | ctxE_c2hs3p_540.zip | **33.13** | – | – | – | – | – |
+| 11 | 2026-11-20 | mixI_540.zip | **32.92** (en iyi) | 33.58 | 100.64 | 191.61 | 2178.67 s | 20 / 198 |
+
+**20 Kasım sonucu (kullanıcı):** mixI_540 **32.92**, sıra 20 / 198; 10. sıra 32.16, ilk 3 31.59 / 31.70 / 31.84. **12 hakkın 11'i kullanıldı, 1 kaldı.**
+Okuma: iki mühürlü modelin (33.09 / 33.13) yarı yarıya karışımı ikisinden de iyi (−0.17 / −0.21) → mühürlüde güvenilir biçimde işe yarayan tek şey
+farklı modellerin ortalaması; son hak bu yönde (İş K: mixI + ek tohumlar; yedek İş J). Süre: yerel oran 1.66–1.83 → gerçek 2178.67 / 1526.6 = 1.43
+(yerel ~%20 fazla) → yeni dönüşüm mühürlü ≈ 1526.6 × yerel oran × 0.82; son paket kuralı ≤ 2900 s (bu dönüşümle) ve ≤ 3500 s (faktör 1.0).
 
 **19 Kasım sonuçları (kullanıcı):** ctxE_c3s3_540 33.29, ctxE_c2hs3p_540 33.13 → en iyi hâlâ ctx_c3_540 (33.09). **12 hakkın 10'u
 kullanıldı, 2 kaldı.** Okuma: HGB E mühürlüde nötr (ctx_c2 33.12 ↔ c2hs3p 33.13), GRU E zararlı (c3s3 33.29 ↔ ctx_c3 33.09); kaymalı
@@ -448,4 +452,5 @@ büyük kazandırdı (gridpi'nin 37.49 → 39.20 düşüşüyle tutarlı). Bunda
   (tek komşulara göre 1.64–1.96) → mühürlü tahmin ≈ 1526.6 × 1.66–1.83 ≈ **2530–2790 s** (en kötü ≈ 2990 s). Kullanıcı kuralı ≤ 3000 s ✓;
   sınır 3600 s. Geçmiş: bir ≤ 2500 s tahmini gerçekte 2762.79 s çıkmıştı (~+%10).
 - **mixI_540.zip** 20.24 MB, SHA-256 `5ece144bfffd28c67e1b554b2ce7c48d27958525ac817732914c9b16cb2c1a5a`.
+- **Gönderim #11 (20 Kasım): mühürlü 32.92** (W-bMAE 33.58, bMAE 100.64, MAE 191.61), süre 2178.67 s (tahmin 2530–2790 s; gerçek oran 1.43), sıra 20 / 198.
 

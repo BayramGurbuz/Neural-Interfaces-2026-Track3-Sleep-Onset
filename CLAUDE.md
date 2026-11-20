@@ -69,9 +69,12 @@ Track 03 (Sleep Onset) yarışması için model geliştirme deposudur.
 - 16 KASIM MÜHÜRLÜ GÜNCELLEMESİ (FAQ "Sealed evaluation update · November 16"): mühürlü kayıtların açılış dakikaları (başlık
   otururken) artık modele VERİLMİYOR; geçen süre ilk verilen pencereden ölçülüyor. Bütün gönderimler yeniden skorlandı; mühürlü veride
   başka değişiklik planlanmıyor. Hak: toplam 12, günde en fazla 3 (takım ortak). Bitiş 21 Kasım 23:59 CET (yaml 22:59 UTC).
-- Güncel mühürlü skorlar (19 Kasım, 16 Kasım yeniden skorlaması sonrası): #1 final540 87.99, #2 mix3_540 62.02, #3 gridpi 64.96,
-  #4 aday1 47.42, #5 cand2 34.41, #6 cand3_gru 33.72, #7 ctx_c2 33.12, #8 ctx_c3 **33.09** (EN İYİ, 16./183; ilk 3: 31.96 / 32.10 /
-  32.29; 10.: 32.77), #9 ctxE_c3s3 33.29, #10 ctxE_c2hs3p 33.13. 12 hakkın 10'u kullanıldı, KALAN 2. Kırpmaya duyarlı (artırmasız)
+- Güncel mühürlü skorlar (20 Kasım, 16 Kasım yeniden skorlaması sonrası): #1 final540 87.99, #2 mix3_540 62.02, #3 gridpi 64.96,
+  #4 aday1 47.42, #5 cand2 34.41, #6 cand3_gru 33.72, #7 ctx_c2 33.12, #8 ctx_c3 33.09, #9 ctxE_c3s3 33.29, #10 ctxE_c2hs3p 33.13,
+  #11 mixI_540 **32.92** (EN İYİ, 20./198, süre 2178.67 s; ilk 3: 31.59 / 31.70 / 31.84; 10.: 32.16). 12 hakkın 11'i kullanıldı, KALAN 1.
+  20 KASIM OKUMASI: iki mühürlü modelin yarı yarıya karışımı ikisinden de iyi → mühürlüde güvenilir tek şey farklı modellerin ortalaması.
+  SÜRE KALİBRASYONU: mühürlü ≈ 1526.6 × yerel oran (aday 1'e göre) × 0.82; son paket ≤ 2900 s bu dönüşümle VE ≤ 3500 s faktör 1.0 ile.
+  Kırpmaya duyarlı (artırmasız)
   modellerin çöküşü → mühürlü akışlar kaydın ortasından başlıyor; seçim KAYMALI değerlendirmeyle (İş D kalibrasyonu, İş E/F).
 - 19 KASIM OKUMASI (kullanıcı): HGB E mühürlüde nötr (ctx_c2 33.12 ↔ c2hs3p 33.13), GRU E zararlı (c3s3 33.29); kaymalı CV'nin öngördüğü
   −0.22 taşınmadı. 0.2 s altındaki yerel farklara GÜVENİLMEZ; kararlar mühürlüde kanıtlanmış modellere dayanır. İş H iptal (GRU E içeriyor).
@@ -100,7 +103,11 @@ Track 03 (Sleep Onset) yarışması için model geliştirme deposudur.
   Görülmemiş kişi CV = train+val üzerinde kişi bazlı 5 katlı GroupKFold. Görülmüş kişi CV = birden
   fazla gecesi olan kişilerin birer gecesi dışarıda, kalan geceleri eğitimde. Açık test setine
   (40 kayıt) sadece son kontrol için bakılır; test'e bakarak seçim/ayar yapılmaz.
-- Gönderim planı (19 Kasım): #8 ctx_c3_540 (33.09) şu anki en iyi; 12 hakkın 10'u kullanıldı, kalan 2. İş I: M = 0.5 · ctx_c3_540 +
+- Gönderim planı (20 Kasım, GÜNCEL): #11 mixI_540 (32.92) en iyi; kalan 1 hak. İş K = mixI + ek tohumlar (yeni bileşen yok; öncelik GRU ctx
+  tohum 10–19 → HGB ctx B/B_h2 tohum 1–2 → bütçe kalırsa HGB E B_h1/B2 tohum 1–2; kontroller: tohum 0 bit-aynı, ek tohum ağırlığı 0 → mixI ile
+  bit-aynı akış, tam test zinciri, Docker ×2, karışık sıralı süre). İş J yedek = (ctx_c3 + ctx_c2 + ctxE_c2hs3p) / 3. ZIP'ler en geç 21 Kasım
+  10:00; kullanıcı 21 Kasım 15:00'e kadar K'yı gönderir, Failed olursa J. 22 Kasım: docs/method.md son hali + tek son commit.
+- Eski gönderim planı (19 Kasım): #8 ctx_c3_540 (33.09) o zamanki en iyi; 12 hakkın 10'u kullanıldı, kalan 2. İş I: M = 0.5 · ctx_c3_540 +
   0.5 · ctxE_c2hs3p_540 (yeniden eğitim yok; karar öncesi metrik ağırlıklı dağılımlar ortalanır, sonra sürekli ağırlıklı medyan; ortak
   bileşenler bir kez; w = 0.5 SABİT, CV'den seçilmez). Akıl sağlığı: k=0 ve kaymalı çift CV (D, D', U[1,6]) hiçbir dağılımda M ikisinden
   de > 0.1 kötü olmasın. Süre: tahmini mühürlü ≤ 3000 s; aşarsa M' = 0.5 · ctx_c3 + 0.5 · ctxE_c2h (bildir). ZIP 19 akşamı / 20 sabahı.

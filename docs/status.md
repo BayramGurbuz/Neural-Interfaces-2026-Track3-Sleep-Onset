@@ -1,6 +1,28 @@
 # Proje durumu (son güncelleme: 2026-11-20)
 
-## ŞU AN (20 Kasım 10:40)
+## ŞU AN (20 Kasım 14:50)
+- **Gönderim #11 sonucu: mixI_540 mühürlü 32.92** (W-bMAE 33.58, bMAE 100.64, MAE 191.61), süre **2178.67 s**; sıra **20 / 198**.
+  10. sıra 32.16, ilk 3 31.59 / 31.70 / 31.84. **EN İYİ gönderimimiz** (ctx_c3 33.09'dan −0.17, ctxE_c2hs3p 33.13'ten −0.21).
+  **Hak: 12'nin 11'i kullanıldı, 1 kaldı.**
+- Okuma (kullanıcı): iki mühürlü modelin yarı yarıya karışımı ikisinden de iyi → mühürlüde güvenilir biçimde işe yarayan tek şey farklı
+  modellerin ortalaması. Son hak bu yönde.
+- **Süre kalibrasyonu (yeni):** mixI'nin yerel oranı aday 1'e göre 1.66–1.83 idi, mühürlü gerçek oran 2178.67 / 1526.6 = **1.43** → yerel ölçüm
+  ~%20 fazla tahmin ediyor. Dönüşüm: mühürlü ≈ 1526.6 × yerel oran × 0.82. Son paket kuralı: bu dönüşümle ≤ 2900 s VE faktör 1.0 ile de
+  ≤ 3500 s (→ yerel oran ≤ 2.29 bağlayıcı).
+- **İş K (son aday) = mixI + ek tohumlar, yeni bileşen YOK.** Tarif mixI ile aynı (α 0.4; HGB ½ HGB ctx + ½ HGB E-s3p; dizi ⅔ GRU ctx + ⅙ TCN +
+  ⅙ GRU-emb). Öncelik: (1) GRU ctx tohum 10–19 (GRU ctx = 20 tohum ortalaması); (2) HGB ctx B ve B_h2'ye random_state 1, 2 (her üye ¼, s3p gibi);
+  (3) bütçe kalırsa HGB E B_h1 / B2 tohum 1–2 (Work G'den diskte hazır). Kontroller: tohum 0 modelleri mevcutlarla bit düzeyinde aynı; ek tohum
+  ağırlıkları 0 → akış tahminleri mixI_540 ile bit düzeyinde aynı; akış ↔ toplu (CPU ref.), NaN / düz kanal, 9 arıza, bağlam + reset, Docker ×2;
+  süre aday 1 ve mixI ile karışık sırada. Tam CV yok (tohum ortalaması tarifi değiştirmiyor).
+- **İş J (yedek, süresi kanıtlanmış):** (ctx_c3 + ctx_c2 + ctxE_c2hs3p) / 3 sabit; bileşenler mixI ile aynı (~2200 s). Aynı testler. İş K Failed
+  (zaman aşımı) olursa gönderilir.
+- Takvim: K ve J ZIP'leri bu gece, en geç 21 Kasım 10:00. Kullanıcı 21 Kasım 15:00'e kadar K'yı gönderir; Failed olursa J. 22 Kasım: docs/method.md
+  en iyi mühürlü gönderimin tam üretim zinciriyle son hali (bileşen paketleri, tohumlar, dış veri beyanı: HMC denendi kullanılmadı, CNN kodlayıcı
+  tekrar üretilebilirlik notu, hesaplama tahmini) + tek son commit.
+- 20 Kasım 14:40 makine yeniden başladı (çalışan iş yoktu). İş K eğitimleri 14:48'de başladı: GPU `train_gru_n2c.py --det=ctx
+  --seeds=0,10,…,19 --out=gru_ctx_k_all`, CPU `train_n2det_final.py hgbmc --det=ctx --seeds=0,1,2 --members=B,B_h2` (→ ens_c_all_ctx_s3p_crop).
+
+## Önceki (20 Kasım 10:40)
 - **İş I paketi HAZIR, gönderilmedi (kullanıcı gönderecek): mixI_540.zip** (20.24 MB), SHA-256
   `5ece144bfffd28c67e1b554b2ce7c48d27958525ac817732914c9b16cb2c1a5a`. M = 0.5 · ctx_c3_540 + 0.5 · ctxE_c2hs3p_540, w sabit.
 - Akıl sağlığı (kaymalı + k=0 çift CV): M'nin bileşenlerine göre en kötü Δ **+0.016** (D' altında c2hs3p'ye göre) → **PASS** (kural ≤ +0.10).
