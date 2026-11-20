@@ -106,3 +106,13 @@
 - HGB üyeleri (random_state 0 / 1 / 2, `max_features` 0.5 nedeniyle farklı) aynı kırpma E tablosuyla eğitilir, olasılıklar ortalanır. Ön kontrol yalnız
   B üyesinde (kaymalı çift CV, D −0.18, 9/10). ctxE_c3s3_540: 4 üye × 3 tohum. ctxE_c2hs3p_540: süre sınırı nedeniyle yalnız B ve B_h2 × 3 tohum,
   üye ağırlıkları eşit (1/4) tutulur. Diğer bileşenler İş E paketleriyle aynı dosyalar.
+
+## İş I (20 Kasım): mixI_540 — iki mühürlü paketin sabit ağırlıklı karışımı
+- M = 0.5 · ctx_c3_540 + 0.5 · ctxE_c2hs3p_540, yeniden eğitim yok. İki paketin karar öncesi metrik ağırlıklı dağılımları ortalanır, sonra mevcut karar
+  kuralı (sürekli ağırlıklı medyan). İki paket aynı α (0.4) ve aynı GRU ctx'i paylaştığı için eşdeğer biçim:
+  0.4 · (⅔ GRU ctx + ⅙ TCN + ⅙ GRU-emb) + 0.6 · (½ norm(HGB ctx · ω) + ½ norm(HGB E-s3p · ω)); her HGB seti kendi bin sınırlarıyla.
+- w = 0.5 önceden sabitlendi (kullanıcı, 19 Kasım); CV yalnız akıl sağlığı için kullanıldı (M hiçbir dağılımda iki bileşeninden de > 0.10 kötü
+  değil). Gerekçe: 0.2 s altındaki yerel farklar mühürlüye taşınmadı; karışım yalnız mühürlüde kanıtlanmış iki modelden oluşur.
+- Komutlar: `shift_cv.py imix` (`worki_chain.sh`), sarmalayıcıda isteğe bağlı ikinci HGB seti (`hgb2_*` anahtarları) ve `seq_weights`;
+  testler `mixI_build_tests.sh`, `mixI_equiv_test.py`.
+

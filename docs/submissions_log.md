@@ -422,3 +422,30 @@ büyük kazandırdı (gridpi'nin 37.49 → 39.20 düşüşüyle tutarlı). Bunda
   (ctx_c3 33.09 → ctxE_c3s3 33.29: HGB E + GRU E + 3 tohum). Kaymalı CV'nin öngördüğü −0.22 taşınmadı (yerelde c2h −0.22, mühürlüde +0.01 / +0.04).
   **Bundan sonra 0.2 s altındaki yerel farklara güvenilmez; kararlar mühürlüde kanıtlanmış modellere dayanır.** İş H (GRU E içeriyordu) iptal.
 - Sonraki: İş I = 0.5 · ctx_c3_540 + 0.5 · ctxE_c2hs3p_540 (yeniden eğitim yok, w sabit); İş J yedek = (ctx_c3 + ctx_c2 + ctxE_c2hs3p) / 3.
+
+## İş I paketi (20 Kasım): mixI_540 — 0.5 · ctx_c3_540 + 0.5 · ctxE_c2hs3p_540 (hazır, gönderilmedi)
+- Yeniden eğitim yok; w = 0.5 SABİT (CV'den seçilmedi). Paket = ctxE_c2hs3p_all paketi + ctx_c3_all'ın 4 HGB ctx modeli ikinci HGB seti olarak
+  (kendi bin sınırları, kendi ω normalleştirmesi, `hgb2_weight` 0.5) + `seq_weights` [⅔, ⅙, ⅙] (GRU ctx, TCN, GRU-emb); α 0.4. Ortak bileşenler
+  (bağlamlı dedektör, öznitelikler, GRU ctx, ızgara, ω, α) iki pakette birebir aynı olduğu doğrulandı ve bir kez çalışır.
+- Akıl sağlığı (`shift_cv.py imix`, 3 çekiliş; R1 = HGB E B + B_h2 × 3 tohum, R2 = B_h1 + B2 tohum 0, aynı CV katları):
+
+  | dağılım | ctx_c3 | ctxE_c2hs3p | M | M − c3 | M − c2hs3p | J | M' |
+  |---|---|---|---|---|---|---|---|
+  | k0 | 38.335 | 38.495 | 38.289 | −0.046 (6/10) | −0.206 (9/10) | 38.256 | 38.292 |
+  | D = W24-60 | 35.892 | 35.635 | 35.604 | −0.288 (10/10) | −0.032 (6/10) | 35.650 | 35.610 |
+  | D' = W0-96 | 35.660 | 35.357 | 35.373 | −0.287 (9/10) | +0.016 (4/10) | 35.409 | 35.377 |
+  | U[1,6] = W12-72 | 35.948 | 35.678 | 35.648 | −0.300 (10/10) | −0.029 (5/10) | 35.704 | 35.654 |
+
+  Kural (M hiçbir dağılımda ikisinden de > 0.10 kötü değil): en kötü Δ **+0.016 → PASS**. M' +0.007 PASS, İş J +0.052 PASS (ctx_c2'ye göre en
+  kötü −0.030). Not: M − c3 farkı büyük ölçüde HGB E kaynaklı; HGB E kaymalı CV'de −0.26 öngörülüp mühürlüde +0.04 çıkmıştı → taşınması beklenmez.
+- Testler (`scripts/mixI_build_tests.sh`, `scripts/mixI_equiv_test.py`): iki kaynak paketin klasörü == gönderilen ZIP; yeni paketleyiciyle yeniden
+  kurulan ctx_c3 / ctxE_c2hs3p akış tahminleri bit düzeyinde aynı; bileşen kimliği GRU 32.1071, TCN 40.3806, GRU-emb 49.0675, HGB E 29.5489,
+  HGB ctx 25.0722 (beklenen 25.0725); akış ↔ toplu (CPU dedektör referansı) maks |Δ| 0.0158 s, 28.3004 ↔ 28.3003; eşdeğerlik: karar öncesi
+  dağılım ile 0.5 · W(ctx_c3_540) + 0.5 · W(ctxE_c2hs3p_540) arasındaki fark 2.2e-16, tahminler float32'ye yuvarlanmış referansla bütün
+  pencerelerde aynı (ilk sürümün FAIL'i yalnız sarmalayıcının float32 çıktısından, ölçüt düzeltildi); temizlik, 9 arıza, bağlam testleri PASS;
+  Docker ×2 28.300361165769242 ikisinde.
+- Süre (20 Kasım 10:07–10:31, boş makine, aralıklı): aday 1 241 / 211 / 205 s, mixI 413 / 345 s → komşu ortalamaya göre oran 1.83 / 1.66
+  (tek komşulara göre 1.64–1.96) → mühürlü tahmin ≈ 1526.6 × 1.66–1.83 ≈ **2530–2790 s** (en kötü ≈ 2990 s). Kullanıcı kuralı ≤ 3000 s ✓;
+  sınır 3600 s. Geçmiş: bir ≤ 2500 s tahmini gerçekte 2762.79 s çıkmıştı (~+%10).
+- **mixI_540.zip** 20.24 MB, SHA-256 `5ece144bfffd28c67e1b554b2ce7c48d27958525ac817732914c9b16cb2c1a5a`.
+

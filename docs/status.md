@@ -1,6 +1,21 @@
-# Proje durumu (son güncelleme: 2026-11-19)
+# Proje durumu (son güncelleme: 2026-11-20)
 
-## ŞU AN (19 Kasım 21:30)
+## ŞU AN (20 Kasım 10:40)
+- **İş I paketi HAZIR, gönderilmedi (kullanıcı gönderecek): mixI_540.zip** (20.24 MB), SHA-256
+  `5ece144bfffd28c67e1b554b2ce7c48d27958525ac817732914c9b16cb2c1a5a`. M = 0.5 · ctx_c3_540 + 0.5 · ctxE_c2hs3p_540, w sabit.
+- Akıl sağlığı (kaymalı + k=0 çift CV): M'nin bileşenlerine göre en kötü Δ **+0.016** (D' altında c2hs3p'ye göre) → **PASS** (kural ≤ +0.10).
+  M − c3: k0 −0.05, D −0.29, D' −0.29, U[1,6] −0.30; M − c2hs3p: −0.21 / −0.03 / +0.02 / −0.03. Bu kazancın çoğu HGB E'den geliyor ve HGB E
+  mühürlüde nötrdü → beklenti büyük kazanç değil, iki mühürlü modelin (33.09 / 33.13) ortalaması kadar ya da biraz iyi.
+- Testler PASS: eşdeğerlik (W farkı 2.2e-16, tahminler float32 referansla bit düzeyinde aynı), bileşen kimliği, akış ↔ toplu, NaN / 9 arıza /
+  bağlam, Docker ×2 28.300361165769242.
+- Süre (boş makine, aralıklı): aday 1 241 / 211 / 205 s, mixI 413 / 345 s → oran 1.66–1.83 (komşu tek koşulara göre 1.64–1.96) →
+  mühürlü tahmin **≈ 2530–2790 s** (en kötü ≈ 2990 s); kural ≤ 3000 s ✓, sınır 3600. Not: daha önce ≤ 2500 s tahmini gerçekte 2762.79 s çıkmıştı
+  (~+%10) → M' (tek tohumlu c2h) yedek olarak duruyor.
+- İş J = (c3 + c2 + c2hs3p) / 3 akıl sağlığı da PASS (en kötü Δ +0.052; kaymalı dağılımlarda M'den +0.03–0.05 kötü, k0'da −0.03 iyi). Paket
+  HENÜZ kurulmadı; karar kullanıcıda (21 Kasım son hakkı).
+- Hak: 12'nin 10'u kullanıldı, 2 kaldı. Son gönderim 21 Kasım akşamı (sınır 22 Kasım 01:59 TR).
+
+## Önceki (19 Kasım 21:30)
 - **Mühürlü sonuçlar (19 Kasım):** #9 ctxE_c3s3_540 **33.29**, #10 ctxE_c2hs3p_540 **33.13**. En iyi hâlâ **ctx_c3_540 33.09**.
   **12 hakkın 10'u kullanıldı, 2 kaldı.** (ctxE_c3_540 ve ctxE_c2h_540 gönderilmedi.)
 - **Okuma (kullanıcı):** HGB E mühürlüde nötr (ctx_c2 33.12 ↔ c2hs3p 33.13), GRU E zararlı (c3s3 33.29). Kaymalı CV'nin öngördüğü −0.22
