@@ -40,7 +40,7 @@ import numpy as np
 ARG = {a.split("=", 1)[0]: a.split("=", 1)[1] for a in sys.argv[1:] if a.startswith("--") and "=" in a}
 POS = [a for a in sys.argv[1:] if not a.startswith("--")]
 PART = POS[0]
-if PART == "seq":
+if PART in ("seq", "e2e"):
     from repro import set_deterministic
     set_deterministic()
 
@@ -576,6 +576,121 @@ def part_diag():
         del folds, base
 
 
+def part_e2e():
+    """Work L (20 Nov): end-to-end raw-EEG CNN -> GRU (scripts/e2e.py), fold models retrained per seed on the fold's training rows; at
+    every checkpoint epoch the held-out recordings are streamed under each distribution (the same shift samples as every other part) ->
+    OUT/shiftcv_e2e_<proto>_f<k>.npz, keys <dist>_e<epoch> = seed-mean probabilities (11 classes). Resumable per fold. --seeds=3."""
+    from e2e import CFG, predict_e2e, train_e2e
+    d2, recs2, F, gain = load_inputs()
+    assert (d2.timeline.to_numpy() == d.timeline.to_numpy()).all() and (d2.stop.to_numpy() == d.stop.to_numpy()).all()
+    from pathlib import Path
+    mask = np.load(Path.home() / "neuralbench" / "save" / "features_base.npz")["split"] != "test"
+    X = torch.as_tensor(np.load(Path.home() / "neuralbench" / "save" / "raw_windows.npy", mmap_mode="r")[mask], device=DEV)
+    assert len(X) == len(d2)
+    n_seeds = int(ARG.get("--seeds", "3"))
+    only = ARG.get("--only")  # e.g. unseen:0 (smoke test)
+    cfg = dict(CFG, **({"epochs": int(ARG["--epochs"]), "checkpoints": (int(ARG["--epochs"]),)} if "--epochs" in ARG else {}))
+    for proto, splits in protocols.items():
+        for k, (tr, te) in enumerate(splits):
+            if only and only != f"{proto}:{k}":
+                continue
+            path = OUT / f"shiftcv{TAG}_e2e_{proto}_f{k}.npz"
+            if path.exists():
+                print(f"e2e {proto} fold {k}: cached", flush=True)
+                continue
+            t0 = time.perf_counter()
+            items = {dist: shifted(proto, k, dist) for dist in DISTS}
+            acc = {}
+
+            def on_ck(ep, net, mu, sd):
+                for dist, its in items.items():
+                    P = predict_e2e(net, mu, sd, F, X, [recs2[i][kk:] for i, kk, _ in its])
+                    acc.setdefault(f"{dist}_e{ep}", []).append(P)
+
+            for s_ in range(n_seeds):
+                ts = time.perf_counter()
+                train_e2e(d2, recs2, F, gain, X, tr, s_, cfg, on_checkpoint=on_ck)
+                print(f"e2e {proto} fold {k} seed {s_}: {time.perf_counter() - ts:.0f} s", flush=True)
+            np.savez(path, **{key: np.mean(v, axis=0).astype(np.float32) for key, v in acc.items()})
+            print(f"e2e {proto} fold {k}: {n_seeds} seeds, {len(DISTS)} distributions in {time.perf_counter() - t0:.0f} s", flush=True)
+
+
+def part_e2emix():
+    """Work L (20 Nov): M (= mixI recipe) vs pre-specified rows with the end-to-end model E2E, per distribution:
+    R1 = M with GRU-emb replaced by E2E (same coefficient), R2 = R1 with E2E at twice that coefficient taken from GRU ctx
+    (sequence part 0.2 GRU ctx + 0.0667 TCN + 0.1333 E2E); E2E alone (sequence-only decision) for information. The E2E checkpoint epoch
+    is chosen per fold by nested LOFO (the epoch minimising the mean of the other 9 folds' R1 score). Acceptance (user, 20 Nov): under D =
+    W24-60, Δ vs M <= -0.40 and better in >= 8/10 folds."""
+    from decision_layer import slot_median, to_slots
+    from stream_utils import RANGE_NAMES
+    cM = 0.5 * np.asarray(IMIX_PK["ctx_c3"]) + 0.5 * np.asarray(IMIX_PK["ctxE_c2hs3p"])
+    g = cM[5]
+    rows_c = {"R1": (cM, g), "R2": (cM - np.array([0, 0, 0, g, 0, g]), 2 * g)}  # (coefs with the GRU-emb slot zeroed later, E2E coef)
+    out = {}
+    for dist in DISTS:
+        folds, _ = imix_folds(dist, lazy=True)
+        Z = [np.load(OUT / f"shiftcv{TAG}_e2e_{f['proto']}_f{f['k']}.npz") for f in folds]
+        eps = sorted({int(key.split("_e")[1]) for key in Z[0].files if key.startswith(dist + "_e")})
+
+        def pred(f, c, z):
+            h, s = [x @ FINE for x in f["hgb_g"]], [x @ FINE for x in f["seq_g"]]
+            ws, wh = f["w_old"]
+            M = 0.0
+            for ci, x in zip(c[:3], h):
+                if ci:
+                    hh = to_slots(x, f["t"], 0.0) * wh
+                    M = M + ci * hh / hh.sum(1, keepdims=True)
+            for ci, x in list(zip(c[3:], s)) + ([] if z is None else [z]):
+                if ci:
+                    q = to_slots(x, f["t"], 0.0) * ws
+                    M = M + ci * q / q.sum(1, keepdims=True)
+            return slot_median(M)
+
+        base = [pred(f, cM, None) for f in folds]
+        E0 = evaluate(folds, base)
+        res = {"M": dict(macro=E0["macro"]["mean"], contrib=E0["macro"]["contrib"])}
+        ref_u, ref_s = np.array(E0["unseen"]["folds"]), np.array(E0["seen"]["folds"])
+        per_ep = {}
+        for ep in eps:
+            zf = [to_grid(z[f"{dist}_e{ep}"].astype(np.float64), B) @ FINE for z in Z]
+            per_ep[ep] = {}
+            for rname, (c, ce2e) in rows_c.items():
+                c2 = c.copy()
+                c2[5] = 0.0
+                per_ep[ep][rname] = [pred(f, c2, (ce2e, x)) for f, x in zip(folds, zf)]
+            per_ep[ep]["E2E alone"] = [pred(f, np.zeros(6), (1.0, x)) for f, x in zip(folds, zf)]
+        for rname in ("R1", "R2", "E2E alone"):
+            fold_scores = {ep: [] for ep in eps}
+            for ep in eps:
+                E = evaluate(folds, per_ep[ep][rname])
+                fold_scores[ep] = np.array(E["unseen"]["folds"] + E["seen"]["folds"])
+            for ep in eps:
+                print(f"  {dist} {rname:9s} epoch {ep:2d}: dual {fold_scores[ep].reshape(2, 5).mean(1).mean():.3f}", flush=True)
+            # nested LOFO epoch per fold (selection on R1 for the rows, on itself for E2E alone)
+            sel_src = "R1" if rname != "E2E alone" else rname
+            if sel_src != rname:
+                src_scores = {ep: np.array(evaluate(folds, per_ep[ep][sel_src])["unseen"]["folds"]
+                                           + evaluate(folds, per_ep[ep][sel_src])["seen"]["folds"]) for ep in eps}
+            else:
+                src_scores = fold_scores
+            chosen = [min(eps, key=lambda ep: np.delete(src_scores[ep], i).mean()) for i in range(10)]
+            assert [f["proto"] for f in folds] == ["unseen"] * 5 + ["seen"] * 5  # fold order == fold_scores order
+            preds = [per_ep[chosen[fi]][rname][fi] for fi in range(len(folds))]
+            E = evaluate(folds, preds)
+            du, ds = np.array(E["unseen"]["folds"]) - ref_u, np.array(E["seen"]["folds"]) - ref_s
+            res[rname] = dict(macro=E["macro"]["mean"], d=E["macro"]["mean"] - res["M"]["macro"], better=int((du < 0).sum() + (ds < 0).sum()),
+                              epochs=chosen, contrib=E["macro"]["contrib"])
+            print(f"== {dist} {rname:9s} nested-epoch dual {E['macro']['mean']:.3f}  Δ vs M {res[rname]['d']:+.3f} ({res[rname]['better']}/10)  "
+                  f"epochs {chosen}  contrib " + " ".join(f"{v:.2f}" for v in E["macro"]["contrib"]), flush=True)
+        if dist == "W24-60":
+            best = min(("R1", "R2"), key=lambda r: res[r]["macro"])
+            ok = res[best]["d"] <= -0.40 and res[best]["better"] >= 8
+            print(f"ACCEPTANCE (D, best row {best}): Δ {res[best]['d']:+.3f}, {res[best]['better']}/10 -> {'PASS' if ok else 'FAIL'} "
+                  f"(rule Δ <= -0.40 and >= 8/10)", flush=True)
+        out[dist] = res
+    (OUT / f"shiftcv{TAG}_e2emix.json").write_text(json.dumps(out, indent=2, default=float))
+
+
 def part_seedeval():
     """Work G (19 Nov): HGB-only decision of the member subset, single seed (the first) vs the mean of the seeds, per distribution."""
     from decision_layer import slot_median, to_slots
@@ -632,5 +747,6 @@ def part_seedeval():
 if __name__ == "__main__":
     t0 = time.perf_counter()
     {"hgb": lambda: part_hgb(), "seq": lambda: part_seq(POS[1]), "mix": lambda: part_mix(POS[1]), "fmix": lambda: part_fmix(),
-     "seedeval": lambda: part_seedeval(), "imix": lambda: part_imix(), "diag": lambda: part_diag()}[PART]()
+     "seedeval": lambda: part_seedeval(), "imix": lambda: part_imix(), "diag": lambda: part_diag(),
+     "e2e": lambda: part_e2e(), "e2emix": lambda: part_e2emix()}[PART]()
     print(f"{PART} done ({time.perf_counter() - t0:.0f} s)")
