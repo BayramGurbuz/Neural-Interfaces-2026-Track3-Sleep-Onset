@@ -126,7 +126,13 @@ if n2v is not None and b.get("n2det_ctx_states") is not None and "--cpu-det" in 
         n2v[g_te[r]] = batched_closeness(b["n2det_ctx_states"], X_te[r], int(b["n2det_ctx_n"]), float(b["n2det_scale"]), float(b["n2det_clip"]))
     print("context detector reference: CPU training forward path", flush=True)
 n2_te = None if n2v is None else summaries(n2v[mt], te_recs)  # (test rows, 5), per recording from its first window
-Pg = seq_probs("gru", b["gru_states"], b["gru_mu"], b["gru_sd"], CONFIGS["uw"], extra=n2_te if "gru" in tuple(b.get("n2det_into", ())) else None)
+n2_g = n2_te if "gru" in tuple(b.get("n2det_into", ())) else None
+if b.get("gru_group_weights") is None:
+    Pg = seq_probs("gru", b["gru_states"], b["gru_mu"], b["gru_sd"], CONFIGS["uw"], extra=n2_g)
+else:  # 20 Nov (Work K): GRU seed groups, sum_g w_g * mean(group g)
+    o = np.cumsum([0] + [int(n) for n in b["gru_group_sizes"]])
+    Pg = sum(float(w) * seq_probs("gru", b["gru_states"][a:c], b["gru_mu"], b["gru_sd"], CONFIGS["uw"], extra=n2_g)
+             for w, a, c in zip(b["gru_group_weights"], o[:-1], o[1:]))
 comps = tuple(b.get("seq_comps", ("gru", "tcn", "gemb")))  # 17 Nov: subsets (candidate 3: GRU only)
 Pt = seq_probs("tcn", b["tcn_states"], b["tcn_mu"], b["tcn_sd"], CONFIGS["tcn_n10"]) if "tcn" in comps else None
 Xr = torch.as_tensor(X_te, device=DEV)

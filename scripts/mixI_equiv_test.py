@@ -3,6 +3,7 @@ where W(pkg) is the pre-decision metric-weighted distribution each SUBMITTED pac
 (captured by wrapping the package module's `decide`). Also: each component package's own stream predictions are unchanged by the capture.
 
 Usage: python scripts/mixI_equiv_test.py MIX_NAME PKG_A PKG_B [WEIGHT_A=0.5]   (names under submissions/)
+       python scripts/mixI_equiv_test.py MIX_NAME PKG_A PKG_B PKG_C ... [--w=a,b,c]   (20 Nov, Work J: N packages, default equal weights)
 """
 import importlib.util
 import sys
@@ -16,8 +17,15 @@ import torch
 from train_hgb import SAVE
 
 ROOT = Path(__file__).resolve().parents[1]
-mix_name, pa, pb = sys.argv[1:4]
-wa = float(sys.argv[4]) if len(sys.argv) > 4 else 0.5
+pos = [a for a in sys.argv[1:] if not a.startswith("--")]
+mix_name = pos[0]
+try:  # old form: MIX A B WEIGHT_A
+    wa = float(pos[3])
+    pkgs, ws = pos[1:3], [wa, 1 - wa]
+except (IndexError, ValueError):
+    pkgs = pos[1:]
+    ws = next(([float(x) for x in a.split("=", 1)[1].split(",")] for a in sys.argv if a.startswith("--w=")), [1 / len(pkgs)] * len(pkgs))
+assert len(ws) == len(pkgs) >= 2
 stub = types.ModuleType("benchmark_utils.base_solver")
 stub.CompetSolver = type("CompetSolver", (), {})
 sys.modules["benchmark_utils"] = types.ModuleType("benchmark_utils")
@@ -54,19 +62,19 @@ def stream(name):
 
 
 _, _, p_mix, W_mix = stream(mix_name)
-sa, dec, p_a, W_a = stream(pa)
-_, _, p_b, W_b = stream(pb)
-for name, p in ((pa, p_a), (pb, p_b), (mix_name, p_mix)):
+runs = [stream(p) for p in pkgs]
+dec = runs[0][1]
+for name, p in [(n, r[2]) for n, r in zip(pkgs, runs)] + [(mix_name, p_mix)]:
     ref = ROOT / "submissions" / f"{name}_stream_preds.npy"
     if ref.exists():
         print(f"{name}: stream predictions vs its saved check_stream run identical: {bool((np.load(ref) == p).all())}")
-W = wa * W_a + (1 - wa) * W_b
-grid = np.asarray(joblib.load(ROOT / "submissions" / pa / "model.joblib")["grid"], np.float64)
+W = sum(w * r[3] for w, r in zip(ws, runs))
+grid = np.asarray(joblib.load(ROOT / "submissions" / pkgs[0] / "model.joblib")["grid"], np.float64)
 p_ref = np.clip(np.array([float(dec(W[i:i + 1], None, np.ones(W.shape[1]), grid)[0]) for i in range(len(W))]), 0, 600)
 dW = np.abs(W_mix - W).max()
 p_ref32 = p_ref.astype(np.float32).astype(np.float64)  # the wrapper returns float32 (resolution <= 6.1e-5 s below 600 s)
 dp = np.abs(p_mix - p_ref32)
-print(f"pre-decision distributions: max |W_mix - ({wa} W_{pa} + {1 - wa:.2f} W_{pb})| = {dW:.2e}")
+print(f"pre-decision distributions: max |W_mix - (" + " + ".join(f"{w:.4f} W_{n}" for w, n in zip(ws, pkgs)) + f")| = {dW:.2e}")
 print(f"predictions vs float32-rounded reference: max |Δ| {dp.max():.2e} s, identical in {(dp == 0).mean():.4%} of windows, "
       f"> 0.01 s in {(dp > 0.01).sum()} windows")
 print("PASS" if dW < 1e-9 and dp.max() <= 6.2e-5 else "FAIL")

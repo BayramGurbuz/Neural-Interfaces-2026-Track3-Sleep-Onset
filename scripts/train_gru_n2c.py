@@ -16,7 +16,8 @@ gives window k + j the closeness computed with min(j + 1, 6) windows of context 
 inference; epochs from "uw_n10_ctx6_crop" -> SAVE/gru_ctx_{all,tv}.
 
 --cropE (18 Nov, Work E): crop mix gru_cv.CROP_E (10 % none, 50 % U[2,5] min, 40 % U[0,10] min) -> SAVE/<arch>_<det>E_{all,tv}.
-Usage: python scripts/train_gru_n2c.py [--trainval] [--arch=tcn] [--det=ctx] [--cropE]
+--seeds=0,10,11,... / --out=<dir name> (20 Nov, Work K): other seeds (same recipe) into another folder; default seeds 0-9, folder as above.
+Usage: python scripts/train_gru_n2c.py [--trainval] [--arch=tcn] [--det=ctx] [--cropE] [--seeds=...] [--out=...]
 """
 import json
 import sys
@@ -39,7 +40,8 @@ TV = "--trainval" in sys.argv
 ARCH = next((a.split("=", 1)[1] for a in sys.argv if a.startswith("--arch=")), "gru")
 DET = next((a.split("=", 1)[1] for a in sys.argv if a.startswith("--det=")), "mc")
 CROPE = "--cropE" in sys.argv  # Work E (18 Nov): crop mix gru_cv.CROP_E -> SAVE/<arch>_ctxE_{all,tv}
-SEEDS = range(10)
+SEEDS = [int(x) for x in next((a.split("=", 1)[1] for a in sys.argv if a.startswith("--seeds=")), ",".join(map(str, range(10)))).split(",")]
+OUT_NAME = next((a.split("=", 1)[1] for a in sys.argv if a.startswith("--out=")), None)  # Work K (20 Nov)
 
 if __name__ == "__main__":
     if DET == "ctx":
@@ -65,7 +67,7 @@ if __name__ == "__main__":
         model, mu, sd = run_fold(d, recs, F, gain, tr, None, cfg, s, stop_epoch=epochs, extra=extra)
         states.append({k: v.detach().cpu().numpy() for k, v in model.state_dict().items()})
     tag = ("ctx" if DET == "ctx" else "n2c") + ("E" if CROPE else "")
-    out = SAVE / (f"{ARCH}_{tag}_tv" if TV else f"{ARCH}_{tag}_all")
+    out = SAVE / (OUT_NAME or (f"{ARCH}_{tag}_tv" if TV else f"{ARCH}_{tag}_all"))
     out.mkdir(exist_ok=True)
     if ARCH == "gru":
         joblib.dump(dict(gru_states=states, gru_mu=mu, gru_sd=sd, gru_omega_b=omega_b, gru_n2c=True, epochs=epochs), out / "model.joblib")

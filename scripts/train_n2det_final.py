@@ -256,7 +256,8 @@ def stage_hgbmc():
     rows subsampled to ~10 % of the table (seed 0; as shift_cv.py hgb --crop=E), crop-exact closeness; n_iter as --det=ctx
     -> SAVE/ens_c_{all,tv}_ctxE_crop
     --seeds=0,1,2 (19 Nov, Work G): every member fitted once per random_state; the bundle's models = members x seeds (the wrapper's plain
-    mean = mean over members of the seed means) -> SAVE/ens_c_{all,tv}_<det>_s<n>_crop"""
+    mean = mean over members of the seed means) -> SAVE/ens_c_{all,tv}_<det>_s<n>_crop
+    --members=B,B_h2 (20 Nov, Work K): only these members (same table, bins, n_iter) -> SAVE/ens_c_{all,tv}_<det>_s<n>p_crop"""
     import hgb_crop_precheck as pc
     from n2det_feats import crop_closeness, summaries
     tv = "--trainval" in sys.argv
@@ -308,7 +309,10 @@ def stage_hgbmc():
     models, info = [], {}
     t_all = time.perf_counter()
     seeds = [int(x) for x in next((a.split("=", 1)[1] for a in sys.argv if a.startswith("--seeds=")), "0").split(",")]  # Work G
+    only = next((a.split("=", 1)[1].split(",") for a in sys.argv if a.startswith("--members=")), None)  # Work K (20 Nov)
     for name, (edges, params, _) in MEMBERS.items():
+        if only is not None and name not in only:
+            continue
         it = np.load(OUT / f"ens_dyn_maxmin_spec_eye_n2{'ctx6' if ctx else 'c'}_crop_{name}.npz", allow_pickle=True)["n_iter"].item()
         n_iter = int(25 * round(np.median(list(it["unseen"]) + list(it["seen"])) / 25))
         for sd_ in seeds:
@@ -330,6 +334,7 @@ def stage_hgbmc():
           + f"; total fit {time.perf_counter() - t_all:.0f} s, {Xtr.shape[1]} features, {len(Xtr)} rows ({len(c_rows)} cropped)")
     tg = ("ctx" if ctx else "n2c") + ("E" if crop_e else "")
     tg += "" if len(seeds) == 1 else f"_s{len(seeds)}"  # Work G: e.g. ens_c_all_ctxE_s3_crop (members x seeds, plain mean)
+    tg += "" if only is None else "p"  # Work K: member subset, e.g. ens_c_all_ctx_s3p_crop
     out = SAVE / (f"ens_c_tv_{tg}_crop" if tv else f"ens_c_all_{tg}_crop")
     out.mkdir(exist_ok=True)
     wg, sg, _ = ABLATIONS[FEAT_SET]

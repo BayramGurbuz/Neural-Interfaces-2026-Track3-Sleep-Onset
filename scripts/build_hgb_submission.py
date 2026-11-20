@@ -322,6 +322,13 @@ class HGBStreamModel:
             assert self.comps[0] == "gru" and set(self.comps) <= {"gru", "tcn", "gemb"}
             self.gru_mu, self.gru_sd = (np.asarray(bundle[k], np.float32) for k in ("gru_mu", "gru_sd"))
             self.grus = [load_net(GRUNet(len(self.gru_mu), n_out, c["hidden"]), s) for s in bundle["gru_states"]]
+            # 20 Nov (Work K): optional GRU seed groups (consecutive states), GRU = sum_g w_g * mean(group g); equal groups with equal
+            # weights = the mean over all seeds; absent -> plain mean (unchanged code path)
+            self.gru_gw = None
+            if bundle.get("gru_group_weights") is not None:
+                self.gru_gs = [int(n) for n in bundle["gru_group_sizes"]]
+                self.gru_gw = [float(w) for w in bundle["gru_group_weights"]]
+                assert sum(self.gru_gs) == len(self.grus) and len(self.gru_gs) == len(self.gru_gw) and abs(sum(self.gru_gw) - 1) < 1e-9
             self.tcns, self.encs, self.gembs = None, [], []
             if "tcn" in self.comps:
                 self.tcn_mu, self.tcn_sd = (np.asarray(bundle[k], np.float32) for k in ("tcn_mu", "tcn_sd"))
@@ -488,6 +495,10 @@ class HGBStreamModel:
                 logits, self.gemb_h[s] = net(xe, self.gemb_h[s])
                 ps_e.append(torch.softmax(logits[0], -1).numpy().astype(np.float64))
         ps = {"gru": ps_g, "tcn": ps_t, "gemb": ps_e}
+        if self.gru_gw is not None:  # Work K: seed groups
+            o = np.cumsum([0] + self.gru_gs)
+            pg = sum(w * np.mean(ps_g[a:b], axis=0) for w, a, b in zip(self.gru_gw, o[:-1], o[1:]))
+            return [pg if k == "gru" else np.mean(ps[k], axis=0) for k in self.comps]
         return [np.mean(ps[k], axis=0) for k in self.comps]
 
     def _gru_probs(self, f32):
@@ -681,7 +692,8 @@ keep = {k: bundle[k] for k in ("model", "feature_names", "bin_edges", "kind", "g
                                "cnn_clip", "cnn_emb", "gemb_states", "gemb_mu", "gemb_sd",
                                "n2det_state", "n2det_scale", "n2det_clip", "n2det_emb", "n2det_into",
                                "n2det_states", "n2det_ncls", "n2det_first_pos", "seq_comps", "n2det_ctx_states", "n2det_ctx_n", "seq_weights", "member_weights",
-                               "hgb2_member_edges", "hgb2_member_weights", "hgb2_grid_omega", "hgb2_weight")
+                               "hgb2_member_edges", "hgb2_member_weights", "hgb2_grid_omega", "hgb2_weight",
+                               "gru_group_sizes", "gru_group_weights")
         if k in bundle}
 for comp, ks in (("tcn", ("tcn_states", "tcn_mu", "tcn_sd", "tcn_dilations")),
                  ("gemb", ("cnn_states", "cnn_scale", "cnn_clip", "cnn_emb", "gemb_states", "gemb_mu", "gemb_sd"))):
