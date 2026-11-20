@@ -1,5 +1,13 @@
 # Proje durumu (son güncelleme: 2026-11-20)
 
+## KARAR (20 Kasım 22:00): son hak = mixK_540.zip (kullanıcı: "önerin neyse onu yap")
+- Araştırma (geri sayım süzgeci, uçtan uca CNN → GRU) 0.72 hedefine yaklaşan bir yol vermedi → öneri uygulanıyor: son hakta
+  **`submissions/mixK_540.zip`** (SHA-256 `81ed44667826be2f2f3194e25ac29d2155de3cfa37b066f1c2b8170c7c2e16c9`, 24.66 MB) gönderilir.
+  Final sıralama en iyi skordan alındığı için 32.92 korunur; risk yok. Son doğrulama 20 Kasım 22:00: ZIP sağlam, düz yapı, import satırları aynı.
+- Zamanlama: 21 Kasım en geç ~18:00 TR (tahmini mühürlü süre ≈ 2600 s + kuyruk; Failed olursa — Failed hak yemez — yedek
+  `submissions/mixJ_540.zip` (`76a2f730…6d77`, ≈ 2180 s) için sınır olan 22 Kasım 01:59'a kadar zaman kalsın).
+- 22 Kasım: docs/method.md en iyi mühürlü gönderimin tam üretim zinciriyle son hali + tek son commit.
+
 ## Araştırma (20 Kasım akşamı): 0.72 kazanç arayışı — İş K yedekte tutuluyor (kullanıcı kararı: son ana kadar)
 - Kullanıcı: son hak ancak ≥ 0.72 kazanç beklenen bir yöntemle kullanılacak; mixK_540 son ana kadar yedek.
 - Hata anatomisi (`shift_cv.py diag`, M = mixI tarifi, D = W24-60, 3 çekiliş; M 35.604 = İş I tablosu): katkılar [0,40) 7.68, [40,90) 7.55,
