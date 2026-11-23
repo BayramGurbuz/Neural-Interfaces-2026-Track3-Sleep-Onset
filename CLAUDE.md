@@ -111,7 +111,8 @@ Track 03 (Sleep Onset) yarışması için model geliştirme deposudur.
   ≈ 2180 s) HAZIR, bütün testler + Docker ×2 PASS. Öncelik 3 (mixK3_540) süre kuralını geçmedi, kullanılmaz.
   KARAR (20 Kasım ~19:45): 0.72 arayışı (geri sayım süzgeci, uçtan uca CNN→GRU = İş L) kazanç vermedi → son hak mixK_540.zip; kullanıcı
   21 Kasım en geç ~18:00 TR gönderir; Failed olursa (hak yemez) mixJ_540.zip.
-  GÖNDERİLDİ: #12 mixK_540, 20 Kasım ~19:50 (kullanıcı); 12/12 hak kullanıldı; sonuç bekleniyor.
+  GÖNDERİLDİ: #12 mixK_540, 20 Kasım ~19:50 (kullanıcı) → mühürlü 32.99. YARIŞMA BİTTİ: final skor mixI_540 32.92 (#11), sıralama 26.
+  docs/method.md final (23 Kasım).
 - Eski gönderim planı (19 Kasım): #8 ctx_c3_540 (33.09) o zamanki en iyi; 12 hakkın 10'u kullanıldı, kalan 2. İş I: M = 0.5 · ctx_c3_540 +
   0.5 · ctxE_c2hs3p_540 (yeniden eğitim yok; karar öncesi metrik ağırlıklı dağılımlar ortalanır, sonra sürekli ağırlıklı medyan; ortak
   bileşenler bir kez; w = 0.5 SABİT, CV'den seçilmez). Akıl sağlığı: k=0 ve kaymalı çift CV (D, D', U[1,6]) hiçbir dağılımda M ikisinden

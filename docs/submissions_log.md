@@ -57,7 +57,7 @@ Son gönderim en geç 20 Kasım, 21 Kasım yedek gün.
 | 9 | 2026-11-19 | ctxE_c3s3_540.zip | **33.29** | – | – | – | – | – |
 | 10 | 2026-11-19 | ctxE_c2hs3p_540.zip | **33.13** | – | – | – | – | – |
 | 11 | 2026-11-20 | mixI_540.zip | **32.92** (en iyi) | 33.58 | 100.64 | 191.61 | 2178.67 s | 20 / 198 |
-| 12 | 2026-11-20 ~19:50 | mixK_540.zip | _bekleniyor_ | – | – | – | – | – |
+| 12 | 2026-11-20 ~19:50 | mixK_540.zip | **32.99** | – | – | – | – | – |
 
 **20 Kasım sonucu (kullanıcı):** mixI_540 **32.92**, sıra 20 / 198; 10. sıra 32.16, ilk 3 31.59 / 31.70 / 31.84. **12 hakkın 11'i kullanıldı, 1 kaldı.**
 Okuma: iki mühürlü modelin (33.09 / 33.13) yarı yarıya karışımı ikisinden de iyi (−0.17 / −0.21) → mühürlüde güvenilir biçimde işe yarayan tek şey
@@ -358,7 +358,7 @@ büyük kazandırdı (gridpi'nin 37.49 → 39.20 düşüşüyle tutarlı). Bunda
   mühürlü skoru olduğu için kötü sonuç 34.41'i bozmaz, yalnız bir hak harcar.
 
 ## İş C adayları (18 Kasım): ctx_c2_540 ve ctx_c3_540 — HAZIR, GÖNDERİLMEDİ (bileşen seti kullanıcı kararı)
-- Ortak: HGB(c) 4 üye kırpma + **bağlamlı dedektör** yakınlık özetleri (ens_c_all_ctx_crop; n_iter 125/175/300/200 = CV medyanları),
+- Ortak: HGB(c) 4 üye kırpma + **bağlamlı dedektör** yakınlık özetleri (ens_c_all_ctx_crop; n_iter 200/200/300/200 = CV medyanları, results.json; eski "125/175/300/200" notu hatalıydı),
   bağlamlı dedektör (son 6 pencere, 3 tohum, epoch 18/12/16; n2det_ctx_final), GRU kırpma + bağlamlı yakınlık (gru_ctx_all, 10 tohum,
   20 epoch). Kırpılmış eğitim akışlarında dedektör yalnız kırpma sonrası pencereleri görüyor (close_oof_L, kırpma-kesin). Hepsi deterministik.
   - **ctx_c2_540** = + eski TCN + eski GRU-emb (mix3det_all; aday 2'nin seti), α 0.5.
@@ -490,3 +490,9 @@ büyük kazandırdı (gridpi'nin 37.49 → 39.20 düşüşüyle tutarlı). Bunda
 - **mixJ_540.zip** 20.24 MB, SHA-256 `76a2f730f44f20afd6130b024863ddb836758d597efed2251771f1a0b0ab6d77`.
 - mixK3_540.zip (kullanılmayacak) 30.15 MB, SHA-256 `24eb0e5c62033393cab4cbc16b6a852a4c75ba5c217957b3a3d39161eeee1e67`.
 
+
+## FİNAL (yarışma sona erdi, 23 Kasım'da kaydedildi)
+- #12 mixK_540 mühürlü **32.99** (mixI'dan +0.07; tohum ortalaması tarifi değiştirmedi, fark gürültü düzeyinde).
+- **Takımın final skoru: mixI_540 32.92 (gönderim #11); final sıralama 26.** (kullanıcı). 12 hakkın 12'si kullanıldı.
+- Tam üretim zinciri ve tekrarlanabilirlik: `docs/method.md` (final). Elle yapılmış üç paket türetmesi `scripts/derive_bundles.py`'de; paketlenenlerle
+  bit düzeyinde aynı.

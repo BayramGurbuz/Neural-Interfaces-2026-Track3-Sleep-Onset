@@ -1,6 +1,13 @@
-# Proje durumu (son güncelleme: 2026-11-20)
+# Proje durumu (son güncelleme: 2026-11-23)
 
-## ŞU AN (20 Kasım 19:52) — #12 mixK_540 GÖNDERİLDİ (kullanıcı), sonuç bekleniyor
+## FİNAL (23 Kasım) — yarışma sona erdi
+- #12 mixK_540 **32.99**; takımın final skoru **mixI_540 32.92** (#11), final sıralama **26.** 12 / 12 hak kullanıldı.
+- docs/method.md son haline getirildi (final model, baştan ZIP'e komut zinciri, tohumlar / epoch'lar / ağaç sayıları, tekrarlanabilirlik, hesaplama,
+  dış veri beyanı, olumsuz sonuçlar). Elle yapılmış üç paket türetmesi `scripts/derive_bundles.py` ile kodlandı ve paketlenenlerle bit düzeyinde aynı.
+- İlk 3 tekrarlanabilirlik denetimi (22–30 Kasım) bizi kapsamıyor (26.).
+
+
+## Önceki (20 Kasım 19:52) — #12 mixK_540 GÖNDERİLDİ (kullanıcı), sonuç bekleniyor
 - 12 hakkın 12'si kullanıldı (bugün #11 mixI + #12 mixK). Failed olursa (hak yemez) yedek `submissions/mixJ_540.zip` gönderilebilir
   (sınır 22 Kasım 01:59 TR). Beklenen çalışma süresi ≈ 2600 s + kuyruk. Sonuç gelince bu dosyaya ve submissions_log.md'ye işlenecek.
 
