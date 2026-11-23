@@ -84,6 +84,7 @@ What remains is largely an information limit: telling 1.5–5 min from 5–10 mi
 | `docs/method.md` | **Final method write-up**: model, full production chain, seeds and epochs, reproducibility, compute, external-data declaration. |
 | `docs/submissions_log.md` | Every submission: recipe, commands, checks, local and sealed scores. |
 | `docs/status.md` | Chronological project log, including all experiments. |
+| `docs/SUREC_RAPORU.md` | Process report (Turkish): timeline, technical journey, rule changes, engineering practices, human–AI collaboration, lessons. |
 | `*_RAPORU.md` | Detailed experiment reports (decision layer, phase B). |
 
 The detailed documents are written in **Turkish**. Code, comments and commit messages are in English.
